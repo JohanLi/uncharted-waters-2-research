@@ -1,0 +1,123 @@
+// credit to FatRatKnight; taken from https://gamefaqs.gamespot.com/snes/588823-new-horizons/faqs/62703
+
+|Lisbon        |39N   9W|770 7/8| |Balsa           | 100|
+|Seville       |37N   6W|810 8/8| |Light Galley    | 100|
+|Barcelona     |41N   2E|540 6/8| |Caravela Latina | 200|
+|Valencia      |39N   0W|300 3/8| |Brigantine      | 400|
+|Palma         |39N   2E|285 3/8| |Flemish Galleon | 400|
+|Ceuta         |35N   5W| 90 0/8| |Nao             | 500|
+                                  |Carrack         | 600|
+                                  |Galleon         | 800|
+
+|London        |53N   0E|740 3/7| |Caravela Redonda| 200|
+|Bristol       |52N   3W|380 1/7| |Nao             | 500|
+|Dublin        |54N   7W|350 1/7| |Carrack         | 600|
+                                  |Galleon         | 800|
+                                  |Sloop           | 850|
+                                  |Frigate         |1000|
+                                  |Barge           |1000|
+
+|Antwerp       |53N   5E|670 4/7| |Hansa Cog       | 100|
+|Amsterdam     |55N   6E|730 4/7| |Caravela Latina | 200|
+|Hamburg       |55N  10E|620 4/7| |Nao             | 500|
+                                  |Carrack         | 600|
+                                  |Galleon         | 800|
+                                  |Frigate         |1000|
+                                  |Full-rigged Ship|1000|
+
+|Marseille     |44N   5E|290 3/7| |Hansa Cog       | 100|
+|Bordeaux      |45N   1W|580 6/7| |Light Galley    | 100|
+|Nantes        |48N   2W|570 6/7| |Caravela Redonda| 200|
+|Copenhagen    |57N  12E|510 5/7| |Flemish Galleon | 400|
+|Oslo          |63N  10E|185 2/7| |Nao             | 500|
+|Stockholm     |62N  19E|470 4/7| |Pinnace         | 550|
+|Lubeck        |55N  10E|300 3/7| |La Reale        | 600|
+|Danzig        |56N  18E|280 3/7|
+|Riga          |59N  23E|160 2/7|
+|Bergen        |62N   5E|150 2/7|
+
+|Genoa         |44N   8E|760 8/8| |Light Galley    | 100|
+|Pisa          |43N  10E|540 6/8| |Tallette        | 200|
+|Naples        |40N  13E|640 7/8| |Caravela Latina | 200|
+|Syracuse      |37N  15E|220 3/8| |Buss            | 700|
+|Venice        |45N  13E|730 8/8| |Flemish Galleon | 400|
+|Ragusa        |42N  18E|140 1/8| |Nao             | 500|
+|Candia        |35N  25E|160 1/8| |Venetian Galeass| 500|
+|Athens        |38N  24E|540 6/8| |Carrack         | 600|
+|Salonika      |41N  22E|120 1/8|
+
+|Istanbul      |41N  28E|720 7/7| |Light Galley    | 100|
+|Algiers       |37N   3E|180 1/7| |Caravela Latina | 200|
+|Tunis         |37N  10E|160 1/7| |Flemish Galleon | 400|
+|Alexandria    |31N  29E|700 7/7| |Nao             | 500|
+|Jaffa         |32N  35E|150 1/7| |Xebec           | 500|
+|Beirut        |33N  35E|250 2/7| |Venetian Galeass| 500|
+|Nicosia       |35N  33E|160 1/7| |Carrack         | 600|
+|Tripoli       |32N  13E|400 3/7|
+|Kaffa         |45N  34E|350 2/7|
+|Azov          |47N  38E|115 1/7|
+|Trebizond     |41N  39E|370 2/7|
+|Cairo         |29N  32E|480 3/7|
+
+|Aden          |14N  46E|260 1/3| |Light Galley    | 100|
+|Hormuz        |26N  56E| 90 0/3| |Dhow            | 300|
+|Massawa       |15N  41E| 85 0/3| |Xebec           | 500|
+|Basra         |30N  48E|500 3/3|
+|Mecca         |21N  39E| 80 0/3|
+|Quatar        |25N  52E|160 1/3|
+|Shiraz        |26N  53E| 80 0/3|
+|Muscat        |24N  58E|230 1/3|
+|Diu           |25N  66E| 80 0/3|
+|Cochin        |10N  75E|120 1/3|
+|Ceylon        | 8N  80E|210 1/3|
+|Amboa         | 1S 125E| 50 0/3|
+|Goa           |14N  73E|560 3/3|
+|Malacca       | 4N 101E| 95 0/3|
+|Ternate       | 2N 125E| 85 0/3|
+|Banda         | 2S 128E| 40 0/3|
+|Dili          | 6S 125E| 45 0/3|
+|Pasei         | 5N  96E| 40 0/3|
+|Sunda         | 3S 106E| 55 0/3|
+|Calicut       |12N  74E|560 3/3|
+|Bankao        | 1N 105E| 45 0/3|
+|Hanoi         |22N 105E|340 2/3|
+
+|Madeira       |33N  17W|230 2/4| |Light Galley    | 100|
+|Santa Cruz    |28N  17W| 80 0/4| |Caravela Redonda| 200|
+|San Jorge     | 6N   2W|190 1/4| |Nao             | 500|
+|Bissau        |13N  17W|100 1/4| |Carrack         | 600|
+|Luanda        | 8S  12E| 75 0/4|
+|Argin         |20N  18W|185 1/4|
+|Bathurst      |14N  17W| 60 0/4|
+|Timbuktu      |15N   4W| 35 0/4|
+|Abidjan       | 6N   5W| 75 0/4|
+|Sofala        |17S  34E|400 2/4|
+|Malindi       | 3S  39E|360 2/4|
+|Mogadishu     | 3N  45E| 70 0/4|
+|Mombasa       | 4S  39E|390 2/4|
+|Mozambique    |13S  40E|160 1/4|
+|Quelimane     |15S  36E| 60 0/4|
+
+|Zeiton        |26N 119E|570 1/1| |Junk            | 300|
+|Macao         |23N 113E|490 1/1|
+|Changan       |35N 110E|280 0/1|
+
+|Sakai         |35N 136E|410 2/3| |Kansen          | 200|
+|Nagasaki      |33N 129E|220 1/3| |Atakabune       | 400|
+                                  |Tekkousen       |1000|
+
+|Caracas       | 7N  72W|210 0/5| |Brigantine      | 400|
+|Cartegena     | 6N  81W|130 0/5| |Pinnace         | 550|
+|Havana        |19N  87W|220 0/5| |Nao             | 500|
+|Margarita     | 7N  69W| 45 0/5| |Carrack         | 600|
+|Panama        | 5N  85W|190 0/5| |Galleon         | 800|
+|Porto Velho   | 6N  85W| 75 0/5|
+|Santo Domingo |14N  74W|160 0/5|
+|Veracruz      |15N 100W| 75 0/5|
+|Jamaica       |13N  81W| 80 0/5|
+|Guatemala     |10N  95W| 65 0/5|
+|Pernambuco    |11S  45W|240 0/5|
+|Rio de Janeiro|25S  50W| 50 0/5|
+|Maracaibo     | 7N  77W|105 0/5|
+|Santiago      |16N  81W|105 0/5|
+|Cayenne       | 0S  57W| 65 0/5|

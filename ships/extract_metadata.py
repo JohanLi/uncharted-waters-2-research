@@ -10,10 +10,11 @@ byte_cursor = 19388
 
 ships = {}
 
-for i in range(25):
+for i in range(1, 26):
     ships[i] = {}
     ships[i]['name'] = raw_bytes[byte_cursor + 0:byte_cursor + 16].decode('utf-8').strip('\u0000')
-    ships[i]['id'] = raw_bytes[byte_cursor + 17]
+    # we’re using the key as id
+    # ships[i]['id'] = raw_bytes[byte_cursor + 17]
     ships[i]['usedGuns'] = raw_bytes[byte_cursor + 19]
     ships[i]['usedCrew'] = (raw_bytes[byte_cursor + 21] << 8) | raw_bytes[byte_cursor + 20]
 
@@ -21,7 +22,7 @@ for i in range(25):
 
 byte_cursor = 19988
 
-for i in range(25):
+for i in range(1, 26):
     ships[i]['industryRequirement'] = raw_bytes[byte_cursor + 0] * 10
     ships[i]['durability'] = raw_bytes[byte_cursor + 1]
     ships[i]['tacking'] = raw_bytes[byte_cursor + 2]
