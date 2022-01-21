@@ -2,9 +2,9 @@ from PIL import Image
 import numpy
 import pathlib
 
-# contains player sprites for dueling
+# contains player sprites
 
-pathlib.Path('./output').mkdir(parents=True, exist_ok=True)
+pathlib.Path('./dueling/output').mkdir(parents=True, exist_ok=True)
 
 color_map = {
     0: '000000',
@@ -72,4 +72,4 @@ for y in range(1, 7):
             output = numpy.array(output, 'uint8').reshape(metadata['rows'], metadata['columns'] * 8, 4)
 
             img = Image.fromarray(output)
-            img.save(f'./output/IAP{y}.{str(x).zfill(3)}-{i}.png')
+            img.save(f'./dueling/output/IAP{y}.{str(x).zfill(3)}-{i}.png')

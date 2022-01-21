@@ -2,7 +2,7 @@ import numpy
 
 
 def get():
-    raw_bytes = numpy.fromfile('./raw/DATA1.018', 'uint8')
+    raw_bytes = numpy.fromfile('./raw/DATA1/DATA1.018', 'uint8')
 
     large_tiles = []
     large_tiles += first_sixteen()

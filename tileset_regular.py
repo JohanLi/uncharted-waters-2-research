@@ -69,7 +69,7 @@ def get(time='day'):
         },
     }
 
-    raw_bytes = numpy.fromfile('./raw/DATA1.011', 'uint8')
+    raw_bytes = numpy.fromfile('./raw/DATA1/DATA1.011', 'uint8')
     raw_bytes = numpy.split(raw_bytes, 2)[0]
     raw_bits = numpy.unpackbits(raw_bytes)
 

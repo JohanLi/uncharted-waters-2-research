@@ -78,7 +78,7 @@ color_map = {
 
 
 def get(tileset, time='day'):
-    raw_bytes = numpy.fromfile('./raw/tilesets/PORTCHIP.' +  f'{tileset * 2:03}', 'uint8')
+    raw_bytes = numpy.fromfile('./raw/PORTCHIP/PORTCHIP.' +  f'{tileset * 2:03}', 'uint8')
     raw_bits = numpy.unpackbits(raw_bytes)
 
     width = 16

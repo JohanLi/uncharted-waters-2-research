@@ -3,7 +3,7 @@ import pathlib
 
 pathlib.Path('./output').mkdir(parents=True, exist_ok=True)
 
-with open('./raw/DATA1.015', 'rb') as file:
+with open('./raw/DATA1/DATA1.015', 'rb') as file:
     raw_bytes = file.read()
 
 byte_cursor = 19388

@@ -23,7 +23,7 @@ def building_type_exists(x, y):
 
 ports = {}
 
-with open('./raw/DATA1.015', 'rb') as file:
+with open('./raw/DATA1/DATA1.015', 'rb') as file:
     raw_bytes = file.read()
 
 byte_cursor = 20286
@@ -99,7 +99,7 @@ for i in range(1, 101):
 ports['tilesetCollisionIndices'] = {}
 
 for i in range(7):
-    with open('./raw/tilesets/PORTCHIP.' + f'{(i * 2) + 1:03}', 'rb') as file:
+    with open('./raw/PORTCHIP/PORTCHIP.' + f'{(i * 2) + 1:03}', 'rb') as file:
         raw_bytes = file.read()
 
     ports['tilesetCollisionIndices'][i] = {

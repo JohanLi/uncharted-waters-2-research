@@ -3,7 +3,7 @@ import numpy
 land_tiles = list(range(51, 65 + 1)) + [73, 81, 89, 97] + list(range(105, 127 + 1))
 desert_tiles = [25, 26, 28, 29, 30, 31, 32, 89, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114]
 possible_desert_coasts = []
-coastal_map = numpy.fromfile('./raw/DATA1.010', 'uint8')
+coastal_map = numpy.fromfile('./raw/DATA1/DATA1.010', 'uint8')
 
 
 def fill_deserts(world_map):
