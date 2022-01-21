@@ -1,20 +1,25 @@
-## Scripts
+# Uncharted Waters 2 Research
 
-Here you will find scripts that draw:
+Contains a collection of one-off scripts to extract data and graphics from
+the game Uncharted Waters 2 (大航海時代II). They are in turn used for a browser-based
+remake — see https://github.com/JohanLi/uncharted-waters-2.
+
+Examples of what the scripts extract:
 
 - the tilesets used for the world map, including the one for ships
 - all three parts of the world map
-- a visualization of winds and ocean current, as well as zones that,
-  among others, cause storms
+- a visualization of winds and ocean current
+- port and ship data
+- dueling sprites
 
-### Getting Started
+## Getting Started
 
 Using this directory as root:
 
     pip install -r requirements.txt
 
 The scripts available to run, which all produce files in a newly created
-**output** directory are:
+**output** directory, are:
 
 - draw_tilesets.py
 - draw_world_map.py
@@ -24,10 +29,13 @@ The scripts available to run, which all produce files in a newly created
 - ports/draw_tilesets.py
 - ports/extract_metadata.py
 - ships/extract_metadata.py
+- ships/parse_shipyards.py
+- dueling/extract_iap.py
+- dueling/extract_iae.py
 
 Python 3.8.12 was used.
 
-### Example Output
+## Example Output
 
 <img width="256" height="128" alt="Regular Tileset" src="https://media.githubusercontent.com/media/JohanLi/uncharted-waters-2-research/master/assets/readme/regular-tileset.png">
 
