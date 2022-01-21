@@ -1,7 +1,7 @@
-# Uncharted Waters 2 Research
+# Uncharted Waters: New Horizons Research
 
 Contains a collection of one-off scripts to extract data and graphics from
-the game Uncharted Waters 2 (大航海時代II). They are in turn used for a browser-based
+the game Uncharted Waters: New Horizons (大航海時代II). They are in turn used for a browser-based
 remake — see https://github.com/JohanLi/uncharted-waters-2.
 
 Examples of what the scripts extract:

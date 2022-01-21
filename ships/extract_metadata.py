@@ -31,7 +31,7 @@ for i in range(1, 26):
     ships[i]['minimumCrew'] = raw_bytes[byte_cursor + 5]
     ships[i]['capacity'] = (raw_bytes[byte_cursor + 7] << 8) | raw_bytes[byte_cursor + 6]
     ships[i]['maximumGuns'] = raw_bytes[byte_cursor + 8]
-    ships[i]['sailType'] = raw_bytes[byte_cursor + 9]
+    ships[i]['sailType'] = raw_bytes[byte_cursor + 9] + 1
     ships[i]['basePrice'] = ((raw_bytes[byte_cursor + 11] << 8) | raw_bytes[byte_cursor + 10]) * 10
 
     byte_cursor += 12
