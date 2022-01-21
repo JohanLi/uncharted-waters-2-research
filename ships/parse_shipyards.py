@@ -38,7 +38,7 @@ with open('./ships/shipyard_data.txt') as file:
 
                 if port == ports[portId]['name']:
                     found = True
-                    port_to_shipyard[portId] = shipyard_id
+                    port_to_shipyard[portId] = str(shipyard_id)
 
             if not found:
                 print(f'"{port}" was not found in the list of ports')
@@ -52,7 +52,7 @@ with open('./ships/shipyard_data.txt') as file:
                     found = True
                     shipyard_to_ships[shipyard_id].append({
                         'shipId': shipId,
-                        'industryRequirement': industryRequirement
+                        'industryRequirement': int(industryRequirement)
                     })
 
             if not found:

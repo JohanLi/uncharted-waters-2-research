@@ -36,6 +36,19 @@ for i in range(1, 26):
 
     byte_cursor += 12
 
+with open('./raw/MESSAGE.DAT', 'rb') as file:
+    file.seek(9683) # found using grep
+
+    for i in range(1, 26):
+        ships[i]['description'] = ''
+
+        while True:
+            description = file.read(1).decode('utf-8').replace('\'', '’')
+
+            if description == '\u0000':
+                break
+            else:
+                ships[i]['description'] += description
 
 with open('./output/ships.json', 'w') as file:
-    json.dump(ships, file, indent=2)
+    json.dump(ships, file, indent=2, ensure_ascii = False)
