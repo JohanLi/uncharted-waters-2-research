@@ -1,0 +1,10 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/data:/var/lib/postgresql/data
+    env_file:
+      - .env
