@@ -42,9 +42,14 @@ for i in range(0, 128):
     img = Image.fromarray(numpy.array(portrait, 'uint8').reshape(80, 64, 4))
     portraits.append(img)
 
-img = Image.new('RGB', (64 * 16, 80 * 8))
+# img = Image.new('RGB', (64 * 16, 80 * 8))
+#
+# for i in range(0, 128):
+#     img.paste(portraits[i], (i % 16 * 64, math.floor(i / 16) * 80))
+
+img = Image.new('RGB', (64 * 16 * 8, 80))
 
 for i in range(0, 128):
-    img.paste(portraits[i], (i % 16 * 64, math.floor(i / 16) * 80))
+    img.paste(portraits[i], (i * 64, 0))
 
 img.save('./dialog/output/portraits.png')
