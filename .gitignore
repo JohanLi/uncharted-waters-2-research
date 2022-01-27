@@ -4,5 +4,6 @@
 __pycache__/
 output/
 dueling/output/
+dialog/output/
 .env
 docker/data/
