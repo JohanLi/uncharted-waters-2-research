@@ -20,7 +20,7 @@ with open('./raw/SNR1.MES', 'rb') as file:
 
     while True:
         id += 1
-        message = ''
+        body = ''
 
         while True:
             character = file.read(1).decode('utf-8').replace('\'', '’')
@@ -31,13 +31,13 @@ with open('./raw/SNR1.MES', 'rb') as file:
                 reachedEnd = True
                 break
             else:
-                message += character
+                body += character
 
         if reachedEnd:
             break
 
         try:
-            cursor.execute("INSERT INTO dialog (id, file, message) VALUES (%s, %s, %s)", (id, "SNR1.MES", message))
+            cursor.execute("INSERT INTO dialog (id, file, body) VALUES (%s, %s, %s)", (id, "SNR1.MES", body))
             connection.commit()
         except (Exception, psycopg2.DatabaseError) as error:
             print(error)

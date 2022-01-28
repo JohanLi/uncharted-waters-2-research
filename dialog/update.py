@@ -28,7 +28,7 @@ with open('./raw/SNR1.DAT', 'rb') as file:
             file.seek(-1, 1)
             continue
 
-        character_id = int.from_bytes(file.read(2), 'big')
+        character_id = int.from_bytes(file.read(2), 'big') + 1
         byte5 = int.from_bytes(file.read(1), 'big')
         dialog_id = int.from_bytes(file.read(2), 'big')
         byte8 = int.from_bytes(file.read(1), 'big')
