@@ -37,7 +37,7 @@ with open('./raw/SNR1.MES', 'rb') as file:
             break
 
         try:
-            cursor.execute("INSERT INTO dialog (id, file, body) VALUES (%s, %s, %s)", (id, "SNR1.MES", body))
+            cursor.execute("INSERT INTO messages (id, body) VALUES (%s, %s)", (id, body))
             connection.commit()
         except (Exception, psycopg2.DatabaseError) as error:
             print(error)

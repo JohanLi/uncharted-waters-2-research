@@ -15,7 +15,7 @@ connection = psycopg2.connect(
 
 cursor = connection.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
 
-cursor.execute('SELECT body, character_id AS "characterId", upper_or_lower AS "upperOrLower" FROM dialog WHERE id >= 23 AND id <= 61 ORDER BY id ASC')
+cursor.execute('SELECT body, character_id AS "characterId", position FROM messages ORDER BY id ASC')
 messages = cursor.fetchall()
 
 # we will be displaying character names at all times. In the original game, names appear when the character is first encountered
@@ -23,19 +23,14 @@ for message in messages:
    message['body'] = re.sub(r'\|.*?\|\n', '', message['body'])
    message['body'] = message['body'].replace('$n', '$firstName')
    message['body'] = message['body'].replace('$s', '$lastName')
-   message['characterId'] = str(message['characterId'])
 
-with open('./dialog/output/mansion.json', 'w') as file:
-    json.dump(messages, file, indent=2, ensure_ascii = False)
+   if message['characterId'] is None:
+      del message['characterId']
+   else:
+      message['characterId'] = str(message['characterId'])
 
-cursor.execute('SELECT body, character_id AS "characterId", upper_or_lower AS "upperOrLower" FROM dialog ORDER BY id ASC')
-messages = cursor.fetchall()
-
-for message in messages:
-   message['body'] = re.sub(r'\|.*?\|\n', '', message['body'])
-   message['body'] = message['body'].replace('$n', '$firstName')
-   message['body'] = message['body'].replace('$s', '$lastName')
-   message['characterId'] = str(message['characterId'])
+   if message['position'] is None:
+      message['position'] = 0
 
 with open('./dialog/output/messages.json', 'w') as file:
     json.dump(messages, file, indent=2, ensure_ascii = False)

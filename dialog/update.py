@@ -30,14 +30,14 @@ with open('./raw/SNR1.DAT', 'rb') as file:
 
         character_id = int.from_bytes(file.read(2), 'big') + 1
         byte5 = int.from_bytes(file.read(1), 'big')
-        dialog_id = int.from_bytes(file.read(2), 'big')
+        message_id = int.from_bytes(file.read(2), 'big')
         byte8 = int.from_bytes(file.read(1), 'big')
         byte9 = int.from_bytes(file.read(1), 'big')
 
         try:
             cursor.execute(
-                'UPDATE dialog SET character_id = %s, upper_or_lower = %s, byte5 = %s, byte8 = %s, byte9 = %s WHERE id = %s',
-                (character_id, int.from_bytes(byte1, 'big'), byte5, byte8, byte9, dialog_id + 1)
+                'UPDATE messages SET character_id = %s, position = %s, byte5 = %s, byte8 = %s, byte9 = %s WHERE id = %s',
+                (character_id, int.from_bytes(byte1, 'big'), byte5, byte8, byte9, message_id + 1)
             )
             connection.commit()
         except (Exception, psycopg2.DatabaseError) as error:
