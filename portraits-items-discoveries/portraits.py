@@ -3,7 +3,7 @@ import numpy
 import pathlib
 import math
 
-pathlib.Path('./dialog/output').mkdir(parents=True, exist_ok=True)
+pathlib.Path('./portraits-items-discoveries/output').mkdir(parents=True, exist_ok=True)
 
 color_map = {
     0: '000000',
@@ -42,14 +42,9 @@ for i in range(0, 128):
     img = Image.fromarray(numpy.array(portrait, 'uint8').reshape(80, 64, 4))
     portraits.append(img)
 
-# img = Image.new('RGB', (64 * 16, 80 * 8))
-#
-# for i in range(0, 128):
-#     img.paste(portraits[i], (i % 16 * 64, math.floor(i / 16) * 80))
+img = Image.new('RGB', (64 * len(portraits), 80))
 
-img = Image.new('RGB', (64 * 16 * 8, 80))
+for i, portrait in enumerate(portraits):
+    img.paste(portrait, (i * 64, 0))
 
-for i in range(0, 128):
-    img.paste(portraits[i], (i * 64, 0))
-
-img.save('./dialog/output/portraits.png')
+img.save('./portraits-items-discoveries/output/portraits.png')
