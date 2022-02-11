@@ -52,13 +52,13 @@ for i in range(0, 100):
     ports[i]['regionId'] = str(raw_bytes[byte_cursor + 30] + 1)
 
     item_shop = {
-        'regular': [int(x) for x in raw_bytes[byte_cursor + 31:byte_cursor + 34]],
-        'secret': [raw_bytes[byte_cursor + 34]],
+        'regular': [str(int(x) + 1) for x in raw_bytes[byte_cursor + 31:byte_cursor + 34]],
+        'secret': str(raw_bytes[byte_cursor + 34] + 1),
     }
 
-    item_shop['regular'] = [x for x in item_shop['regular'] if x != 255]
+    item_shop['regular'] = [x for x in item_shop['regular'] if x != '256']
 
-    if item_shop['secret'][0] == 255:
+    if item_shop['secret'] == '256':
         del item_shop['secret']
 
     if len(item_shop['regular']):

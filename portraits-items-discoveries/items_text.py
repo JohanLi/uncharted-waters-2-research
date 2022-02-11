@@ -12,7 +12,7 @@ with open('./raw/ITEM.MES', 'rb') as file:
         if not bytes:
             break
 
-        description = bytes.decode('utf-8').strip('\u0000')
+        description = bytes.decode('utf-8').strip('\u0000').replace('\'', '’')
 
         descriptions.append(description)
 
@@ -22,7 +22,7 @@ with open('./raw/MAIN.EXE', 'rb') as file:
     file.seek(277192)
 
     for i, description in enumerate(descriptions):
-        name = file.read(17).decode('utf-8').strip('\u0000')
+        name = file.read(17).decode('utf-8').strip('\u0000').replace('\'', '’')
         imageSlice = int.from_bytes(file.read(1), 'big')
         price = int.from_bytes(file.read(2), 'little') * 100
         rating = int.from_bytes(file.read(1), 'big')
