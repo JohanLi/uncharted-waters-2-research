@@ -37,8 +37,10 @@ for i in range(0, 130):
 
     ports.append({
         'name': name,
-        'x': x,
-        'y': y
+        'position': {
+            'x': x,
+            'y': y
+        }
     })
 
     byte_cursor += 20
