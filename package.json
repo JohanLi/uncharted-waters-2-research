@@ -1,0 +1,33 @@
+{
+  "name": "uncharted-waters-2-research",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "draw-world-map": "node --import tsx scripts/draw-world-map/index.ts",
+    "draw-tilesets": "node --import tsx scripts/tilesets/index.ts",
+    "draw-winds-current-anomalies": "node --import tsx scripts/winds-current-anomalies/index.ts",
+    "extract-ports": "node --import tsx scripts/ports/index.ts",
+    "extract-ships": "node --import tsx scripts/ships/index.ts",
+    "extract-portraits-items-discoveries": "node --import tsx scripts/portraits-items-discoveries/index.ts",
+    "extract-dueling": "node --import tsx scripts/dueling/index.ts",
+    "extract-dialog": "node --import tsx scripts/dialog/index.ts",
+    "extract-all": "node --import tsx scripts/extract-all.ts",
+    "format": "prettier --write \"scripts/**/*.ts\" \"*.{json,md}\"",
+    "format:check": "prettier --check \"scripts/**/*.ts\" \"*.{json,md}\"",
+    "test": "node --import tsx --test scripts/*.test.ts scripts/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "prettier": "^3.9.6",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

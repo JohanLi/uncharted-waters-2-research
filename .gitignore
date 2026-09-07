@@ -1,10 +1,5 @@
 .idea/
 .DS_Store
+node_modules/
 
-__pycache__/
-output/
-dueling/output/
-dialog/output/
-portraits-items-discoveries/output/
-.env
-docker/data/
+/scripts/**/output/

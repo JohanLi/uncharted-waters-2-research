@@ -14,26 +14,29 @@ Examples of what the scripts extract:
 
 ## Getting Started
 
-Using this directory as root:
+Install dependencies from the repository root:
 
-    pip install -r requirements.txt
+    npm install
 
-The scripts available to run, which all produce files in a newly created
-**output** directory, are:
+Run every extractor:
 
-- draw_tilesets.py
-- draw_world_map.py
-- draw_winds_current_anomalies.py
-- combine_world_map_parts.py
-- ports/combine_tilemaps.py
-- ports/draw_tilesets.py
-- ports/extract_metadata.py
-- ships/extract_metadata.py
-- ships/parse_shipyards.py
-- dueling/extract_iap.py
-- dueling/extract_iae.py
+    npm run extract-all
 
-Python 3.8.12 was used.
+Each domain writes to its own ignored `scripts/<domain>/output/` directory.
+
+Individual workflows are also available:
+
+    npm run draw-world-map
+    npm run draw-tilesets
+    npm run draw-winds-current-anomalies
+    npm run extract-ports
+    npm run extract-ships
+    npm run extract-portraits-items-discoveries
+    npm run extract-dueling
+    npm run extract-dialog
+
+The dialog extractor reads the game data directly and does not require a
+database.
 
 ## Example Output
 
