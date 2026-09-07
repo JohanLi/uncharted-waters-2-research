@@ -4,6 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import sharp from "sharp";
+import { run as extractArt } from "./art/index.js";
 import { run as extractDialog } from "./dialog/index.js";
 import { run as extractDueling } from "./dueling/index.js";
 import { run as extractPortraits } from "./portraits-items-discoveries/index.js";
@@ -33,6 +34,7 @@ test("all migrated domain extractors produce compatible artifacts", async () => 
   await drawWinds();
   await extractPorts();
   await extractShips();
+  await extractArt();
   await extractPortraits();
   await extractDueling();
   await extractDialog();
@@ -53,6 +55,16 @@ test("all migrated domain extractors produce compatible artifacts", async () => 
     await pixelDigest(output("ships", "ships.png")),
     "3a1ad5c1679a10964acc4507a3cbe89c437b2164e8e019617d9b13b108336bad",
   );
+  assert.equal(
+    await pixelDigest(output("art", "graph-art/large-contact-sheet.png")),
+    "42f26446482497b49a79360d2f29e3871ec6ff656fa220ff13d4a5967250627d",
+  );
+  assert.equal(
+    await pixelDigest(output("art", "graph-art/graph-006-136x112.png")),
+    "d48e7fbf62051586b05ad5fda56a4555154157a2fce69635ee1d89dd168122bc",
+  );
+  assert.equal((await readdir(output("art", "event-art"))).length, 32);
+  assert.equal((await readdir(output("art", "graph-art"))).length, 141);
   const expectedJson: ReadonlyArray<[string, string, string]> = [
     [
       "ports",

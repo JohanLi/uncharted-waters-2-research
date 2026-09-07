@@ -1,3 +1,4 @@
+import { run as extractArt } from "./art/index.js";
 import { run as extractDialog } from "./dialog/index.js";
 import { run as extractDueling } from "./dueling/index.js";
 import { run as extractPortraitsItemsDiscoveries } from "./portraits-items-discoveries/index.js";
@@ -12,6 +13,7 @@ await drawTilesets();
 await drawWindsCurrentAnomalies();
 await extractPorts();
 await extractShips();
+await extractArt();
 await extractPortraitsItemsDiscoveries();
 await extractDueling();
 await extractDialog();

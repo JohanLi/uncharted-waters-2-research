@@ -31,6 +31,9 @@ Individual workflows are also available:
     npm run draw-winds-current-anomalies
     npm run extract-ports
     npm run extract-ships
+    npm run extract-art
+    npm run extract-event-art
+    npm run extract-graph-art
     npm run extract-portraits-items-discoveries
     npm run extract-dueling
     npm run extract-dialog
