@@ -1,5 +1,9 @@
 ## Ships
 
+Run `npm run extract-ships` from the repository root to extract ship metadata,
+shipyard data, and the 25 GRAPH.DAT ship images. The images are written as a
+single horizontal `output/ships.png` sheet in ship ID order.
+
 Outside of the stats shown in-game, each type of ship also have a
 "sail type". This affects how their speed are affected by wind: some
 cannot handle headwind well, while others sail just as fast in headwind

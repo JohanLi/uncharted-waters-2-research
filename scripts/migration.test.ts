@@ -49,6 +49,10 @@ test("all migrated domain extractors produce compatible artifacts", async () => 
     await pixelDigest(output("tilesets", "ship-tileset.png")),
     "1d783156ecf77ff6cef767f85a67c3ec3327513181c1385cd22aafe455de9928",
   );
+  assert.equal(
+    await pixelDigest(output("ships", "ships.png")),
+    "3a1ad5c1679a10964acc4507a3cbe89c437b2164e8e019617d9b13b108336bad",
+  );
   const expectedJson: ReadonlyArray<[string, string, string]> = [
     [
       "ports",

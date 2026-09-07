@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import sharp from "sharp";
 import {
   decodeCString,
   prepareOutput,
@@ -8,6 +7,7 @@ import {
   writeJson,
 } from "../shared.js";
 import { extractPortMetadata } from "../ports/index.js";
+import { writeShipsPng } from "./graph-ships.js";
 
 type Ship = Record<string, unknown> & { name: string };
 async function ships(): Promise<Record<string, Ship>> {
@@ -86,33 +86,6 @@ async function shipyards(allShips: Record<string, Ship>) {
     shipyardToShips,
   };
 }
-const shipNames = [
-  "Balsa",
-  "Hansa Cog",
-  "Dhow",
-  "Buss",
-  "Tallette",
-  "Caravela Latina",
-  "Caravela Redonda",
-  "Brigantine",
-  "Nao",
-  "Carrack",
-  "Galleon",
-  "Xebec",
-  "Pinnace",
-  "Sloop",
-  "Frigate",
-  "Barge",
-  "Full-rigged Ship",
-  "Junk",
-  "Light Galley",
-  "Flemish Galleon",
-  "Venetian Galeass",
-  "La Reale",
-  "Tekkousen",
-  "Atakabune",
-  "Kansen",
-];
 export async function run(): Promise<void> {
   const output = await prepareOutput("ships"),
     allShips = await ships();
@@ -120,27 +93,10 @@ export async function run(): Promise<void> {
   const yards = await shipyards(allShips);
   await writeJson(join(output, "portToShipyard.json"), yards.portToShipyard);
   await writeJson(join(output, "shipyardToShips.json"), yards.shipyardToShips);
-  await sharp({
-    create: {
-      width: 128 * shipNames.length,
-      height: 96,
-      channels: 4,
-      background: { r: 255, g: 255, b: 255, alpha: 0 },
-    },
-  })
-    .composite(
-      shipNames.map((name, index) => ({
-        input: join(
-          repoRoot,
-          "scripts/ships/img",
-          `${name.replaceAll(" ", "-").toLowerCase()}.png`,
-        ),
-        left: index * 128,
-        top: 0,
-      })),
-    )
-    .png()
-    .toFile(join(output, "combined-ships.png"));
+  await writeShipsPng(
+    join(repoRoot, "raw/GRAPH.DAT"),
+    join(output, "ships.png"),
+  );
 }
 if (
   process.argv[1] &&
