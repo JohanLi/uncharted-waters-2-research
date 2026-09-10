@@ -7,6 +7,8 @@
     "node": ">=20.9.0"
   },
   "scripts": {
+    "save-editor": "tsx watch --clear-screen=false save-editor/server.ts",
+    "test:save-editor": "node --import tsx --test save-editor/*.test.ts",
     "draw-world-map": "node --import tsx scripts/draw-world-map/index.ts",
     "draw-tilesets": "node --import tsx scripts/tilesets/index.ts",
     "draw-winds-current-anomalies": "node --import tsx scripts/winds-current-anomalies/index.ts",
@@ -19,9 +21,9 @@
     "extract-dueling": "node --import tsx scripts/dueling/index.ts",
     "extract-dialog": "node --import tsx scripts/dialog/index.ts",
     "extract-all": "node --import tsx scripts/extract-all.ts",
-    "format": "prettier --write \"scripts/**/*.ts\" \"*.{json,md}\"",
-    "format:check": "prettier --check \"scripts/**/*.ts\" \"*.{json,md}\"",
-    "test": "node --import tsx --test scripts/*.test.ts scripts/**/*.test.ts",
+    "format": "prettier --write \"scripts/**/*.ts\" \"save-editor/**/*.{ts,js,css,html,md}\" \"*.{json,md}\"",
+    "format:check": "prettier --check \"scripts/**/*.ts\" \"save-editor/**/*.{ts,js,css,html,md}\" \"*.{json,md}\"",
+    "test": "node --import tsx --test scripts/*.test.ts scripts/**/*.test.ts save-editor/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

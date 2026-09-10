@@ -41,6 +41,10 @@ Individual workflows are also available:
 The dialog extractor reads the game data directly and does not require a
 database.
 
+The [DOS save editor](save-editor/README.md) is a local browser app for editing
+the active save's port, calendar, fame, equipment, and gold. Start it with
+`npm run save-editor`.
+
 ## Example Output
 
 <img width="256" height="128" alt="Regular Tileset" src="https://media.githubusercontent.com/media/JohanLi/uncharted-waters-2-research/master/assets/readme/regular-tileset.png">

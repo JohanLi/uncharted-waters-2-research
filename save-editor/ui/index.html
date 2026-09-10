@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Uncharted Waters 2 Save Editor</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">DOS SAVE TOOL</p>
+        <h1>Uncharted Waters II</h1>
+        <p class="subtitle">Port editor</p>
+      </header>
+
+      <section class="panel upload-panel">
+        <button id="open" type="button">Open game folder</button>
+        <div id="file-details" class="file-details">No save loaded</div>
+      </section>
+
+      <section id="editor" class="panel editor" hidden>
+        <div class="route">
+          <div>
+            <span class="field-label">Detected port</span>
+            <strong id="current-port">—</strong>
+            <small id="save-details"></small>
+          </div>
+          <span class="arrow" aria-hidden="true">→</span>
+          <div class="field">
+            <label for="port">New port</label>
+            <select id="port"></select>
+          </div>
+        </div>
+
+        <div class="section">
+          <div>
+            <span class="field-label">Calendar</span>
+            <h2>Date &amp; time</h2>
+          </div>
+          <div class="calendar-fields">
+            <div class="field">
+              <label for="year">Year</label>
+              <input id="year" type="number" min="1501" max="1756" />
+            </div>
+            <div class="field">
+              <label for="month">Month</label>
+              <input id="month" type="number" min="1" max="12" />
+            </div>
+            <div class="field">
+              <label for="day">Day</label>
+              <input id="day" type="number" min="1" max="31" />
+            </div>
+            <div class="field">
+              <label for="time">Time</label>
+              <select id="time"></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div>
+            <span id="protagonist-name" class="field-label">Protagonist</span>
+            <h2>Fame</h2>
+          </div>
+          <div class="fame-fields">
+            <div class="field">
+              <label for="trade">Trade</label>
+              <input id="trade" type="number" min="0" max="65535" />
+            </div>
+            <div class="field">
+              <label for="piracy">Piracy</label>
+              <input id="piracy" type="number" min="0" max="65535" />
+            </div>
+            <div class="field">
+              <label for="adventure">Adventure</label>
+              <input id="adventure" type="number" min="0" max="65535" />
+            </div>
+          </div>
+        </div>
+
+        <div class="equipment-note">
+          <span class="field-label">Applied on every save</span>
+          <strong>Crusader's Sword + Crusader's Armor</strong>
+          <small>All other inventory items will be removed.</small>
+          <strong>1,000,000 gold</strong>
+        </div>
+
+        <p id="warning" class="warning"></p>
+        <div class="actions">
+          <button id="save" type="button">Save changes</button>
+          <span id="status" role="status"></span>
+        </div>
+      </section>
+
+      <footer>
+        On first save, KOUKAI2-original.DAT is created beside KOUKAI2.DAT. An
+        existing backup is never overwritten.
+      </footer>
+    </main>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

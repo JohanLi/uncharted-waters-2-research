@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["scripts/**/*.ts"]
+  "include": ["scripts/**/*.ts", "save-editor/**/*.ts"]
 }
