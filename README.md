@@ -47,10 +47,10 @@ the active save's port, calendar, fame, equipment, and gold. Start it with
 
 ## Example Output
 
-<img width="256" height="128" alt="Regular Tileset" src="https://media.githubusercontent.com/media/JohanLi/uncharted-waters-2-research/master/assets/readme/regular-tileset.png">
+![Regular Tileset](assets/readme/regular-tileset.png)
 
-<img width="512" height="512" alt="Large Tileset" src="https://media.githubusercontent.com/media/JohanLi/uncharted-waters-2-research/master/assets/readme/large-tileset.png">
+![Large Tileset](assets/readme/large-tileset.png)
 
-<img width="256" height="128" alt="Ship Tileset" src="https://media.githubusercontent.com/media/JohanLi/uncharted-waters-2-research/master/assets/readme/ship-tileset.png">
+![Ship Tileset](assets/readme/ship-tileset.png)
 
-<img width="950" height="475" src="https://media.githubusercontent.com/media/JohanLi/uncharted-waters-2-research/master/assets/readme/world-map.png">
+![World map](assets/readme/world-map.png)
