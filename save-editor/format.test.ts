@@ -5,17 +5,21 @@ import test from "node:test";
 import {
   CURRENT_PORT,
   FILE_SIZE,
+  ITEM_INVENTORY,
   inspectFame,
   inspectGold,
   inspectItems,
   inspectPort,
   inspectProtagonist,
+  inspectProtagonistStats,
   inspectSlot,
   setClock,
   setCrusaderEquipment,
   setFame,
   setGold,
   setPort,
+  setPlayerShipToTekkousen,
+  setProtagonistStats,
   slotOffset,
   validate,
 } from "./format.js";
@@ -85,17 +89,95 @@ test("edits only the selected protagonist fame record", () => {
   assert.throws(() => setFame(save, 1, 0, "trade", 0, 65_536));
 });
 
+test("edits each Fame category", () => {
+  const save = saveInLisbon();
+  const values = { trade: 12_345, piracy: 23_456, adventure: 34_567 };
+  let edited = save;
+  for (const [category, value] of Object.entries(values)) {
+    const current = inspectFame(edited, 1, 0);
+    edited = setFame(
+      edited,
+      1,
+      0,
+      category,
+      current[category as keyof typeof values],
+      value,
+    );
+  }
+  assert.deepEqual(inspectFame(edited, 1, 0), {
+    character: 0,
+    name: "Joao Franco",
+    ...values,
+  });
+});
+
 test("applies the fixed equipment and gold changes", () => {
   const save = saveInLisbon();
+  save[slotOffset(1) + ITEM_INVENTORY + 2] = 0x1d;
   const equipped = setCrusaderEquipment(save, 1);
   const edited = setGold(equipped, 1, 1_000_000);
 
   assert.deepEqual(inspectItems(edited, 1), [
     0x4c,
     0x4b,
-    ...Array.from({ length: 18 }, () => 0xff),
+    0x1d,
+    ...Array.from({ length: 17 }, () => 0xff),
   ]);
   assert.equal(inspectGold(edited, 1), 1_000_000);
   assert.equal(inspectGold(save, 1), 0);
   assert.throws(() => setGold(save, 1, 0x1000000));
+});
+
+test("sets protagonist stats and levels without changing the source", () => {
+  const save = saveInLisbon();
+  const before = inspectProtagonistStats(save, 1);
+  const edited = setProtagonistStats(save, 1, 100);
+
+  assert.deepEqual(inspectProtagonistStats(edited, 1), {
+    leadership: 100,
+    seamanship: 100,
+    knowledge: 100,
+    intuition: 100,
+    courage: 100,
+    swordsmanship: 100,
+    charm: 100,
+    luck: 100,
+  });
+  assert.deepEqual(inspectProtagonistStats(save, 1), before);
+
+  // Levels have no public inspector, so verify their deliberate file fields.
+  const sailor = slotOffset(1) + 0x612;
+  assert.equal(edited[sailor + 0x1c], 100);
+  assert.equal(edited[sailor + 0x1d], 100);
+  assert.equal(save[sailor + 0x1c], 1);
+  assert.equal(save[sailor + 0x1d], 1);
+});
+
+test("converts the current player's first ship to a Tekkousen", () => {
+  const save = saveInLisbon();
+  const protagonist = inspectProtagonist(save, 1);
+  const officer = slotOffset(1) + 0x612 + protagonist.id * 0x2a;
+  const fleetId = save[officer + 0x24]!;
+  const fleet = 0x1e77 + fleetId * 0x85;
+  const shipSlot = fleet + 0x2b;
+  // The raw baseline has an empty player fleet. Add one minimal source ship
+  // to the cloned fixture so this test exercises the conversion operation.
+  save.set([10, 0, 27, 27, 90, 75, 0, 0, 16], shipSlot);
+  const instance = 0x4893 + save[shipSlot + 7]! * 0x18;
+  save[instance + 0x11] = 5;
+  const edited = setPlayerShipToTekkousen(save, 1);
+
+  // Ship model and slot values are not currently exposed by an inspector.
+  assert.equal(edited.readUInt16LE(shipSlot), 300);
+  assert.deepEqual(
+    [...edited.subarray(shipSlot + 2, shipSlot + 7)],
+    [100, 100, 80, 85, 0],
+  );
+  assert.equal(edited[instance + 0x11], 22);
+  assert.equal(edited[instance + 0x13], 0);
+  assert.equal(edited.readUInt16LE(instance + 0x14), 300);
+  assert.equal(edited.readUInt16LE(instance + 0x16), 800);
+  assert.equal(edited.readUInt16LE(0x42d5), 3000);
+  assert.equal(edited.readUInt16LE(0x42d7), 5000);
+  assert.equal(save[instance + 0x11], 5);
 });

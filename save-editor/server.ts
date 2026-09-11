@@ -17,11 +17,13 @@ import {
   setFame,
   setGold,
   setPort,
+  setPlayerShipToTekkousen,
+  setProtagonistStats,
   validate,
 } from "./format.js";
 
 const EDITED_SLOT = 1;
-const API_VERSION = 5;
+const API_VERSION = 8;
 
 const host = "127.0.0.1";
 const port = 4173;
@@ -118,6 +120,8 @@ async function handle(request: IncomingMessage, response: ServerResponse) {
     }
     edited = setCrusaderEquipment(edited, EDITED_SLOT);
     edited = setGold(edited, EDITED_SLOT, 1_000_000);
+    edited = setProtagonistStats(edited, EDITED_SLOT, 100);
+    edited = setPlayerShipToTekkousen(edited, EDITED_SLOT);
     response.writeHead(200, {
       "content-type": "application/octet-stream",
       "content-disposition": 'attachment; filename="KOUKAI2.DAT"',

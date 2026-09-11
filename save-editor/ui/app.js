@@ -21,7 +21,7 @@ const fameInputs = Object.fromEntries(
 const warning = document.querySelector("#warning");
 const saveButton = document.querySelector("#save");
 const status = document.querySelector("#status");
-const API_VERSION = 5;
+const API_VERSION = 8;
 
 let file;
 let directoryHandle;

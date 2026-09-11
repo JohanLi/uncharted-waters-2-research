@@ -6,6 +6,20 @@ export const SLOT_COUNT = 10;
 export const FILE_SIZE = HEADER_SIZE + SLOT_SIZE * SLOT_COUNT;
 const SAILOR_START = 0x612;
 const SAILOR_SIZE = 42;
+// The eight displayed attributes are followed by navigation and battle levels.
+const SAILOR_STATS_START = 0x14;
+const SAILOR_LEVELS_START = 0x1c;
+export const SAILOR_STAT_NAMES = [
+  "leadership",
+  "seamanship",
+  "knowledge",
+  "intuition",
+  "courage",
+  "swordsmanship",
+  "charm",
+  "luck",
+] as const;
+export const SAILOR_LEVEL_NAMES = ["navigation", "battle"] as const;
 
 export const CURRENT_PORT = 0x0a;
 export const PORT_TABLE = 0x4f40;
@@ -23,6 +37,30 @@ const CRUSADER_EQUIPPED_FLAGS = [0x77b7, 0x77cd] as const;
 const EQUIPPED_MASK = 0x10;
 export const GOLD = 0x60a;
 export const GOLD_MAX = 0xffffff;
+
+const FLEET_TABLE = 0x1e77;
+const FLEET_RECORD_SIZE = 0x85;
+const FLEET_SHIP_SLOTS = 0x2b;
+const SHIP_SLOT_SIZE = 9;
+const SHIP_SLOT_COUNT = 10;
+const SHIP_INSTANCE_TABLE = 0x4893;
+const SHIP_INSTANCE_SIZE = 0x18;
+const SHIP_TYPE_OFFSET = 0x11;
+const TEKKOUSEN_TEMPLATE_INSTANCE = 0x3e;
+const SHIP_CONFIGURED_CREW_OFFSET = 0x14;
+const SHIP_CONFIGURED_GUNS_OFFSET = 0x13;
+const SHIP_CARGO_CAPACITY_OFFSET = 0x16;
+const TEKKOUSEN_MAXIMUM_CREW = 300;
+const TEKKOUSEN_CARGO_CAPACITY = 1100;
+// Tekkousen is automatically built with Steel, but ship construction caps
+// material-adjusted durability at 100.
+const TEKKOUSEN_DURABILITY = 100;
+const TEKKOUSEN_TACKING = 80;
+const TEKKOUSEN_POWER = 85;
+// Ship provisions are stored as tenths: 300 water and 500 food are encoded
+// as 3000 and 5000 respectively in the active player's supply record.
+const PLAYER_WATER = 0x42d5;
+const PLAYER_FOOD = 0x42d7;
 
 const BUILDINGS_PER_TOWN = 12;
 const BUILDING_SIZE = 2;
@@ -223,13 +261,100 @@ export function setCrusaderEquipment(data: Buffer, slot: number): Buffer {
   validate(data);
   const result = Buffer.from(data);
   const start = slotOffset(slot) + ITEM_INVENTORY;
-  result.fill(0xff, start, start + ITEM_INVENTORY_SIZE);
   result[start] = CRUSADERS_SWORD;
   result[start + 1] = CRUSADERS_ARMOR;
   for (const offset of CRUSADER_EQUIPPED_FLAGS) {
     const absolute = slotOffset(slot) + offset;
     result[absolute] = result[absolute]! | EQUIPPED_MASK;
   }
+  return result;
+}
+
+export function inspectProtagonistStats(data: Buffer, slot: number) {
+  const protagonist = inspectProtagonist(data, slot);
+  const start =
+    slotOffset(slot) +
+    SAILOR_START +
+    protagonist.id * SAILOR_SIZE +
+    SAILOR_STATS_START;
+  return Object.fromEntries(
+    SAILOR_STAT_NAMES.map((name, index) => [name, data[start + index]!]),
+  ) as Record<(typeof SAILOR_STAT_NAMES)[number], number>;
+}
+
+export function setProtagonistStats(
+  data: Buffer,
+  slot: number,
+  value: number,
+): Buffer {
+  validate(data);
+  const protagonist = inspectProtagonist(data, slot);
+  const start =
+    slotOffset(slot) +
+    SAILOR_START +
+    protagonist.id * SAILOR_SIZE +
+    SAILOR_STATS_START;
+  const result = Buffer.from(data);
+  result.fill(integer(value, 0, 0xff), start, start + SAILOR_STAT_NAMES.length);
+  result.fill(
+    integer(value, 0, 0xff),
+    start + (SAILOR_LEVELS_START - SAILOR_STATS_START),
+    start +
+      (SAILOR_LEVELS_START - SAILOR_STATS_START) +
+      SAILOR_LEVEL_NAMES.length,
+  );
+  return result;
+}
+
+export function setPlayerShipToTekkousen(data: Buffer, slot: number): Buffer {
+  validate(data);
+  const protagonist = inspectProtagonist(data, slot);
+  const officer =
+    slotOffset(slot) + SAILOR_START + protagonist.id * SAILOR_SIZE;
+  const fleetId = data[officer + 0x24]!;
+  if (fleetId >= 0x64) throw new Error(`Unsupported fleet ID ${fleetId}.`);
+  const fleet = FLEET_TABLE + fleetId * FLEET_RECORD_SIZE;
+  let shipSlot = -1;
+  for (let index = 0; index < SHIP_SLOT_COUNT; index++) {
+    const offset = fleet + FLEET_SHIP_SLOTS + index * SHIP_SLOT_SIZE;
+    if (data[offset] !== 0xff) {
+      shipSlot = offset;
+      break;
+    }
+  }
+  if (shipSlot < 0) throw new Error("The player's fleet has no ships.");
+
+  const instanceId = data[shipSlot + 0x07]!;
+  const instance = SHIP_INSTANCE_TABLE + instanceId * SHIP_INSTANCE_SIZE;
+  const template =
+    SHIP_INSTANCE_TABLE + TEKKOUSEN_TEMPLATE_INSTANCE * SHIP_INSTANCE_SIZE;
+  const result = Buffer.from(data);
+  // Preserve the existing 9-byte ship name, while copying Tekkousen's model data.
+  result.set(
+    data.subarray(template + SHIP_TYPE_OFFSET, template + SHIP_INSTANCE_SIZE),
+    instance + SHIP_TYPE_OFFSET,
+  );
+  // The instance stores the configured crew maximum separately from the
+  // slot's current crew. Configure both to the model's maximum crew.
+  result.writeUInt16LE(
+    TEKKOUSEN_MAXIMUM_CREW,
+    instance + SHIP_CONFIGURED_CREW_OFFSET,
+  );
+  result[instance + SHIP_CONFIGURED_GUNS_OFFSET] = 0;
+  result.writeUInt16LE(
+    TEKKOUSEN_CARGO_CAPACITY - TEKKOUSEN_MAXIMUM_CREW,
+    instance + SHIP_CARGO_CAPACITY_OFFSET,
+  );
+  result.writeUInt16LE(3000, PLAYER_WATER);
+  result.writeUInt16LE(5000, PLAYER_FOOD);
+  // Slot state: maximum crew and full Tekkousen model stats.
+  result.writeUInt16LE(TEKKOUSEN_MAXIMUM_CREW, shipSlot);
+  result[shipSlot + 2] = TEKKOUSEN_DURABILITY;
+  result[shipSlot + 3] = TEKKOUSEN_DURABILITY;
+  result[shipSlot + 4] = TEKKOUSEN_TACKING;
+  result[shipSlot + 5] = TEKKOUSEN_POWER;
+  // Clear the slot's configured gun count as well.
+  result[shipSlot + 6] = 0;
   return result;
 }
 
