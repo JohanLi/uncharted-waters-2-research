@@ -8,8 +8,8 @@ It supports the 319,591-byte `KOUKAI2.DAT` save format used by this repository.
 From the repository root:
 
 ```sh
-npm install
-npm run save-editor
+pnpm install
+pnpm run save-editor
 ```
 
 Open http://127.0.0.1:4173 in Chrome, select **Open game folder**, and choose the
@@ -47,6 +47,6 @@ at sea cannot change port.
 ## Verify
 
 ```sh
-npm run test:save-editor
-npm run typecheck
+pnpm run test:save-editor
+pnpm run typecheck
 ```

@@ -1,6 +1,6 @@
 ## Ships
 
-Run `npm run extract-ships` from the repository root to extract ship metadata,
+Run `pnpm run extract-ships` from the repository root to extract ship metadata,
 shipyard data, and the 25 GRAPH.DAT ship images. The images are written as a
 single horizontal `output/ships.png` sheet in ship ID order.
 

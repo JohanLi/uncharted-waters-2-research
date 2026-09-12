@@ -71,7 +71,7 @@ async function inspectFile() {
   if (!response.ok) throw new Error(result.error);
   if (result.apiVersion !== API_VERSION)
     throw new Error(
-      "The editor server is outdated. Stop it, restart npm run save-editor, and refresh Chrome.",
+      "The editor server is outdated. Stop it, restart pnpm run save-editor, and refresh Chrome.",
     );
   save = result.save;
   fame = result.fame;

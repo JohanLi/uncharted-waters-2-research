@@ -16,34 +16,34 @@ Examples of what the scripts extract:
 
 Install dependencies from the repository root:
 
-    npm install
+    pnpm install
 
 Run every extractor:
 
-    npm run extract-all
+    pnpm run extract-all
 
 Each domain writes to its own ignored `scripts/<domain>/output/` directory.
 
 Individual workflows are also available:
 
-    npm run draw-world-map
-    npm run draw-tilesets
-    npm run draw-winds-current-anomalies
-    npm run extract-ports
-    npm run extract-ships
-    npm run extract-art
-    npm run extract-event-art
-    npm run extract-graph-art
-    npm run extract-portraits-items-discoveries
-    npm run extract-dueling
-    npm run extract-dialog
+    pnpm run draw-world-map
+    pnpm run draw-tilesets
+    pnpm run draw-winds-current-anomalies
+    pnpm run extract-ports
+    pnpm run extract-ships
+    pnpm run extract-art
+    pnpm run extract-event-art
+    pnpm run extract-graph-art
+    pnpm run extract-portraits-items-discoveries
+    pnpm run extract-dueling
+    pnpm run extract-dialog
 
 The dialog extractor reads the game data directly and does not require a
 database.
 
 The [DOS save editor](save-editor/README.md) is a local browser app for editing
 the active save's port, calendar, fame, equipment, and gold. Start it with
-`npm run save-editor`.
+`pnpm run save-editor`.
 
 ## Example Output
 

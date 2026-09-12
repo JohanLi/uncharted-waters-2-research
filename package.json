@@ -2,6 +2,7 @@
   "name": "uncharted-waters-2-research",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@11.18.0",
   "type": "module",
   "engines": {
     "node": ">=20.9.0"
