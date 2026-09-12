@@ -102,7 +102,7 @@ These recruits disappear after being defeated and are only available while not s
 
 ## Active NPC captains
 
-Sailor IDs `6–68` are active NPC captains. Their fleet assignments and ship compositions are documented in [fleets.md](./fleets.md).
+Sailor IDs `6–68` are active NPC captains. Their fleet assignments and ship compositions are documented in [fleets.md](fleets.md).
 
 |  ID | Sailor           | Nationality | Leadership | Seamanship | Knowledge | Intuition | Courage | Swordsmanship | Charm | Luck | Navigation Level | Battle Level | Age | Skills                                                     |
 | --: | ---------------- | ----------- | ---------: | ---------: | --------: | --------: | ------: | ------------: | ----: | ---: | ---------------: | -----------: | --: | ---------------------------------------------------------- |
