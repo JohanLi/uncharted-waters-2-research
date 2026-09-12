@@ -214,7 +214,7 @@ Offsets are relative to the start of a regular port's 37-byte metadata record:
 | `+0x06`        | 2 bytes | Industry                    | little-endian `u16`                                                             |
 | `+0x0A..+0x0F` | 6 bytes | Allegiance / support values | one byte per nation, in order: Portugal, Spain, Turkey, Italy, England, Holland |
 | `+0x1E`        |  1 byte | Region ID                   | stored zero-based; displayed as `byte + 1`                                      |
-| `+0x1F..+0x22` | 4 bytes | Regular shop items          | item IDs; stored zero-based, with `0xFF` meaning unused                         |
-| `+0x23`        |  1 byte | Secret shop item            | item ID; stored zero-based, with `0xFF` meaning unused                          |
-| `+0x24`        |  1 byte | Market ID                   | stored zero-based; displayed as `byte + 1`                                      |
-| `+0x25`        |  1 byte | Industry ID                 | stored zero-based; displayed as `byte + 1`                                      |
+| `+0x1F..+0x21` | 3 bytes | Regular shop items          | item IDs; stored zero-based, with `0xFF` meaning unused                         |
+| `+0x22`        |  1 byte | Secret shop item            | item ID; stored zero-based, with `0xFF` meaning unused                          |
+| `+0x23`        |  1 byte | Market ID                   | stored zero-based; displayed as `byte + 1`                                      |
+| `+0x24`        |  1 byte | Industry ID                 | stored zero-based; displayed as `byte + 1`                                      |
