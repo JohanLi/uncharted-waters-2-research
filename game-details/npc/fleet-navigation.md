@@ -234,13 +234,48 @@ waypoint. No no-progress counter, timeout, or fallback is evident in the
 relevant routines. Consequently the `0x80` flag is never cleared, a new local
 waypoint is never generated, and the global graph cache is never advanced.
 This is a genuine navigation deadlock caused by an unusable local waypoint,
-not by the FIFO world-graph route itself.
+not by the FIFO world-graph route itself. It persists while the fleet remains
+inside the currently loaded sea-map area; it is not necessarily permanent once
+the player sails away.
 
 The local search at `0x291FD–0x294DF` is the code which creates `(144,312)`.
 Both fleets were handled in the same local terrain area, and the search chose
 the same boundary-aligned point for them despite their different graph goals.
 The exact internal condition which makes that cell win remains to be isolated,
 but the saved target-selection and deadlock sequence are confirmed.
+
+## Off-screen recovery
+
+The game explicitly discards a local temporary waypoint after a fleet leaves
+the currently loaded 72-by-72-cell sea-map area. The fleet loop at `MAIN.EXE`
+`0x2025D–0x20417` tests each active fleet with the same loaded-area predicate
+used by local navigation. Its off-screen branch at `0x203FD` clears
+`fleet[0x0D] & 0x80`. The ordinary updater at `0x1FE94–0x1FF39` also skips its
+world-coordinate movement while a fleet is inside that loaded area, but calls
+the graph-target selector and incremental movement routines when the fleet is
+outside it.
+
+This provides a recovery path for the deadlock above: sailing far enough away
+removes `(144,312)` from control without changing the fleet's mission. The
+fleet resumes toward the selected world-graph node and advances its graph cache
+normally. This is visibility/loaded-area dependent rather than a no-progress
+timer attached to the fleet.
+
+One timed-save comparison demonstrates the transition over ten days:
+
+| State | Position    | Route state | Cached nodes         | Objective and target          |
+| ----- | ----------- | ----------- | -------------------- | ----------------------------- |
+| Stuck | `(145,381)` | `0x8071`    | `619, 617, 602, 601` | trade (2), Shiraz `(502,450)` |
+| Later | `(200,588)` | `0x0271`    | `28, 29, 603, 30`    | trade (2), Shiraz `(502,450)` |
+
+Jossepi remains sailor 43, captain of active fleet 42, throughout. His ships,
+objective, objective argument, and exact mission target are unchanged. The
+later position `(200,588)` is exactly graph node 29, selected in cache slot 1.
+The expected route from node 617 runs through nodes `602, 601, 24, 25, 26, 27,
+28, 29`; the later cache and position therefore show ordinary graph progress,
+not a despawn or a direct teleport to an arbitrary reset coordinate. The stale
+words `(144,312)` remain at `+0x08`, but they are ignored after flag `0x80` has
+been cleared.
 
 ## Coordinate seam
 
@@ -272,8 +307,9 @@ work is to:
 - isolate why the local terrain search selects the unusable `(144,312)` cell.
 
 Timed saves are still useful for assigning friendly names to the route flags
-and confirming when a four-node cache is refilled, but they are no longer
-needed to distinguish graph routing from purely local coast following.
+and confirming when a four-node cache is refilled. Short-interval saves around
+the moment a fleet crosses the loaded-area boundary would also quantify how
+quickly the off-screen updater resumes graph movement.
 
 ## Relevant code
 
@@ -294,5 +330,9 @@ needed to distinguish graph routing from purely local coast following.
 - `MAIN.EXE` `0x1F456–0x1F71A`: wrapped-world incremental movement and local
   terrain avoidance.
 - `MAIN.EXE` `0x1F94E–0x1F9CF`: refresh a moving fleet target for pursuit.
+- `MAIN.EXE` `0x1FE94–0x1FF39`: skip ordinary world movement for a fleet in
+  the loaded sea area and update it normally when off-screen.
+- `MAIN.EXE` `0x2025D–0x20417`: active-fleet sea-area loop; the branch at
+  `0x203FD` clears the temporary-waypoint flag for an off-screen fleet.
 - `MAIN.EXE` logical address `2DFF:387C`: terrain predicate used by the local
   movement routines.

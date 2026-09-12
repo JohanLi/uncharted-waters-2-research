@@ -53,8 +53,8 @@ movement state rather than the authoritative assignment: objectives aimed at a
 port copy that port's coordinates, while objectives aimed at a fleet follow
 the target fleet's changing coordinates.
 
-See [game-ai-navigation.md](game-ai-navigation.md) for the separate route
-and waypoint investigation.
+See [fleet-navigation.md](fleet-navigation.md) for the separate route and
+waypoint investigation.
 
 ## Objective values
 
