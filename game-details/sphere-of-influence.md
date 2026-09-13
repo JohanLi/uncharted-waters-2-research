@@ -26,6 +26,10 @@ it activates the regional supply line described below.
 The Palace does not select allied ports directly from their six Support values.
 It uses the nation index cached in the low three bits of saved port-record byte
 `+0x13`. The game normally refreshes that index from Support as time advances.
+An investment that changes this cached controller also changes the player's
+personal Friendship with the nations involved, as documented in
+[National Friendship](friendship.md#investment-and-port-control); it does not
+change the nation-to-nation Relations matrix.
 
 At the beginning of a new game, some ports already have at least 75% Support for
 a nation while this cached index still names their old controller. They are

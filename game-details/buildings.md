@@ -57,6 +57,11 @@ Some commands lead to another menu. `Moor`, for example, opens `Store`,
 `Load Capacity`, and `Rename`. The Pub's `Meet` and `Waitress` commands likewise
 open character-specific submenus.
 
+Poor personal Friendship with the nation controlling a port can replace normal entry with a hostile encounter. The
+Palace and ordinary buildings use different encounter probabilities and confiscation rules, documented under
+[Hostile-country building encounters](friendship.md#hostile-country-building-encounters). The escape score uses
+Swordsmanship and Battle Level.
+
 ### Opening-hours implementation
 
 The dispatcher at `MAIN.EXE` file offsets `0x20930-0x209D5` selects one time

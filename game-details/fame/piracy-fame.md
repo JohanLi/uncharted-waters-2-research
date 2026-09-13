@@ -40,10 +40,44 @@ Piracy Fame = 200
 The Battle-Level term stops growing after level 30. The number or value of
 captured ships does not enter the formula.
 
-The ordinary victory path uses battle-result factor 3. A successful surrender
-before combat and a forced captain flee use factor 1. Other scripted or
-nonstandard battle endings must be treated separately until their result
-states are decoded.
+The battle-result factor is:
+
+| Result | Factor |
+| --- | ---: |
+| Ordinary victory, including an enemy fleet fleeing during combat | ×3 |
+| Pre-combat Merchant surrender | ×1 |
+
+The pre-combat surrender result can produce battle-end text describing the
+enemy flagship as having fled. The factor is determined by whether combat took
+place, not by the word "fled" in the final message. Other scripted or
+nonstandard endings remain to be decoded.
+
+### Pre-combat merchant surrender
+
+Only ordinary national Merchant fleets can make the decoded pre-combat offer,
+"Okay, okay, we'll give you whatever you want. Just don't hurt us!" National
+fleet IDs are grouped into blocks of ten, and positions 1 through 4 in each
+block are Merchant fleets. The same positions in the Pirate block are
+Buccaneers and are explicitly excluded.
+
+Before the encounter dialogue, the game totals a cached one-byte strength
+rating for every participating fleet on each side, including supporting
+fleets. Let these totals be `player strength` and `merchant strength`. The
+merchant offers surrender exactly when:
+
+```text
+player strength > floor(3 × merchant strength / 2)
+```
+
+Equality is not enough: at exactly 150% of the merchant's strength, the
+merchant refuses. There is no random roll and no independent test for wounded
+ships or ships already lost in the offer routine. Those conditions can still
+make surrender more likely indirectly by lowering the merchant fleet's cached
+strength rating. The exact formula that produces each fleet's cached strength
+byte remains to be decoded.
+
+Accepting the offer selects battle-result state 2, which is the reduced
+battle-result factor used by the Piracy Fame calculation.
 
 ### Diplomatic factor
 
@@ -134,6 +168,10 @@ The relevant calculations are located at:
 
 - `MAIN.EXE` `0x15AC5–0x15DE4`, especially `0x15BE5–0x15C5C`: naval-victory
   state, Battle-Level calculation, diplomatic modifier, and capped Fame award;
+- `MAIN.EXE` `0x1492C–0x149D7`: totals the cached strength ratings for the two
+  participating sides;
+- `MAIN.EXE` `0x14D11–0x14DFB`: identifies national Merchant fleets, compares
+  the two strength totals, and selects pre-combat surrender state 2;
 - `MAIN.EXE` `0x15240–0x152FB`: matching-national-Marque scan and diplomatic
   class selection;
 - Scenario bytecode section 4 (`0x110D–0x12B8`): Defeat Pirates;
