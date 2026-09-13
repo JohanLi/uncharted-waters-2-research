@@ -11,6 +11,7 @@ import {
   inspectItems,
   inspectPort,
   inspectProtagonist,
+  inspectRank,
   inspectProtagonistStats,
   inspectSlot,
   setClock,
@@ -20,6 +21,7 @@ import {
   setPort,
   setPlayerShipToTekkousen,
   setProtagonistStats,
+  setRank,
   slotOffset,
   validate,
 } from "./format.js";
@@ -52,6 +54,18 @@ test("inspects the supported save format", () => {
     adventure: 0,
   });
   assert.equal(inspectSlot(save, 1).portName, "Lisbon");
+  assert.equal(inspectSlot(save, 1).rank, 0);
+  assert.equal(inspectRank(save, 1, 0), 0);
+});
+
+test("changes rank while checking the expected current rank", () => {
+  const save = saveInLisbon();
+  const edited = setRank(save, 1, 0, 0, 9);
+
+  assert.equal(inspectRank(edited, 1, 0), 9);
+  assert.equal(inspectRank(save, 1, 0), 0);
+  assert.throws(() => setRank(save, 1, 0, 1, 3), /Expected 1/);
+  assert.throws(() => setRank(save, 1, 0, 0, 10));
 });
 
 test("changes port without mutating the input", () => {

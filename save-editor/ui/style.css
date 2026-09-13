@@ -150,6 +150,11 @@ button:focus-visible {
   gap: 14px;
 }
 
+.rank-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
 .calendar-fields {
   display: grid;
   grid-template-columns: 1.1fr 0.8fr 0.8fr 1.2fr;

@@ -19,6 +19,7 @@ The editor updates slot 1 and can change:
 
 - the current port
 - the date and time
+- the protagonist's rank (No Rank through Duke)
 - the protagonist's trade, piracy, and adventure fame
 
 Every save also sets gold to 1,000,000 and sets an equipped Crusader's Sword

@@ -10,6 +10,7 @@ import {
   inspectGold,
   inspectPort,
   inspectProtagonist,
+  RANK_NAMES,
   inspectSlot,
   PORT_COUNT,
   setClock,
@@ -19,11 +20,12 @@ import {
   setPort,
   setPlayerShipToTekkousen,
   setProtagonistStats,
+  setRank,
   validate,
 } from "./format.js";
 
 const EDITED_SLOT = 1;
-const API_VERSION = 8;
+const API_VERSION = 9;
 
 const host = "127.0.0.1";
 const port = 4173;
@@ -84,6 +86,7 @@ async function handle(request: IncomingMessage, response: ServerResponse) {
       save: inspectSlot(data, EDITED_SLOT),
       fame: inspectFame(data, EDITED_SLOT, protagonist.id),
       gold: inspectGold(data, EDITED_SLOT),
+      ranks: RANK_NAMES,
       ports: Array.from({ length: PORT_COUNT }, (_, id) =>
         inspectPort(data, EDITED_SLOT, id),
       ),
@@ -104,6 +107,13 @@ async function handle(request: IncomingMessage, response: ServerResponse) {
       EDITED_SLOT,
       `${parameter(url, "year")}-${String(parameter(url, "month")).padStart(2, "0")}-${String(parameter(url, "day")).padStart(2, "0")}`,
       url.searchParams.get("time") ?? "",
+    );
+    edited = setRank(
+      edited,
+      EDITED_SLOT,
+      protagonist.id,
+      parameter(url, "expectedRank"),
+      parameter(url, "rank"),
     );
     for (const category of ["trade", "piracy", "adventure"] as const) {
       edited = setFame(

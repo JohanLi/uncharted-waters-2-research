@@ -5,6 +5,7 @@ const portSelect = document.querySelector("#port");
 const currentPort = document.querySelector("#current-port");
 const saveDetails = document.querySelector("#save-details");
 const protagonistName = document.querySelector("#protagonist-name");
+const rankSelect = document.querySelector("#rank");
 const dateInputs = Object.fromEntries(
   ["year", "month", "day"].map((field) => [
     field,
@@ -21,7 +22,7 @@ const fameInputs = Object.fromEntries(
 const warning = document.querySelector("#warning");
 const saveButton = document.querySelector("#save");
 const status = document.querySelector("#status");
-const API_VERSION = 8;
+const API_VERSION = 9;
 
 let file;
 let directoryHandle;
@@ -46,6 +47,7 @@ function renderSave() {
     : save.portName;
   saveDetails.textContent = save.label ? `${save.label} · ${save.time}` : "";
   protagonistName.textContent = save.protagonistName;
+  rankSelect.value = String(save.rank);
   for (const [field, input] of Object.entries(dateInputs))
     input.value = save[field];
   timeSelect.value = save.time;
@@ -75,6 +77,14 @@ async function inspectFile() {
     );
   save = result.save;
   fame = result.fame;
+  rankSelect.replaceChildren(
+    ...result.ranks.map((name, rank) => {
+      const option = document.createElement("option");
+      option.value = rank;
+      option.textContent = name;
+      return option;
+    }),
+  );
   portSelect.replaceChildren(
     ...result.ports.map((port) => {
       const option = document.createElement("option");
@@ -140,6 +150,10 @@ portSelect.addEventListener(
   "change",
   () => (status.textContent = "Unsaved change"),
 );
+rankSelect.addEventListener(
+  "change",
+  () => (status.textContent = "Unsaved change"),
+);
 for (const input of Object.values(fameInputs))
   input.addEventListener(
     "input",
@@ -168,6 +182,8 @@ saveButton.addEventListener("click", async () => {
       month: dateInputs.month.value,
       day: dateInputs.day.value,
       time: timeSelect.value,
+      expectedRank: String(save.rank),
+      rank: rankSelect.value,
       expectedTrade: String(fame.trade),
       trade: fameInputs.trade.value,
       expectedPiracy: String(fame.piracy),

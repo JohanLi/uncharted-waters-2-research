@@ -6,6 +6,18 @@ export const SLOT_COUNT = 10;
 export const FILE_SIZE = HEADER_SIZE + SLOT_SIZE * SLOT_COUNT;
 const SAILOR_START = 0x612;
 const SAILOR_SIZE = 42;
+export const RANK_NAMES = [
+  "No Rank",
+  "Page",
+  "Squire",
+  "Knight",
+  "Baronet",
+  "Baron",
+  "Viscount",
+  "Earl",
+  "Marquis",
+  "Duke",
+] as const;
 // The eight displayed attributes are followed by navigation and battle levels.
 const SAILOR_STATS_START = 0x14;
 const SAILOR_LEVELS_START = 0x1c;
@@ -174,6 +186,7 @@ export function setPort(
 export const FAME_START = 0x5b6;
 export const FAME_RECORD_SIZE = 14;
 export const FAME_FIELDS = { trade: 0, piracy: 2, adventure: 4 } as const;
+const RANK_OFFSET = FAME_RECORD_SIZE - 1;
 export const PROTAGONIST_COUNT = 6;
 
 export function inspectProtagonist(data: Buffer, slot: number) {
@@ -248,6 +261,39 @@ export function inspectItems(data: Buffer, slot: number): number[] {
 export function inspectGold(data: Buffer, slot: number): number {
   validate(data);
   return data.readUIntLE(slotOffset(slot) + GOLD, 3);
+}
+
+export function inspectRank(
+  data: Buffer,
+  slot: number,
+  character: number,
+): number {
+  validate(data);
+  return data[
+    slotOffset(slot) +
+      FAME_START +
+      integer(character, 0, PROTAGONIST_COUNT - 1) * FAME_RECORD_SIZE +
+      RANK_OFFSET
+  ]!;
+}
+
+export function setRank(
+  data: Buffer,
+  slot: number,
+  character: number,
+  expected: number,
+  rank: number,
+): Buffer {
+  return patch(
+    data,
+    slot,
+    FAME_START +
+      integer(character, 0, PROTAGONIST_COUNT - 1) * FAME_RECORD_SIZE +
+      RANK_OFFSET,
+    "u8",
+    expected,
+    integer(rank, 0, 9),
+  );
 }
 
 export function setGold(data: Buffer, slot: number, value: number): Buffer {
@@ -378,6 +424,7 @@ export function inspectSlot(data: Buffer, slot: number) {
           : "Outside supported port IDs",
     protagonistId: protagonist.id,
     protagonistName: protagonist.name,
+    rank: inspectRank(data, slot, protagonist.id),
     year: data[base + 6]! + 1501,
     month: data[base + 7]! + 1,
     day: data[base + 8]! + 1,
