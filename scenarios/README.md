@@ -19,7 +19,7 @@ Evidence labels used in these notes:
 | Scenario | Content                                | Documentation                                                                                                         |
 | -------: | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 |        0 | Common Guild quests and royal missions | [Overview](./scenario-0-common-quests-and-royal-missions.md), [royal mission catalog](./scenario-0-royal-missions.md) |
-|        1 | João Franco                            | Not started                                                                                                           |
+|        1 | João Franco                            | [Scenario guide](./scenario-1-joao-franco.md)                                                                         |
 |        2 | Catalina Erantzo                       | Not started                                                                                                           |
 |        3 | Otto Baynes                            | Not started                                                                                                           |
 |        4 | Ernst von Bohr                         | Not started                                                                                                           |
