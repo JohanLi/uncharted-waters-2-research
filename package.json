@@ -21,6 +21,7 @@
     "extract-portraits-items-discoveries": "node --import tsx scripts/portraits-items-discoveries/index.ts",
     "extract-dueling": "node --import tsx scripts/dueling/index.ts",
     "extract-dialog": "node --import tsx scripts/dialog/index.ts",
+    "query-dialog": "node --import tsx scripts/dialog/query.ts",
     "extract-all": "node --import tsx scripts/extract-all.ts",
     "format": "prettier --write \"scripts/**/*.ts\" \"save-editor/**/*.{ts,js,css,html,md}\" \"*.{json,md}\"",
     "format:check": "prettier --check \"scripts/**/*.ts\" \"save-editor/**/*.{ts,js,css,html,md}\" \"*.{json,md}\"",

@@ -1,6 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { prepareOutput, repoRoot, writeJson } from "../shared.js";
+import { analyzeScenarioVmExecutable } from "./main-exe.js";
+import { writeReadableFormats } from "./readable-formats.js";
+import { disassembleScenario } from "./snr.js";
 
 interface Message {
   body: string;
@@ -53,6 +56,22 @@ export async function run(): Promise<void> {
       .replaceAll("$s", "$lastName");
   }
   await writeJson(join(output, "messages.json"), messages);
+
+  const scenarios = await Promise.all(
+    Array.from({ length: 7 }, async (_, scenarioId) =>
+      disassembleScenario(
+        scenarioId,
+        await readFile(join(repoRoot, `raw/SNR${scenarioId}.DAT`)),
+        await readFile(join(repoRoot, `raw/SNR${scenarioId}.MES`)),
+      ),
+    ),
+  );
+  await writeJson(join(output, "scenarios.json"), scenarios);
+  await writeJson(
+    join(output, "main-exe-vm.json"),
+    analyzeScenarioVmExecutable(await readFile(join(repoRoot, "raw/MAIN.EXE"))),
+  );
+  await writeReadableFormats(output, scenarios);
 }
 if (
   process.argv[1] &&

@@ -104,6 +104,33 @@ test("all migrated domain extractors produce compatible artifacts", async () => 
   ];
   for (const [domain, file, expected] of expectedJson)
     assert.equal(await jsonDigest(domain, file), expected, `${domain}/${file}`);
+  assert.deepEqual(
+    (await readdir(output("dialog", "readable"))).sort(),
+    [
+      "README.md",
+      "control-flow.csv",
+      "dialogue-lines.csv",
+      "instructions.csv",
+      ...Array.from({ length: 7 }, (_, id) => `scenario-${id}.md`),
+      ...Array.from({ length: 7 }, (_, id) => `scenario-${id}.mmd`),
+    ].sort(),
+  );
+  assert.match(
+    await readFile(output("dialog", "readable/scenario-1.md"), "utf8"),
+    /Father, did you send for me\?/,
+  );
+  assert.match(
+    await readFile(output("dialog", "readable/scenario-1.mmd"), "utf8"),
+    /Confirmed adventure-fame trigger/,
+  );
+  assert.match(
+    await readFile(output("dialog", "readable/scenario-1.mmd"), "utf8"),
+    /Port revelation.*0x0B25/,
+  );
+  assert.match(
+    await readFile(output("dialog", "readable/scenario-1.md"), "utf8"),
+    /Confirmed trigger floor: adventure fame is at least 2,000 \(inclusive\)/,
+  );
   assert.equal(
     (await readdir(join(repoRoot, "scripts/dueling/output"))).length,
     875,
