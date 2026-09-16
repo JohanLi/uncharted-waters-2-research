@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 
-import { repoRoot } from "../shared.js";
+import { repoRoot } from "../../scripts/shared.js";
 import { analyzeScenarioVmExecutable } from "./main-exe.js";
 import { disassembleScenario } from "./snr.js";
 
@@ -346,7 +346,7 @@ test("sequential VM decoding follows table-relative control flow", async () => {
     position: 1,
     characterId: 19,
     messageId: 310,
-    body: "Hmm... I wonder. $firstName, what do you want to do? Are you going to quit sea travel?",
+    body: "Hmm... I wonder. $n, what do you want to do? Are you going to quit sea travel?",
     presentation: "choice-prompt",
     choiceFlag: 16,
     rawHex: "c001cc0012c80135e910",

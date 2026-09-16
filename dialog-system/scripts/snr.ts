@@ -189,11 +189,7 @@ function hex(value: number, width: number): string {
 }
 
 function formatBody(body: string): string {
-  return body
-    .replace(/\|.*?\|\n/g, "")
-    .replaceAll("'", "’")
-    .replaceAll("$n", "$firstName")
-    .replaceAll("$s", "$lastName");
+  return body.replace(/\|.*?\|\n/g, "").replaceAll("'", "’");
 }
 
 export function readScenarioMessages(data: Buffer): ScenarioMessage[] {

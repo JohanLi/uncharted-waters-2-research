@@ -11,5 +11,9 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["scripts/**/*.ts", "save-editor/**/*.ts"]
+  "include": [
+    "scripts/**/*.ts",
+    "dialog-system/scripts/**/*.ts",
+    "save-editor/**/*.ts"
+  ]
 }

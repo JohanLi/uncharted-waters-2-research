@@ -5,7 +5,6 @@ import { join } from "node:path";
 import test from "node:test";
 import sharp from "sharp";
 import { run as extractArt } from "./art/index.js";
-import { run as extractDialog } from "./dialog/index.js";
 import { run as extractDueling } from "./dueling/index.js";
 import { run as extractPortraits } from "./portraits-items-discoveries/index.js";
 import { run as extractPorts } from "./ports/index.js";
@@ -37,7 +36,6 @@ test("all migrated domain extractors produce compatible artifacts", async () => 
   await extractArt();
   await extractPortraits();
   await extractDueling();
-  await extractDialog();
 
   assert.equal(
     await pixelDigest(output("tilesets", "regular-tileset.png")),
@@ -96,41 +94,9 @@ test("all migrated domain extractors produce compatible artifacts", async () => 
       "itemTypes.json",
       "bead6632158f1dc5d08433fadcbfb3ef3a9fc2c979a075425cfaa508138e4a1b",
     ],
-    [
-      "dialog",
-      "messages.json",
-      "433c8ee26115ba1886c89f9952d0a269a6298057c8b05afbde9f69719a8a0977",
-    ],
   ];
   for (const [domain, file, expected] of expectedJson)
     assert.equal(await jsonDigest(domain, file), expected, `${domain}/${file}`);
-  assert.deepEqual(
-    (await readdir(output("dialog", "readable"))).sort(),
-    [
-      "README.md",
-      "control-flow.csv",
-      "dialogue-lines.csv",
-      "instructions.csv",
-      ...Array.from({ length: 7 }, (_, id) => `scenario-${id}.md`),
-      ...Array.from({ length: 7 }, (_, id) => `scenario-${id}.mmd`),
-    ].sort(),
-  );
-  assert.match(
-    await readFile(output("dialog", "readable/scenario-1.md"), "utf8"),
-    /Father, did you send for me\?/,
-  );
-  assert.match(
-    await readFile(output("dialog", "readable/scenario-1.mmd"), "utf8"),
-    /Confirmed adventure-fame trigger/,
-  );
-  assert.match(
-    await readFile(output("dialog", "readable/scenario-1.mmd"), "utf8"),
-    /Port revelation.*0x0B25/,
-  );
-  assert.match(
-    await readFile(output("dialog", "readable/scenario-1.md"), "utf8"),
-    /Confirmed trigger floor: adventure fame is at least 2,000 \(inclusive\)/,
-  );
   assert.equal(
     (await readdir(join(repoRoot, "scripts/dueling/output"))).length,
     875,

@@ -15,8 +15,9 @@ useful now, but it is not yet a complete scenario-language decompiler.
   as Pietro, and `SNR6` as Ali.
 - `MAIN.EXE` loads and interprets the scenario program.
 
-See [QUEST_RESEARCH.md](./QUEST_RESEARCH.md) for the evidence-graded storyline
-map built from these programs and runtime observations.
+See the maintained [scenario guides](../../game-details/scenarios/README.md) for the
+evidence-graded storyline maps built from these programs and runtime
+observations.
 
 Known input fingerprints for the English DOS data used during this research:
 
@@ -80,9 +81,11 @@ by rulers:
 |  238–244 | Special search mission                                                        |
 |  245–272 | Defeat a national fleet or pirates                                            |
 
-The royal mission dialogue repeatedly promises and awards a new title. Live
-testing indicates that eligibility uses fame regardless of whether it is
-adventure, trade, or piracy fame; the exact aggregation rule is not yet decoded.
+The royal mission dialogue repeatedly promises and awards a new title. Section
+0 selects the largest individual Trade, Piracy, or Adventure Fame value; ties
+prefer Adventure, then Piracy, then Trade. Eligibility compares that value
+with `500 × (current rank + 1)²`. Pirates are ineligible, and Duke is the
+highest title. These rules are decoded and supported by controlled tests.
 
 `DATA1/DATA1.016` and `.017` both contain the same nine fixed-width title names:
 
@@ -99,16 +102,16 @@ adventure, trade, or piracy fame; the exact aggregation rule is not yet decoded.
 |           8 | Marquis                                              |
 |           9 | Duke                                                 |
 
-The title thresholds follow `500 × rank²`. At `MAIN.EXE` file offset `0x474B8`
-is this contiguous ten-entry little-endian `u16` table:
+The executable contains a related title table. At `MAIN.EXE` file offset
+`0x474B8` is this contiguous ten-entry little-endian `u16` table:
 
 ```text
 0, 500, 2000, 4500, 8000, 12500, 18000, 24500, 32000, 40000
 ```
 
-This has one entry for rank 0 and nine exact square-law thresholds, ending with
-40,000 for Duke. A code reference or controlled boundary test would still be
-useful to confirm precisely where the table is consulted.
+This table ends with 40,000, but it is not the royal-mission eligibility rule.
+`SNR0` computes the next threshold directly from the next rank. Controlled
+Marquis tests reject 40,000 and accept 40,500 for promotion to Duke.
 
 Each section begins with two tables:
 
@@ -613,7 +616,7 @@ trial.
 Returning to João's father after the trial presents message 310 and its player
 choice, then sets flag 3 at `0x0F60`. During this departure stage, entering a
 building other than the Harbor makes Prince Alberto say messages 394–395—
-“$firstName, it was certainly fun, but we both have things that we must do” and
+“$n, it was certainly fun, but we both have things that we must do” and
 “Let me walk you to the port. Let’s go.”—without ejecting João from that
 building. The reminder can therefore recur while the player continues using
 town buildings.
@@ -648,7 +651,7 @@ together with the decoded `0xA001` route, this confirms it occurs on voyage day
 1. The `F1` transition also clears all four scenario-flag bytes as expected.
 
 The father-house aftermath presents message 310 as a player choice:
-“Hmm... I wonder. $firstName, what do you want to do? Are you going to quit sea
+“Hmm... I wonder. $n, what do you want to do? Are you going to quit sea
 travel?” Unlike ordinary lines, its selected-message instruction is followed by
 `E9 10` rather than `C7`. Live observation identifies `E9` as a choice prompt;
 operand 16 is immediately tested as a flag. The set branch leads to messages
@@ -695,8 +698,8 @@ In subsection 1, the first regular-port Pub visit with clear flags begins:
 
 | Message | Speaker   | Text                                                                                                              |
 | ------: | --------- | ----------------------------------------------------------------------------------------------------------------- |
-|     425 | Narration | Say, aren’t you that famous mariner, $firstName?                                                                  |
-|     426 | João      | I don’t know whether I’m famous or not, but I’m $firstName for sure.                                              |
+|     425 | Narration | Say, aren’t you that famous mariner, $n?                                                                          |
+|     426 | João      | I don’t know whether I’m famous or not, but I’m $n for sure.                                                      |
 |     427 | Narration | Hey, you’d better be careful. That Portuguese hunting red-haired pirate has been asking the whole town about you. |
 |     428 | Rocco     | Ye needs to learn to keep ye big trap shut! We’d better get out of here.                                          |
 
@@ -776,8 +779,8 @@ larger gameplay functions called by individual action handlers.
 `snr.test.ts` locks down the João evidence above. Run:
 
 ```sh
-npm test
-npm run typecheck
+pnpm test
+pnpm run typecheck
 ```
 
 When a hypothesis becomes confirmed, update this document, the output field

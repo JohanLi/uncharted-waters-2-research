@@ -3,11 +3,13 @@ import { join } from "node:path";
 
 import {
   inspectFame,
+  inspectRank,
   inspectSlot,
+  RANK_NAMES,
   slotOffset,
   validate,
 } from "../../save-editor/format.js";
-import { repoRoot } from "../shared.js";
+import { repoRoot } from "../../scripts/shared.js";
 import {
   disassembleScenario,
   type DialogueLine,
@@ -31,6 +33,8 @@ export const BUILDING_CONTEXTS = {
   bank: 0x08,
   "item-shop": 0x09,
   church: 0x0a,
+  "house-of-fortune": 0x0b,
+  "fortune-teller": 0x0b,
 } as const;
 
 export type ScenarioQueryAction =
@@ -65,10 +69,30 @@ export interface ScenarioQueryResult {
   readonly portId: number;
   readonly portName: string;
   readonly action: ScenarioQueryAction;
+  readonly buildingOpen?: boolean;
   readonly route?: ScenarioRoute;
   readonly routeTable: "primary" | `subsection-${number}`;
   readonly outcomes: readonly ScenarioQueryOutcome[];
+  readonly sharedScenario: SharedScenarioStatus;
   readonly notes: readonly string[];
+}
+
+export interface SharedScenarioStatus {
+  readonly section: number;
+  readonly subsection: number;
+  readonly flagsHex: string;
+  readonly eligibilityFlag: boolean;
+  readonly invitationArmed: boolean;
+  readonly offerStarted: boolean;
+  readonly rank: number;
+  readonly highestFameCategory: "trade" | "piracy" | "adventure";
+  readonly highestFame: number;
+  readonly nextTitleThreshold?: number;
+  readonly meetsFameThreshold: boolean;
+  readonly cachedMissionSection: number;
+  readonly cachedMissionName?: string;
+  readonly routeTable: "primary" | `subsection-${number}` | "unavailable";
+  readonly route?: ScenarioRoute;
 }
 
 const PROTAGONISTS = [
@@ -86,6 +110,22 @@ const RUNTIME_CONFIRMED_FIRST_MESSAGES = new Set([
 
 const SCENARIO_VARIABLES_START = 0x3a;
 const SCENARIO_VARIABLE_COUNT = 64;
+const SHARED_SCENARIO_START = 0xba;
+const SHARED_VARIABLES_START = SHARED_SCENARIO_START + 0x0a;
+const SHARED_MISSION_NAMES = new Map<number, string>([
+  [1, "Transport Goods"],
+  [2, "Buy Goods"],
+  [3, "Deliver Letter"],
+  [4, "Defeat Pirates"],
+  [5, "Collect Debt"],
+  [6, "Royal trading test"],
+  [7, "Deliver documents"],
+  [8, "Negotiate a treaty"],
+  [9, "Establish allied ports"],
+  [10, "Make discoveries"],
+  [11, "Special search"],
+  [12, "Defeat a national fleet or pirates"],
+]);
 
 interface ExecutionState {
   offset: number;
@@ -146,12 +186,13 @@ function actionSelectorAndQualifier(
   action: ScenarioQueryAction,
   portId: number,
   voyageDay: number,
+  fallbackPortCount = 100,
 ): { selector: number; qualifier: number; fallbackSelector?: number } {
   if (action.type === "building")
     return {
       selector: portId,
       qualifier: action.context,
-      ...(portId < 100 ? { fallbackSelector: 0xa3 } : {}),
+      ...(portId < fallbackPortCount ? { fallbackSelector: 0xa3 } : {}),
     };
   if (action.type === "at-sea") return { selector: 0xa0, qualifier: voyageDay };
   return {
@@ -196,6 +237,22 @@ function knownSystemValue(
 ): number | undefined {
   if (systemId === 5) return portId;
   if (systemId === 7) return ticks;
+  return undefined;
+}
+
+export function isBuildingOpen(
+  context: number,
+  ticks: number,
+): boolean | undefined {
+  if (ticks < 0 || ticks >= 72) return undefined;
+  if ([0x00, 0x02, 0x05, 0x06, 0x08].includes(context))
+    return ticks >= 0x0c && ticks < 0x3c;
+  if (context === 0x01) return ticks < 0x0c || ticks >= 0x18;
+  if ([0x03, 0x04, 0x07].includes(context)) return true;
+  if (context === 0x09)
+    return (ticks >= 0x06 && ticks < 0x09) || (ticks >= 0x18 && ticks < 0x3c);
+  if (context === 0x0a) return ticks >= 0x0c;
+  if (context === 0x0b) return ticks >= 0x30;
   return undefined;
 }
 
@@ -486,11 +543,95 @@ export async function loadProtagonistScenario(
   );
 }
 
+export async function loadSharedScenario(): Promise<DisassembledScenario> {
+  return disassembleScenario(
+    0,
+    await readFile(join(repoRoot, "raw/SNR0.DAT")),
+    await readFile(join(repoRoot, "raw/SNR0.MES")),
+  );
+}
+
+function highestFame(fame: ReturnType<typeof inspectFame>): {
+  category: "trade" | "piracy" | "adventure";
+  value: number;
+} {
+  let category: "trade" | "piracy" | "adventure" = "trade";
+  let value = fame.trade;
+  if (fame.piracy >= value) {
+    category = "piracy";
+    value = fame.piracy;
+  }
+  if (fame.adventure >= value) {
+    category = "adventure";
+    value = fame.adventure;
+  }
+  return { category, value };
+}
+
+export function inspectSharedScenario(
+  save: Buffer,
+  slot: number,
+  action: ScenarioQueryAction,
+  scenario: DisassembledScenario,
+): SharedScenarioStatus {
+  validate(save);
+  if (scenario.scenarioId !== 0)
+    throw new Error(`Expected shared scenario 0, got ${scenario.scenarioId}.`);
+  const base = slotOffset(slot);
+  const protagonistId = inspectSlot(save, slot).protagonistId;
+  const section = save[base + SHARED_SCENARIO_START]!;
+  const subsection = save[base + SHARED_SCENARIO_START + 1]!;
+  const flags = save.readUInt32LE(base + SHARED_SCENARIO_START + 2);
+  const rank = inspectRank(save, slot, protagonistId);
+  const maximum = highestFame(inspectFame(save, slot, protagonistId));
+  const nextTitleThreshold = rank < 9 ? 500 * (rank + 1) ** 2 : undefined;
+  const cachedMissionSection = save.readUInt16LE(
+    base + SHARED_VARIABLES_START + 30 * 2,
+  );
+  const selectedSection = scenario.sections[section];
+  const routes =
+    subsection === 0
+      ? selectedSection?.routes
+      : selectedSection?.entryRouteTables[subsection - 1]?.routes;
+  const request = actionSelectorAndQualifier(
+    action,
+    save[base + 0x0a]!,
+    save[base + 0x1d82]!,
+    130,
+  );
+  const route = routes ? findRoute(routes, request) : undefined;
+  return {
+    section,
+    subsection,
+    flagsHex: hex(flags, 8),
+    eligibilityFlag: readFlag(flags, 16),
+    invitationArmed: readFlag(flags, 17),
+    offerStarted: readFlag(flags, 18),
+    rank,
+    highestFameCategory: maximum.category,
+    highestFame: maximum.value,
+    ...(nextTitleThreshold === undefined ? {} : { nextTitleThreshold }),
+    meetsFameThreshold:
+      nextTitleThreshold !== undefined && maximum.value >= nextTitleThreshold,
+    cachedMissionSection,
+    ...(SHARED_MISSION_NAMES.has(cachedMissionSection)
+      ? { cachedMissionName: SHARED_MISSION_NAMES.get(cachedMissionSection)! }
+      : {}),
+    routeTable: routes
+      ? subsection === 0
+        ? "primary"
+        : `subsection-${subsection}`
+      : "unavailable",
+    ...(route ? { route } : {}),
+  };
+}
+
 export async function queryScenario(
   save: Buffer,
   slot: number,
   action: ScenarioQueryAction,
   scenario?: DisassembledScenario,
+  sharedScenario?: DisassembledScenario,
 ): Promise<ScenarioQueryResult> {
   validate(save);
   const base = slotOffset(slot);
@@ -502,6 +643,7 @@ export async function queryScenario(
   const scenarioId = protagonistId + 1;
   const selectedScenario =
     scenario ?? (await loadProtagonistScenario(scenarioId));
+  const selectedSharedScenario = sharedScenario ?? (await loadSharedScenario());
   if (selectedScenario.scenarioId !== scenarioId)
     throw new Error(
       `Expected scenario ${scenarioId}, got ${selectedScenario.scenarioId}.`,
@@ -525,6 +667,11 @@ export async function queryScenario(
   const slotInfo = inspectSlot(save, slot);
   const portId = save[base + 0x0a]!;
   const voyageDay = save[base + 0x1d82]!;
+  const ticks = save[base + 9]!;
+  const buildingOpen =
+    action.type === "building"
+      ? isBuildingOpen(action.context, ticks)
+      : undefined;
   const selector = actionSelectorAndQualifier(action, portId, voyageDay);
   const route = findRoute(routeTable, selector);
   const flags = save.readUInt32LE(base + 0x32);
@@ -535,10 +682,21 @@ export async function queryScenario(
     ]),
   );
   const fame = inspectFame(save, slot, protagonistId);
+  const shared = inspectSharedScenario(
+    save,
+    slot,
+    action,
+    selectedSharedScenario,
+  );
   const notes = [
     `Fame: trade ${fame.trade}, piracy ${fame.piracy}, adventure ${fame.adventure}.`,
-    "This queries protagonist story dialogue only; ordinary building dialogue and shared SNR0 quests are not yet evaluated.",
+    "Shared SNR0 state and route are reported separately; its indirect message calls are not yet symbolically executed.",
+    "Ordinary building dialogue is not yet evaluated.",
   ];
+  if (buildingOpen === false)
+    notes.push(
+      "The building is closed at the saved time, so its matched scenario route cannot currently be triggered.",
+    );
   if (
     scenarioId === 1 &&
     sectionId === 1 &&
@@ -565,8 +723,10 @@ export async function queryScenario(
       portId,
       portName: slotInfo.portName,
       action,
+      ...(buildingOpen === undefined ? {} : { buildingOpen }),
       routeTable: subsection === 0 ? "primary" : `subsection-${subsection}`,
       outcomes: [],
+      sharedScenario: shared,
       notes: [
         ...notes,
         ...(joaoPubNeedsHarborVisit
@@ -587,7 +747,7 @@ export async function queryScenario(
     flags,
     variables,
     portId,
-    save[base + 9]!,
+    ticks,
   );
   if (execution.truncated)
     notes.push("Symbolic execution reached its path or instruction limit.");
@@ -617,20 +777,18 @@ export async function queryScenario(
       notes.push(
         `The João 2,000-fame Pub handler explicitly rejects port ID ${portId}; IDs 0–2 are excluded.`,
       );
-    const ticks = save[base + 9]!;
     if (ticks < 0x0d || ticks > 0x33)
       notes.push(
         "The João 2,000-fame Pub handler only reaches its story dialogue through 17:00; its internal lower bound is 04:20, but the Pub normally opens at 08:00.",
       );
   }
+  const availableOutcomes = buildingOpen === false ? [] : outcomesWithDialogue;
   const confidence: QueryConfidence =
-    outcomesWithDialogue.length === 0
+    availableOutcomes.length === 0
       ? "none"
-      : outcomesWithDialogue.some(
-            (outcome) => outcome.confidence === "ambiguous",
-          )
+      : availableOutcomes.some((outcome) => outcome.confidence === "ambiguous")
         ? "ambiguous"
-        : outcomesWithDialogue.every(
+        : availableOutcomes.every(
               (outcome) => outcome.confidence === "confirmed",
             )
           ? "confirmed"
@@ -645,9 +803,11 @@ export async function queryScenario(
     portId,
     portName: slotInfo.portName,
     action,
+    ...(buildingOpen === undefined ? {} : { buildingOpen }),
     route,
     routeTable: subsection === 0 ? "primary" : `subsection-${subsection}`,
-    outcomes: outcomesWithDialogue,
+    outcomes: availableOutcomes,
+    sharedScenario: shared,
     notes,
   };
 }
@@ -660,15 +820,32 @@ function formatAction(action: ScenarioQueryAction): string {
 }
 
 export function formatQueryResult(result: ScenarioQueryResult): string {
+  const shared = result.sharedScenario;
   const lines = [
     `Scenario ${result.scenarioId}: ${result.protagonist}`,
     `Save state: section ${result.section}, subsection ${result.subsection}, flags ${result.flagsHex}`,
     `Location: ${result.portName} (${result.portId}); action: ${formatAction(result.action)}`,
+    ...(result.buildingOpen === undefined
+      ? []
+      : [`Building hours: ${result.buildingOpen ? "open" : "closed"}`]),
     `Route table: ${result.routeTable}`,
     result.route
       ? `Matched route: ${result.route.keyHex} → ${hex(result.route.destinationOffset)}`
       : "Matched route: none",
     `Overall confidence: ${result.confidence}`,
+    "",
+    "Shared SNR0 state",
+    `  Section ${shared.section}, subsection ${shared.subsection}, flags ${shared.flagsHex}`,
+    `  Rank: ${RANK_NAMES[shared.rank] ?? `unknown (${shared.rank})`}; highest Fame: ${shared.highestFameCategory} ${shared.highestFame}`,
+    shared.nextTitleThreshold === undefined
+      ? "  Next-title eligibility: none (Duke is the highest title)"
+      : `  Next-title threshold: ${shared.nextTitleThreshold}; Fame threshold ${shared.meetsFameThreshold ? "met" : "not met"}`,
+    `  Flags: eligible ${shared.eligibilityFlag ? "yes" : "no"}; invitation armed ${shared.invitationArmed ? "yes" : "no"}; offer started ${shared.offerStarted ? "yes" : "no"}`,
+    `  Cached assignment/mission: ${shared.cachedMissionName ?? `section ${shared.cachedMissionSection}`}`,
+    `  Route table: ${shared.routeTable}`,
+    shared.route
+      ? `  Matched shared route: ${shared.route.keyHex} → ${hex(shared.route.destinationOffset)}`
+      : "  Matched shared route: none",
     "",
   ];
   for (const [index, outcome] of result.outcomes.entries()) {
@@ -694,20 +871,22 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
   return `${lines.join("\n")}\n`;
 }
 
-const help = `Query protagonist story dialogue from a UW2 DOS save
+const help = `Query story dialogue and shared scenario state from a UW2 DOS save
 
-npm run query-dialog -- FILE SLOT ACTION
+pnpm run query-dialog -- FILE SLOT ACTION
 
 Actions:
   market, pub, shipyard, harbor, arrival, lodge, palace, guild, special-building,
-  bank, item-shop, church
+  bank, item-shop, church, house-of-fortune, fortune-teller
   context:ID                  raw building/context qualifier
   at-sea                     uses the saved voyage-day counter
   before-battle:CAPTAIN_ID   scenario hook before naval combat
   after-battle:CAPTAIN_ID    scenario hook after naval combat
 
-The tool never modifies the save. Ambiguous results show each possible path and
-the undecoded VM condition responsible for it.`;
+The tool never modifies the save. It symbolically executes protagonist story
+routes and reports the shared SNR0 route, royal-invitation state, and cached
+mission. Ambiguous results show each possible protagonist path and the undecoded
+VM condition responsible for it. Ordinary building dialogue is not evaluated.`;
 
 async function main(): Promise<void> {
   const [file, slotText, actionText] = process.argv.slice(2);

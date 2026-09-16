@@ -25,8 +25,8 @@ its last seven sections implement missions offered by a ruler.
 The ordinary assignments and their rewards are documented with the Fame they
 affect:
 
-- [Trade Fame](../game-details/fame/trade-fame.md#guild-assignments)
-- [Piracy Fame](../game-details/fame/piracy-fame.md#guild-assignments)
+- [Trade Fame](../fame/trade-fame.md#guild-assignments)
+- [Piracy Fame](../fame/piracy-fame.md#guild-assignments)
 
 ## Becoming eligible for a royal mission
 
@@ -175,7 +175,7 @@ the interaction-specific Harbor/Treat arming transition performed outside the
 currently decoded SNR0 flag writes.
 
 Only Amsterdam, Genoa, Istanbul, Lisbon, London, and Seville contain a Palace.
-See [buildings](../game-details/buildings.md#port-availability).
+See [buildings](../buildings.md#port-availability).
 
 ### Controlled save-state evidence
 

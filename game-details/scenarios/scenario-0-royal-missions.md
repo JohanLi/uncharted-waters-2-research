@@ -66,7 +66,7 @@ the protagonist continue or give up.
 
 Investment can turn a port into an ally. The takeover itself also awards Trade
 Fame equal to the port's Economy plus Industry; see
-[Trade Fame](../game-details/fame/trade-fame.md#making-an-allied-port).
+[Trade Fame](../fame/trade-fame.md#making-an-allied-port).
 
 ## Discoveries for the ruler (section 10)
 

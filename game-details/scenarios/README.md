@@ -20,20 +20,17 @@ Evidence labels used in these notes:
 | -------: | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 |        0 | Common Guild quests and royal missions | [Overview](./scenario-0-common-quests-and-royal-missions.md), [royal mission catalog](./scenario-0-royal-missions.md) |
 |        1 | João Franco                            | [Scenario guide](./scenario-1-joao-franco.md)                                                                         |
-|        2 | Catalina Erantzo                       | Not started                                                                                                           |
-|        3 | Otto Baynes                            | Not started                                                                                                           |
-|        4 | Ernst von Bohr                         | Not started                                                                                                           |
-|        5 | Pietro Conti                           | Not started                                                                                                           |
-|        6 | Ali Vezas                              | Not started                                                                                                           |
+|        2 | Catalina Erantzo                       | [Scenario guide](./scenario-2-catalina-erantzo.md)                                                                    |
+|        3 | Otto Baynes                            | [Scenario guide](./scenario-3-otto-baynes.md)                                                                         |
+|        4 | Ernst von Bohr                         | [Scenario guide](./scenario-4-ernst-von-bohr.md)                                                                      |
+|        5 | Pietro Conti                           | [Scenario guide](./scenario-5-pietro-conti.md)                                                                        |
+|        6 | Ali Vezas                              | [Scenario guide](./scenario-6-ali-vezas.md)                                                                           |
 
 ## Primary research sources
 
-- `scripts/dialog/output/scenarios.json`: decoded sections, routes,
-  instructions, messages, and state operations.
-- `scripts/dialog/output/readable/scenario-0.md`: generated structural view of
-  Scenario 0.
-- `scripts/dialog/REVERSE_ENGINEERING.md`: VM, save-state, title, and runtime
-  evidence.
+- `raw/SNR*.DAT` and `raw/SNR*.MES`: scenario programs and their message banks.
+- [`dialog-system/scripts/REVERSE_ENGINEERING.md`](../../dialog-system/scripts/REVERSE_ENGINEERING.md):
+  VM, save-state, title, and runtime evidence.
 - `game-details/fame/`: sources and effects of the three Fame values.
 - `game-details/friendship.md`: Relation changes made by diplomatic royal
   missions.

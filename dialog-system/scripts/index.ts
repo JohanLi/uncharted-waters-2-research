@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { prepareOutput, repoRoot, writeJson } from "../shared.js";
+import { repoRoot, writeJson } from "../../scripts/shared.js";
 import { analyzeScenarioVmExecutable } from "./main-exe.js";
 import { writeReadableFormats } from "./readable-formats.js";
 import { disassembleScenario } from "./snr.js";
@@ -11,8 +11,9 @@ interface Message {
   position: number;
 }
 export async function run(): Promise<void> {
-  const output = await prepareOutput("dialog"),
-    mes = await readFile(join(repoRoot, "raw/SNR1.MES"));
+  const output = join(repoRoot, "dialog-system/scripts/output");
+  await mkdir(output, { recursive: true });
+  const mes = await readFile(join(repoRoot, "raw/SNR1.MES"));
   const messages: Message[] = [];
   let cursor = 4756;
   while (cursor < mes.length) {
@@ -50,10 +51,7 @@ export async function run(): Promise<void> {
     }
   }
   for (const message of messages) {
-    message.body = message.body
-      .replace(/\|.*?\|\n/g, "")
-      .replaceAll("$n", "$firstName")
-      .replaceAll("$s", "$lastName");
+    message.body = message.body.replace(/\|.*?\|\n/g, "");
   }
   await writeJson(join(output, "messages.json"), messages);
 
