@@ -67,6 +67,8 @@ const SHIP_INSTANCE_TABLE = 0x4893;
 const SHIP_INSTANCE_SIZE = 0x18;
 const SHIP_TYPE_OFFSET = 0x11;
 const TEKKOUSEN_TEMPLATE_INSTANCE = 0x3e;
+// The fleet-slot value used by the game for no gun type.
+const NO_GUNS_SELECTOR = 0x10;
 const SHIP_CONFIGURED_CREW_OFFSET = 0x14;
 const SHIP_CONFIGURED_GUNS_OFFSET = 0x13;
 const SHIP_CARGO_CAPACITY_OFFSET = 0x16;
@@ -428,6 +430,7 @@ export function setPlayerShipToTekkousen(data: Buffer, slot: number): Buffer {
   result[shipSlot + 5] = TEKKOUSEN_POWER;
   // Clear the slot's configured gun count as well.
   result[shipSlot + 6] = 0;
+  result[shipSlot + 8] = NO_GUNS_SELECTOR;
   return result;
 }
 

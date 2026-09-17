@@ -240,7 +240,7 @@ test("converts the current player's first ship to a Tekkousen", () => {
   const shipSlot = fleet + 0x2b;
   // The raw baseline has an empty player fleet. Add one minimal source ship
   // to the cloned fixture so this test exercises the conversion operation.
-  save.set([10, 0, 27, 27, 90, 75, 0, 0, 16], shipSlot);
+  save.set([10, 0, 27, 27, 90, 75, 0, 0, 0x14], shipSlot);
   const instance = 0x4893 + save[shipSlot + 7]! * 0x18;
   save[instance + 0x11] = 5;
   const edited = setPlayerShipToTekkousen(save, 1);
@@ -255,6 +255,7 @@ test("converts the current player's first ship to a Tekkousen", () => {
   assert.equal(edited[instance + 0x13], 0);
   assert.equal(edited.readUInt16LE(instance + 0x14), 300);
   assert.equal(edited.readUInt16LE(instance + 0x16), 800);
+  assert.equal(edited[shipSlot + 0x08], 0x10);
   assert.equal(edited.readUInt16LE(0x42d5), 3000);
   assert.equal(edited.readUInt16LE(0x42d7), 5000);
   assert.equal(save[instance + 0x11], 5);
