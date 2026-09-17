@@ -5,9 +5,34 @@ This file tracks gaps that prevent a complete answer to:
 > Given a player state, a port, and a building, exactly what conversation and
 > post-conversation behavior will occur?
 
-Questions are ordered roughly by how much they block an end-to-end predictor.
 When one is resolved, update this file together with the relevant extractor,
 regression test, and [dialog-system guide](./README.md).
+
+## Current priorities
+
+The literal threshold comparisons themselves no longer need routine boundary
+testing. Repeated controlled tests have confirmed the decoded inclusive lower
+bounds. New runtime evidence is most useful when it identifies dispatch, field
+lifecycle, or presentation behavior that is not contained in the scenario
+bytecode.
+
+### Highest-value executable investigations
+
+1. Complete shared-`SNR0` message invocation so royal missions and ordinary
+   shared quests produce transcripts rather than only matched routes.
+2. Trace complete building-entry precedence, including the point at which an
+   SNR route suppresses ordinary dialogue or the building menu.
+3. Map ordinary `MESSAGE.DAT`/`MESSAGE2.DAT` callers and speaker/portrait
+   selection.
+4. Decode the remaining VM record groups and action opcodes that occur on
+   reachable story paths.
+
+### Highest-value runtime tests
+
+| Priority | Test                      | Save immediately before…                                                | Evidence to record                                                          |
+| -------: | ------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+|        1 | Voyage-day lifecycle      | Midnight at sea and the corresponding port-entry/departure alternatives | Voyage-day byte before and after midnight, port entry, and departure        |
+|        2 | Ordinary random greetings | Repeated entry into the same Bank or Lodge without advancing time       | Dialogue across repeated entries, reloads, and the next time/day transition |
 
 ## 1. Building-entry dispatch and precedence
 
@@ -22,27 +47,29 @@ behavior. It is also unclear whether all building types share the same order.
 **Why it matters:** Without this, two individually decoded handlers cannot
 always be combined into one guaranteed player-visible outcome.
 
-**Suggested evidence:** Trace the building-entry dispatcher from
+**Next evidence:** Trace the building-entry dispatcher from
 `MAIN.EXE 0x20930` through scenario dispatch and the individual building
 routines. Validate representative saves for a normal visit, a protagonist
 event, an `SNR0` quest, an access rejection, and a hostile-port encounter.
 
 ## 2. Forced exit and menu suppression
 
-**Unknown:** Which scenario action or executable return value ejects the player
-from a building, changes the town position, or suppresses the normal menu?
+**Decoded:** Scenario action `F8` clears a caller-provided interaction-control
+word. In controlled Pietro routes, `F8 F2` suppresses the normal building menu
+and returns the player outside, while otherwise comparable routes ending in
+`F2` alone leave the building usable.
 
-Runtime tests show that visually similar reminder conversations can differ:
-one leaves the player inside, while another returns the player outside. Dialog
-wording alone is not reliable evidence.
+**Remaining unknown:** Whether the caller always implements this result by
+changing the saved town position, and what `F8` means in non-building scenario
+contexts. Dialog wording alone is still not reliable evidence.
 
 **Why it matters:** Predicting the spoken lines is incomplete if the caller
 cannot also know whether the building remains usable.
 
-**Suggested evidence:** Compare instruction sequences for confirmed ejecting
-and non-ejecting João routes. Trace their still-unnamed action handlers and
-interpreter return state, then compare town-position/menu state immediately
-before and after each scene in a debugger or controlled save.
+**Evidence:** Pietro's ejecting Genoa Pub, Church, and wildcard debt encounters
+all end in `F8 F2`. His non-ejecting Lodge reassurance ends in `F2` without
+`F8`. The `MAIN.EXE 0x38EE3` handler writes zero through the interaction-state
+pointer supplied to the interpreter.
 
 ## 3. `MESSAGE.DAT` versus `MESSAGE2.DAT`
 
@@ -58,7 +85,7 @@ notes?
 branch with the correct text and runtime substitutions without off-by-one or
 wrong-bank errors.
 
-**Suggested evidence:** Identify the load handles and central print/format
+**Next evidence:** Identify the load handles and central print/format
 helpers in `MAIN.EXE`, enumerate their cross-references, and record message
 bank plus raw index at each building-related caller. Add a small extractor that
 publishes both `rawIndex` and `entryNumber` explicitly.
@@ -75,11 +102,19 @@ the shared MES handle.
 **Why it matters:** The query can now report shared state and the matching
 route, but it cannot reproduce the shared conversation generally.
 
-**Suggested evidence:** Trace reads from the shared SNR MES handle and compare
+**Next evidence:** Trace reads from the shared SNR MES handle and compare
 runtime breakpoints for a Guild contract offer, Treat rumor, Palace mission
 offer, mission completion, and rejection path.
 
 ## 5. Remaining scenario actions
+
+**Decoded since this list was started:** `DC` resolves a game-state field
+reference into a VM variable. Combined with indirect assignment modes, it can
+read and write structured save records. Group-1 and group-3 references resolve
+protagonist Fame/state and sailor fields, while the Ernst routes use group 4
+for the active cartographer-contract byte. `F8` returns the forced-building-
+exit/menu-suppression result. `EA <variable>` stores the displayed gold-ingot
+count in a VM variable.
 
 **Unknown:** What are the gameplay names and side effects of the remaining
 valid `0xC0`–`0xFC` action opcodes?
@@ -91,7 +126,7 @@ ordinary building code.
 **Why it matters:** The bytecode is structurally traversable, but an unknown
 action between two dialog runs may materially change the outcome.
 
-**Suggested evidence:** Continue tracing the action-handler callees in the
+**Next evidence:** Continue tracing the action-handler callees in the
 range recorded in the
 [reverse-engineering notes](./scripts/REVERSE_ENGINEERING.md).
 Correlate each handler's memory writes and calls with controlled before/after
@@ -110,7 +145,7 @@ background cleared? What happens if a line changes position without another
 **Why it matters:** The current output can state the encoded slot and character
 but cannot promise the exact on-screen composition in every sequence.
 
-**Suggested evidence:** Build a corpus of short sequences covering slot
+**Next evidence:** Build a corpus of short sequences covering slot
 changes, repeated characters, `C4`, position 0, and dialog-run boundaries.
 Capture frames or trace the presentation globals written by the `C0`, `CC`,
 and `C7` handlers.
@@ -127,50 +162,61 @@ The battle theme heard before João's initial 2,000-fame Pub scene has no nearby
 **Why it matters:** A conversation transcript should report all audible music
 changes, not only explicit SNR cues.
 
-**Suggested evidence:** Break on the central music-selection routine and log
+**Next evidence:** Break on the central music-selection routine and log
 callers during ordinary entry, explicit `CA` scenes, and the known implicit
 battle-theme scene.
 
 ## 8. Complete route-context mapping
 
-**Unknown:** What do all building/context qualifier values mean, including
-values such as `0x04`, `0x06`, and scenario-specific values above the ordinary
-building range? When does the engine pass a wildcard rather than a distinct
-Lodge, Guild, or Bank context?
+**Decoded:** Ordinary building qualifiers `0x00` through `0x0B` map in order
+to Market, Pub, Shipyard, Harbor, Lodge, Palace, Guild, special residence,
+Bank, Item Shop, Church/Mosque, and House of Fortune. `0xFF` is a wildcard.
+Selectors `0xA0`, `0xA1`, and `0xA2` cover voyage-day, before-battle, and
+after-battle dispatch respectively.
 
-Known route tables show that qualifier values are not simply the one-based
-twelve-building list minus one in every situation.
+**Unknown:** What produces special contexts such as `0x15`, and when does the
+engine deliberately pass `0xFF` instead of a building's distinct qualifier?
+Sub-interactions such as Treat, Job Assignment, Palace audiences, and menu
+commands may use a second dispatch layer that is not yet enumerated.
 
 **Why it matters:** A predictor must construct the same selector and qualifier
 that `MAIN.EXE` supplies for the current interaction.
 
-**Suggested evidence:** Instrument both protagonist and shared route dispatch
+**Next evidence:** Instrument both protagonist and shared route dispatch
 and log selector/qualifier pairs while entering every building and invoking
 sub-interactions such as Treat, Job Assignment, and Palace audiences.
 
 ## 9. Remaining VM inputs and save fields
 
-**Decoded:** Port, time, flags, persistent VM variables, several fame checks,
-random operations, and some quest-specific values are understood.
+**Decoded:** Calendar day, port, time-of-day, flags, persistent VM variables,
+indirect Fame and sailor-record reads, random operations, gold-ingot counts,
+item-slot scanning, cartographer contracts, and Ali's cached port-controller
+scan are understood. Assignment-source selector 4 reads the zero-based current
+day of the month. Catalina's Lucia sequence stores that value and uses a
+separate visit counter, so crossing midnight—not the nominal two elapsed
+hours—selects its late branch. `EA <variable>` stores
+`floor(combined on-hand gold / 10,000)`. Controlled evidence confirms Pietro's
+one-ingot gate, Ali's 100-ingot gate, and Catalina's early Fame lifecycle.
 
 **Unknown:** What are the general meanings of the remaining assignment-source
-selectors, VM variables, and comparison operands? Important candidates include
-money, title/rank, inventory, allied-port count, date, party members, battle
-result, and quest resources.
+selectors, record groups, VM variables, and comparison operands? Candidates
+include party membership, duel/battle aftermath, rewards, and quest resources.
 
 **Why it matters:** An unresolved comparison forces the query tool to emit
 ambiguous paths even when the necessary value exists in the save.
 
-**Suggested evidence:** Trace each source selector in the VM assignment
-handler, map its runtime address to known save structures, and add boundary
-saves around the conditions listed in the quest research.
+**Next evidence:** Trace each source selector in the VM assignment handler,
+map its runtime address to known save structures, and add boundary saves only
+where field lifecycle or dispatch remains uncertain.
 
-Highest-value controlled saves currently include:
+The highest-value controlled saves are now before/after captures for unresolved
+fields or effects whose meaning cannot be established from the bytecode—not
+routine confirmation of decoded literal boundaries.
 
-- Catalina at piracy fame 0/1, 1,499/1,500, and 1,999/2,000;
-- Pietro around 1,000 Adventure Fame and 2,000 gold independently;
-- Ali with 14 and 15 allied ports;
-- Ernst immediately before and after signing a cartographer contract.
+Repeated controlled tests have confirmed the decoded comparison operators and
+their inclusive boundaries. Explicit literal thresholds should therefore be
+treated as reliable without requesting a runtime pair unless dispatch, field
+semantics, or another external precondition remains uncertain.
 
 ## 10. Ordinary vendor portrait and speaker selection
 
@@ -186,7 +232,7 @@ alone does not identify the complete presentation.
 speaking vendor from a portraitless system message and a scenario-selected
 character.
 
-**Suggested evidence:** Trace the portrait-selection call before ordinary
+**Next evidence:** Trace the portrait-selection call before ordinary
 greetings in several instances of each building type, especially special
 residences and Church/Mosque variants.
 
@@ -203,7 +249,7 @@ Bank/Lodge greeting variation in João's opening is one unresolved example.
 rather than one deterministic conversation, or may require hidden RNG/cache
 state not currently read from the save.
 
-**Suggested evidence:** Trace the random generator and cached state around the
+**Next evidence:** Trace the random generator and cached state around the
 ordinary handlers, repeat entries without advancing time, and compare runs
 across reloads and day transitions.
 
@@ -218,6 +264,6 @@ exactly when is it incremented relative to midnight and scenario dispatch?
 **Why it matters:** Some building conversations become available only after an
 at-sea transition has advanced the scenario subsection.
 
-**Suggested evidence:** Use otherwise identical saves to enter a port, remain
+**Next evidence:** Use otherwise identical saves to enter a port, remain
 at sea, or depart again around midnight, and compare both the counter and the
 selected `0xA0` route.

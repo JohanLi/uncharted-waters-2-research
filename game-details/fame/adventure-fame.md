@@ -196,14 +196,19 @@ regular ports are worth 5,050 Fame and the 30 supply ports are worth 1,500.
 
 ## Cartography
 
-To earn Fame from charting, learn Cartography and sign a contract with one of
-these cartographers:
+To earn Fame from charting, learn Cartography and hold an active contract with
+one of these cartographers:
 
 - Mercator in Amsterdam;
 - Gerard de Jode in Antwerp;
 - Diogo Ribeiro in Barcelona;
 - Olives in Palma; or
 - Giovanni Verrazano in Venice.
+
+Ernst receives Mercator's contract automatically during his first Mercator
+scene; he does not select the ordinary Contract command first. If he later
+contracts with another cartographer, revisiting Mercator during the relevant
+story section automatically switches the active contract back to Mercator.
 
 Reporting a chart awards 5 Adventure Fame and 80 gold for each newly charted
 cell. All five cartographers pay the same amount.
@@ -237,11 +242,12 @@ Adventure Fame gates these decoded protagonist events:
 | ----------- | -----------------------------------: |
 | João        | 2,000; 8,000; 16,000; 30,000; 40,000 |
 | Ernst       |         1,000; 5,000; 20,000; 40,000 |
-| Pietro      |               1,000*; 10,000; 40,000 |
+| Pietro      |                       10,000; 40,000 |
 
 João's 16,000 threshold appears twice internally as part of one staged
-progression. Pietro's 1,000 threshold is part of a combined condition with
-another requirement.
+progression. Pietro's earlier Golden Medallion activation does not check Fame;
+it requires at least one Gold Ingot (10,000 combined on-hand gold), a
+qualifying port, and inventory space.
 
 ## Code evidence
 

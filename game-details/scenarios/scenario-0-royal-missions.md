@@ -103,7 +103,7 @@ has the following stages:
    Ashore** and **Search** recovers the artifact. Knowing the coordinates
    without obtaining the map is insufficient.
 7. Returning the artifact to the commissioning ruler consumes it and awards
-   **100,000 gold pieces (10 gold bars)** and the next title.
+   **100,000 gold pieces (10 Gold Ingots)** and the next title.
 
 ### Waitress Job Info
 
@@ -130,12 +130,12 @@ progression. The artifact must still be returned to the ruler.
 
 Four scenario variables carry the hunt:
 
-| Variable | Meaning |
-| -------- | ------- |
-| 9 | Target discovery-record index |
-| 16 | Guild clue port |
-| 17 | Informant sailor/NPC |
-| 18 | Target artifact item |
+| Variable | Meaning                       |
+| -------- | ----------------------------- |
+| 9        | Target discovery-record index |
+| 16       | Guild clue port               |
+| 17       | Informant sailor/NPC          |
+| 18       | Target artifact item          |
 
 The target artifact is selected when the mission is offered. The section scans
 the discovery table from the beginning and takes the first still-eligible
@@ -145,15 +145,15 @@ The record index is saved in variable 9 and its item ID in variable 18.
 
 Those seven possible artifacts and their corresponding maps are:
 
-| Artifact ID | Artifact | Map ID | Map |
-| ----------: | -------- | -----: | --- |
-| 90 | Gold Mask | 80 | Map of Mask |
-| 91 | Jade Table | 81 | Map of Table |
-| 92 | Statue of Eyes | 82 | Map of Statue |
-| 93 | Obsidian Plate | 83 | Map of Plate |
-| 94 | Dark Crystal | 84 | Map of Crystal |
-| 95 | Pot of Fire | 85 | Map of Pot |
-| 96 | Sword of Fate | 86 | Map of Sword |
+| Artifact ID | Artifact       | Map ID | Map            |
+| ----------: | -------------- | -----: | -------------- |
+|          90 | Gold Mask      |     80 | Map of Mask    |
+|          91 | Jade Table     |     81 | Map of Table   |
+|          92 | Statue of Eyes |     82 | Map of Statue  |
+|          93 | Obsidian Plate |     83 | Map of Plate   |
+|          94 | Dark Crystal   |     84 | Map of Crystal |
+|          95 | Pot of Fire    |     85 | Map of Pot     |
+|          96 | Sword of Fate  |     86 | Map of Sword   |
 
 No individual artifact is hard-coded as the section-11 objective. The selected
 artifact is whichever eligible special-treasure record occurs first in the
@@ -225,7 +225,7 @@ the artifact.
 The completion script verifies that the inventory contains the item ID stored
 in variable 18. Its money award is not selected from a table: it loads 20,000
 and executes the add-money operation five times, for a fixed total of 100,000
-gold pieces. The ruler describes this as **10 gold bars**. The script then
+gold pieces. The ruler describes this as **10 Gold Ingots**. The script then
 removes the artifact, advances the protagonist by one title, and clears the
 active royal-mission state.
 
@@ -233,15 +233,15 @@ active royal-mission state.
 
 The principal file offsets behind these rules are:
 
-| File and offset | Behavior |
-| --------------- | -------- |
-| `SNR0.DAT 0x2830` onward | Scans special discovery records and stores the target record and item |
-| `SNR0.DAT 0x28DF` and `0x28E3` | Initializes the clue-port and informant variables to `255` |
-| `MAIN.EXE 0x32D25–0x32E68` | Handles Guild clues and randomly selects the port and informant |
-| `MAIN.EXE 0x2CD38–0x2D06B` | Handles waitress Job Info, including its section-11 hints and artifact-reaction relationship gain |
-| `MAIN.EXE 0x2BF2A–0x2C020` | Handles the fixed-price map sale, derives `map = artifact - 10`, and marks the map known |
-| `MAIN.EXE 0x33D59` onward | Handles Cartographer Locate and scans carried items for treasure-map IDs `80–88` |
-| `SNR0.DAT 0x29A9–0x29B8` | Loads 20,000 and invokes the money-add operation five times |
+| File and offset                | Behavior                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `SNR0.DAT 0x2830` onward       | Scans special discovery records and stores the target record and item                             |
+| `SNR0.DAT 0x28DF` and `0x28E3` | Initializes the clue-port and informant variables to `255`                                        |
+| `MAIN.EXE 0x32D25–0x32E68`     | Handles Guild clues and randomly selects the port and informant                                   |
+| `MAIN.EXE 0x2CD38–0x2D06B`     | Handles waitress Job Info, including its section-11 hints and artifact-reaction relationship gain |
+| `MAIN.EXE 0x2BF2A–0x2C020`     | Handles the fixed-price map sale, derives `map = artifact - 10`, and marks the map known          |
+| `MAIN.EXE 0x33D59` onward      | Handles Cartographer Locate and scans carried items for treasure-map IDs `80–88`                  |
+| `SNR0.DAT 0x29A9–0x29B8`       | Loads 20,000 and invokes the money-add operation five times                                       |
 
 These offsets also explain why the apparent story association is misleading:
 the scenario chooses the artifact, clue port, and informant through three

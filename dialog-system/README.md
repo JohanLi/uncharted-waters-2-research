@@ -72,16 +72,16 @@ The unresolved precedence and menu/ejection step is tracked in
 
 ## Files involved
 
-| File or output                                       | Role                                                                                                                                | Current status                                                   |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `raw/MAIN.EXE`                                       | Loads message banks and scenario pairs; implements ordinary building behavior and the SNR virtual machine                           | Partly decoded                                                   |
-| `raw/MESSAGE.DAT`                                    | 1,000 general strings, including ordinary vendor greetings, access responses, menu interactions, rumors, and reusable gameplay text | Container decoded; call sites only partly mapped                 |
-| `raw/MESSAGE2.DAT`                                   | 423 additional general strings, including UI, interaction, and character-specific text                                              | Container decoded; exact division from `MESSAGE.DAT` unknown     |
-| `raw/SNR0.DAT` / `SNR0.MES`                          | Shared Guild jobs and royal missions                                                                                                | Structurally decoded; some message references remain unexplained |
-| `raw/SNR1` through `SNR6`                            | Protagonist-specific programs and text                                                                                              | Structurally decoded                                             |
-| `raw/KOUKAI2.DAT`                                    | Save slots containing active scenario state and other inputs used by dialog conditions                                              | Relevant fields partly decoded                                   |
-| `raw/MENU.DAT`                                       | Building and command-menu labels                                                                                                    | Decoded where used by the building research                      |
-| `raw/ZA_DAT.DAT`                                     | Port maps and the presence/coordinates of building slots                                                                            | Decoded by the port extractor                                    |
+| File or output                                | Role                                                                                                                                | Current status                                                   |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `raw/MAIN.EXE`                                | Loads message banks and scenario pairs; implements ordinary building behavior and the SNR virtual machine                           | Partly decoded                                                   |
+| `raw/MESSAGE.DAT`                             | 1,000 general strings, including ordinary vendor greetings, access responses, menu interactions, rumors, and reusable gameplay text | Container decoded; call sites only partly mapped                 |
+| `raw/MESSAGE2.DAT`                            | 423 additional general strings, including UI, interaction, and character-specific text                                              | Container decoded; exact division from `MESSAGE.DAT` unknown     |
+| `raw/SNR0.DAT` / `SNR0.MES`                   | Shared Guild jobs and royal missions                                                                                                | Structurally decoded; some message references remain unexplained |
+| `raw/SNR1` through `SNR6`                     | Protagonist-specific programs and text                                                                                              | Structurally decoded                                             |
+| `raw/KOUKAI2.DAT`                             | Save slots containing active scenario state and other inputs used by dialog conditions                                              | Relevant fields partly decoded                                   |
+| `raw/MENU.DAT`                                | Building and command-menu labels                                                                                                    | Decoded where used by the building research                      |
+| `raw/ZA_DAT.DAT`                              | Port maps and the presence/coordinates of building slots                                                                            | Decoded by the port extractor                                    |
 | `dialog-system/scripts/output/scenarios.json` | Machine-readable disassembly of all SNR pairs                                                                                       | Generated research output                                        |
 | `dialog-system/scripts/output/readable/`      | Searchable transcripts, routes, instructions, control-flow edges, and dialog occurrences                                            | Generated research output                                        |
 
@@ -176,20 +176,24 @@ one-based building IDs documented in [Buildings](../game-details/buildings.md):
 |    `0x01` | Pub                                                     |
 |    `0x02` | Shipyard                                                |
 |    `0x03` | Harbor                                                  |
+|    `0x04` | Lodge                                                   |
 |    `0x05` | Palace                                                  |
+|    `0x06` | Guild                                                   |
 |    `0x07` | Special NPC residence                                   |
+|    `0x08` | Bank                                                    |
 |    `0x09` | Item Shop                                               |
 |    `0x0A` | Church or Mosque                                        |
+|    `0x0B` | House of Fortune                                        |
 |    `0xFF` | Wildcard; may cover several otherwise unmapped contexts |
 
-Lodge, Guild, and Bank do not always appear as distinct protagonist route
-qualifiers. João's opening, for example, uses a wildcard handler shared by
-those buildings. Route keys are therefore dispatch contexts, not a universal
-one-to-one enumeration of the twelve building records.
+Even when a building has a distinct qualifier, a route table may expose only a
+wildcard handler. João's opening, for example, uses one wildcard route shared
+by several building types. Route keys are therefore dispatch contexts, not a
+guarantee that every table lists all twelve building qualifiers.
 
 The active section and subsection determine which route table is eligible.
 After a route is chosen, its bytecode may branch on scenario flags, VM
-variables, current port, time, fame, random values, inventory, and other
+variables, current calendar day, port, time, fame, random values, inventory, and other
 partly decoded inputs.
 
 ## How a scenario expresses dialog
@@ -272,6 +276,7 @@ The following operations matter when describing what the player experiences:
 | `F0`                          | **Decoded**                  | Advance subsection after the interpreter returns                     |
 | `F1`                          | **Decoded**                  | Advance section, reset subsection, and clear scenario flags          |
 | `F2`                          | **Decoded**                  | Stop scenario interpretation                                         |
+| `F8`                          | **Confirmed**                | Suppress the normal building menu and force the player outside       |
 
 ### Music and clearing example
 
@@ -300,10 +305,17 @@ Runtime tests confirm both kinds of story interruption:
   normal building menu can be used;
 - other reminders play but leave the player inside and allow the menu.
 
-The current disassembler has not identified the exact operation responsible
-for ejection, relocation, or menu suppression. It is therefore incorrect to
-infer forced exit merely from dialog wording such as “Let's go.” This behavior
-must currently be supplied by a runtime observation or left unknown.
+Action `F8` supplies the scenario's forced-exit result. Its executable handler
+clears a caller-provided interaction-control word. Runtime-controlled Pietro
+routes provide a direct comparison: the Genoa Church line “Ah! I just
+remembered an important engagement. Sorry, got to run.” ends in `F8 F2` and
+ejects Pietro, while the nearby Lodge line “Don't worry, sonny, you're safe
+here. Just rest here quietly.” ends in `F2` without `F8` and leaves the Lodge
+usable. Other confirmed ejecting debt conversations use the same `F8 F2`
+ending.
+
+Dialog wording alone remains insufficient evidence; the encoded `F8` is what
+distinguishes an ejecting conversation from a visually similar reminder.
 
 ## State that selects a conversation
 
@@ -365,8 +377,8 @@ pnpm run query-dialog -- save-editor/KOUKAI2-original.DAT 1 pub
 pnpm run query-dialog -- save-editor/KOUKAI2-original.DAT 1 special-building
 ```
 
-It reads the selected slot's scenario state, clock, port, protagonist, and
-fame, applies the decoded building schedule, then reports outcomes as
+It reads the selected slot's scenario state, calendar, clock, port,
+protagonist, and fame, applies the decoded building schedule, then reports outcomes as
 `confirmed`, `decoded`, `ambiguous`, or `none`. Explicit small random ranges
 become separate probability branches.
 
@@ -401,9 +413,8 @@ earlier visits that displayed no story text.
 During João's 2,000-fame departure sequence, entering some non-Harbor buildings
 can show Alberto's “Let me walk you to the port” reminder without ejecting the
 player. Other forced stages show context-specific warnings and return the
-player outside. The known SNR dialog and flags identify which text runs, but
-the unidentified exit/menu operation prevents a fully static prediction of
-the post-conversation building state.
+player outside. The scenario query now reports the decoded `F8` exit effect on
+those paths instead of inferring behavior from their wording.
 
 ## Research sources
 

@@ -3,9 +3,12 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  CARTOGRAPHER_RECORD_SIZE,
+  CARTOGRAPHER_TABLE,
   CURRENT_PORT,
   FILE_SIZE,
   ITEM_INVENTORY,
+  inspectCartographers,
   inspectFame,
   inspectGold,
   inspectItems,
@@ -56,6 +59,67 @@ test("inspects the supported save format", () => {
   assert.equal(inspectSlot(save, 1).portName, "Lisbon");
   assert.equal(inspectSlot(save, 1).rank, 0);
   assert.equal(inspectRank(save, 1, 0), 0);
+});
+
+test("inspects cartographer contracts and chart-report rewards", () => {
+  const save = saveInLisbon();
+  assert.deepEqual(inspectCartographers(save, 1), [
+    {
+      index: 0,
+      name: "Giovanni Verrazano",
+      portId: 13,
+      flags: 0x09,
+      activeContract: false,
+      rewardModifier: 1,
+      goldPerChartCell: 80,
+    },
+    {
+      index: 1,
+      name: "Gerard de Jode",
+      portId: 32,
+      flags: 0x09,
+      activeContract: false,
+      rewardModifier: 1,
+      goldPerChartCell: 80,
+    },
+    {
+      index: 2,
+      name: "Diogo Ribeiro",
+      portId: 3,
+      flags: 0x09,
+      activeContract: false,
+      rewardModifier: 1,
+      goldPerChartCell: 80,
+    },
+    {
+      index: 3,
+      name: "Olives",
+      portId: 12,
+      flags: 0x09,
+      activeContract: false,
+      rewardModifier: 1,
+      goldPerChartCell: 80,
+    },
+    {
+      index: 4,
+      name: "Mercator",
+      portId: 33,
+      flags: 0x09,
+      activeContract: false,
+      rewardModifier: 1,
+      goldPerChartCell: 80,
+    },
+  ]);
+
+  const withMercatorContract = Buffer.from(save);
+  const mercatorFlags =
+    slotOffset(1) + CARTOGRAPHER_TABLE + 4 * CARTOGRAPHER_RECORD_SIZE + 0x16;
+  withMercatorContract[mercatorFlags] =
+    withMercatorContract[mercatorFlags]! | 0x10;
+  assert.equal(
+    inspectCartographers(withMercatorContract, 1)[4]!.activeContract,
+    true,
+  );
 });
 
 test("changes rank while checking the expected current rank", () => {

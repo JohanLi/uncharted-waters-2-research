@@ -21,7 +21,12 @@ All four values occur as exact scenario comparisons.
 Drawing and reporting map progress requires both:
 
 - Cartography, skill-mask bit `0x08`; and
-- a signed contract with a cartographer.
+- an active contract with a cartographer.
+
+Ernst does not explicitly choose Contract during his opening. His first
+Mercator scene grants Mercator's contract immediately. The following Amsterdam
+Harbor scene advances the story so that, on returning to Mercator, the normal
+cartographer menu remains open and Report is available.
 
 Known cartographers are Mercator in Amsterdam, Gerard de Jode in Antwerp,
 Diogo Ribeiro in Barcelona, Olives in Palma, and Giovanni Verrazano in Venice.
@@ -40,9 +45,18 @@ Detailed storage and executable evidence is in the
 ### 0–1: Mercator and Paula
 
 Amsterdam-specific opening routes establish Mercator's expedition and the
-Harbor introduction. At exactly 1,000 Adventure Fame the next section also
-evaluates map-progress state before Paula joins; Fame alone may therefore be
+Harbor introduction. The first Mercator visit replaces the ordinary
+cartographer interaction. Revisiting before the Harbor scene gives Mercator's
+short departure reminder and ejects Ernst again; after the Harbor scene, a
+Mercator visit can remain in the building and open the normal menu, including
+Report. At exactly 1,000 Adventure Fame the next section also evaluates
+map-progress state before Paula joins; Fame alone may therefore be
 insufficient.
+
+If Ernst later signs with another cartographer, visiting Mercator triggers a
+four-line accusation about the other contract. The scene automatically renews
+Mercator's contract and clears the other one before returning to normal
+interaction.
 
 ### 2–3: travel conversations
 
@@ -67,7 +81,5 @@ the town clue, Huang He, and Paula's home/ending.
 
 ## Highest-value validation
 
-- A save immediately before and after signing a cartographer contract to find
-  the contract field.
 - Boundary captures for the map-progress condition preceding Paula's joining.
 - Runtime mapping of each three-way travel-dialog variant.

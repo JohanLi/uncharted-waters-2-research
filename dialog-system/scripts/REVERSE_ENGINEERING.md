@@ -183,11 +183,30 @@ Relevant VM globals include current section at `DS:0x060E`, subsection at
 `DS:0x0612`, instruction offset at `DS:0x0614`, and the current DAT/MES handles
 at `DS:0x0616`/`DS:0x0618`.
 
-Assignment source selector 5 reads `DS:0x0E32`, the current port ID, through
-the handler at `MAIN.EXE` file offset `0x38851`. Selector 7 reads
+Runtime comparison also establishes an executable-level restriction on
+after-battle selector `0xA2`. Catalina's armed section-6 wildcard route
+`0xA2FF` runs after a normal naval victory but not after a successful escape.
+The route itself contains no general battle-result comparison; the distinction
+is made before the scenario interpreter is called. From one controlled
+pre-battle state, escape left the story at section 6/subsection 1 and produced
+only the opponent captain's ordinary retreat line, whereas victory ran the
+informant scene and advanced to subsection 2.
+
+Assignment source selector 4 reads `DS:0x0736`, the zero-based current day of
+the month, through the handler at `MAIN.EXE` file offset `0x3884C`. Selector 5
+reads `DS:0x0E32`, the current port ID, at `0x38851`. Selector 7 reads
 `DS:0x0737`, the time-of-day value in 20-minute ticks, at `0x3885B`. The query
-tool can therefore resolve comparisons using either value directly from a
+tool can therefore resolve comparisons using all three values directly from a
 save.
+
+Catalina's Lucia sequence confirms selector 4's lifecycle. Its Lisbon Pub
+agreement copies selector 4 to persistent scenario variable 0. Later Pub and
+Lodge routes compare the current selector-4 value with that stored day and use
+scenario variable 16 as an independent interaction counter. Pub or early
+Lodge visits increment the counter; elapsed time alone does not. A different
+day selects the late dialogue. Controlled saves remain on stored day 8 from
+18:40 through 23:20 and select the same-day branches, while the 00:00 save has
+day 9 and selects Lucia's late branch.
 
 The 64-word VM variable array is persisted in each save slot beginning at
 relative offset `0x3A`. This is confirmed directly by the 8,000-fame Pub route:
@@ -200,6 +219,63 @@ the variable and bound, calls `0x37F4F`, divides a generated non-negative value
 by the bound, and stores the remainder in the selected VM variable. The query
 tool models small ranges as explicit chance branches.
 
+Action opcode `EA <variable>` stores the displayed Gold Ingots component in
+the selected VM variable. Its handler begins at `MAIN.EXE 0x38E7C`, reads
+the destination operand, and calls `0x37F26`. That callee divides the 32-bit
+combined on-hand gold value at `DS:0x1432`/`0x1434` by 10,000 and stores the
+quotient in the VM variable. The gold address corresponds to save-slot relative
+`0x60A`. Thus a stored value of 25,000 is displayed as 2 Gold Ingots and 5,000
+Gold Coins: the ingot count is `floor(value / 10,000)` and the coin count is
+`value % 10,000`.
+
+Pietro's section-1 Pub route uses `EA 01`, rejects values below 1, rejects port
+IDs below 42, and then scans twenty item records for the empty marker `0xFF`.
+The indexed field pattern is `D0 04 06 02 3F`, followed by indirect read
+`05 03 04`; variable 2 is incremented from 0 through 19. This resolves the
+Golden Medallion activation as at least 10,000 combined on-hand gold, a port ID
+of at least 42, and one empty item slot—not 1,000 Adventure Fame plus 2,000
+gold.
+The resolved reference retains variable 2 as a live index rather than capturing
+its value when `D0` runs: the loop jumps back to the indirect `05` read, not to
+`D0`, and advances through two occupied slots before finding slot 2 in the
+controlled Pietro saves.
+
+Controlled Madeira captures at 9,999 and 10,000 gold hold Adventure Fame at
+zero and keep the story, time, port, and inventory conditions equivalent across
+the boundary. Runtime testing confirms that 9,999 falls through to the ordinary
+Pub, while 10,000 triggers message 109 and the Golden Medallion scene. The
+`EA >= 1` interpretation is therefore both executable-decoded and
+runtime-confirmed.
+
+Ali's section-3 and section-4 Harbor gates use a different indexed pattern.
+`D0 01 0C 00 13` selects byte `+0x13` from the regular-port record indexed
+by live variable 0. The script scans all 100 records, masks the byte with
+`7`, and counts values equal to `2`, the Ottoman/Turkish control value.
+This is the same cached controller field used by the Palace economic-power
+calculation. The loop covers port IDs 0 through 99 with no capital exclusion,
+so Istanbul contributes to the count. The respective thresholds are exactly
+30 and 50 ports.
+
+Both sections place Istanbul's specific Harbor route `0x0203` before the
+any-regular-port Harbor route `0xA303`. The counting route must therefore be
+triggered at a non-Istanbul Harbor. On success it sets the scenario flag
+immediately without dialogue; later Istanbul routes expose the result through
+Radino's transfer or the Palace summons.
+
+Ali's section-2 `EA >= 100` boundary is also runtime-confirmed. With 99
+displayed Gold Ingots, the voyage-day-1 route does not advance the story and
+the Istanbul Harbor retains its post-Palace dialogue about the Sultan
+preparing for war. With 100 ingots, the building check arms the transition,
+the voyage-day-1 route advances the subsection, and the following Harbor visit
+uses the João/Ladia story route.
+
+Ali's final Venice Bank sequence also demonstrates persistent price state. On
+the first visit, it stores
+`min(current displayed Gold Ingots + 500, 10,000)` in scenario variable 21.
+Later visits compare `EA` with that cached target. The successful branch does
+not subtract the target amount: Howell reveals that the Istanbul house is a
+gift.
+
 `AC <flag> <destination>` falls through when the flag is clear and jumps when
 it is set. `AD` has the opposite polarity: it jumps when the flag is clear.
 `FE <destination>` is unconditional. `F2` stops the interpreter. `F0` and `F1`
@@ -207,6 +283,14 @@ request subsection and section advancement after the interpreter returns. The
 `F1` path increments the section byte, resets the subsection, clears four flag
 bytes, and loads the new section. This independently corroborates the observed
 save-state transition at `0x00C7`–`0x00CA`.
+
+`F8` returns the forced-building-exit/menu-suppression result. Its handler at
+`MAIN.EXE` file offset `0x38EE3` writes zero through the caller-provided control
+pointer held in the interpreter frame. Controlled Pietro routes isolate its
+visible effect: messages 97–98 at `SNR5.DAT 0x0489` end in `F8 F2` and eject
+Pietro from the Genoa Church, while messages 99–100 at `0x049A` end in `F2`
+alone and leave the Lodge usable. Ejecting Pub messages 90–91 and wildcard
+messages 101–102 likewise end in `F8 F2`.
 
 Executable tracing and live tests establish these João opening contexts:
 
@@ -455,6 +539,51 @@ Live testing identifies which fame category drives each protagonist's scenario:
 | Otto, Catalina      | Piracy fame    |
 | Ali                 | Trade fame     |
 
+A controlled runtime comparison confirms that Catalina's first comparison is
+also the practical boundary. Entering the Harbor at Piracy Fame 0 produces no
+story dialogue, while entering it at Piracy Fame 1 selects message 173,
+Emilio's warning about a harbor rumor. The ordinary Harbor dispatcher therefore
+adds no higher effective Fame requirement to the explicit scenario comparison.
+
+The same route does not place the five Spanish fleets around Catalina's current
+position. At `SNR2.DAT 0x0892–0x08E8`, it loads the literal coordinates
+`(0x008E, 0x0176)`, or `(142, 374)`, and writes them to fleet IDs 15–19. It then
+sets objective 7, target sailor 1 (Catalina), and flags `0x41`. Seville's raw
+port coordinate is `(142, 372)`. In the post-departure runtime capture,
+Catalina is at `(146, 383)` while all five pursuers remain together at
+`(142, 374)`; their navigation targets have updated to Catalina's position.
+Thus the fleets spawn immediately outside Seville and pursue Catalina from
+there.
+
+Controlled section-2 comparisons confirm the later Catalina boundaries and
+their less obvious lifecycle. At 1,499 Piracy Fame, an eligible ordinary
+building in Ceuta produces no story event; at 1,500 it selects messages
+230–239 and advances the subsection. This also corrects the port comparison:
+the route continues only when the current port ID is **below 42**, not at least 42.
+
+At 1,999 Fame, the section-2 Pub questioning repeats indefinitely. At 2,000,
+the same visible questioning runs once but `F1` advances to section 3. The next
+Pub visit in section 3/subsection 0 deliberately has no story dialogue and uses
+`F0` to advance the subsection. A third Pub visit then selects messages
+257–259, beginning with Andreas's reminder that they still have not found João.
+
+Catalina's section-4 search contains a similar-looking but structurally
+different transition. After the first Pub questioning at Perot's selected
+port, the next subsection's table gives the Pub, Palace, and context `0x15`
+explicit stop routes. Messages 372–375—the decision to wait for João—are on
+the `0xA3FF` route and run only when the current port still equals Perot's
+stored destination. Runtime testing confirms that entering the Guild selects
+this route, after which returning to the Pub produces messages 377–388. Thus
+the correct sequence is Pub → wildcard-routed non-Pub building → Pub, not
+three consecutive Pub visits.
+
+The query now resolves this directly. `DC 00 01 <protagonist> 00` obtains the
+14-byte protagonist Fame-record reference, `4C` advances that reference to the
+required Fame word, and assignment opcode `04` reads the little-endian word.
+The analogous group-3 reference and byte read resolve the sailor affiliation
+check. These reads remove the formerly ambiguous branches from the Catalina
+1,500- and 2,000-Fame queries.
+
 ### Cartography and Ernst's map reports
 
 Runtime observation establishes that drawing a map requires both the
@@ -505,6 +634,39 @@ cartographer has modifier 1 and pays the same 80 gold per cell. The field's
 broader gameplay meaning remains unknown, but it does not distinguish these
 cartographers' rewards.
 
+The five-record table begins at save-slot-relative offset `0x1A3A`; each
+record is 24 bytes, with its port ID at `+0x17`. The active-contract flag is
+bit `0x10` at `+0x16`, in the same byte as the two-bit reward modifier. A
+controlled intermediate save proves that Mercator's record changes from
+`0x09` to `0x19` during Ernst's first Mercator scene, before the required
+Harbor visit, while the other four records remain unchanged. The Harbor visit
+advances the story from section 0/subsection 1 to section 1; it does not grant
+the contract. That transition stops the Mercator reminder from ejecting Ernst
+and allows the ordinary cartographer menu, including Report, to remain open.
+Ernst therefore receives Mercator's contract automatically rather than
+explicitly choosing Contract.
+
+The executable independently confirms the interpretation. The ordinary
+contract handlers at file offsets `0x33600` and `0x33A70` clear bit `0x10`
+from the other records and set it on the selected cartographer. The menu path
+tests the same bit at `0x339C3` and `0x33A07`; the report-reward calculation at
+`0x33CB9` masks the same byte with `0x03`, leaving contract status separate
+from the reward modifier.
+
+Scenario action `DC` resolves a game-state field reference and stores it in a
+VM variable; its handler is at `MAIN.EXE 0x38D76`. In the cartographer pattern,
+`DC 00 04 <record> 16` makes variable 0 refer to byte `+0x16` of cartographer
+record selector `0x05`–`0x09`, in the order Giovanni, Gerard, Diogo, Olives,
+and Mercator. Assignment opcode `05` reads through the reference and `11`
+writes through it.
+
+Ernst section 1 uses this mechanism at `SNR4.DAT 0x035F`. It reads Mercator's
+byte, masks it with `0x10`, and selects message 77 when Mercator is active. A
+controlled Gerard save and screenshot confirm that a clear Mercator bit selects
+messages 78–81, accusing Ernst of holding another cartographer's contract. The
+following writes reactivate Mercator and clear the other four records. Thus
+merely visiting Mercator during this story section forcibly renews his contract.
+
 There are therefore 3,920 cells outside the initial rectangle. Dividing 40,000
 by 3,920 gives approximately 10.204, but the executable establishes an actual
 map-report reward of 5 adventure fame per new cell, for a theoretical maximum
@@ -513,12 +675,14 @@ the world must also include fame obtained while sailing or making discoveries.
 
 The map-completion branch at `0x33C2C` compares the total-known counter with
 3,300. Because 130 cells begin revealed, this requires 3,170 of the 3,920
-initially hidden cells, approximately 80.87%. The cartographer-contract field
-remains to be decoded.
+initially hidden cells, approximately 80.87%. The threshold is independent of
+which cartographer has the active contract.
 
-The working hypothesis is that lower bounds are inclusive and upper bounds are
-exclusive, matching other game ranges. Exact boundary tests are still needed
-before treating that comparison behavior as confirmed.
+Repeated controlled boundary tests now confirm the decoded comparison
+semantics: lower bounds are inclusive and upper bounds are exclusive. Further
+runtime pairs are useful when dispatch, field meaning, or an external
+precondition is uncertain, but are not needed merely to reconfirm an explicit
+literal threshold.
 
 For João, the 2,000 adventure-fame lower bound is confirmed inclusive. The
 event's primary `0xA303` arrival/Harbor route decides whether to advance the
@@ -745,12 +909,13 @@ subsequent warning and its state write.
   and every extracted protagonist dialogue is on a reachable instruction
   boundary.
 - Assignment, arithmetic, and comparison operand modes have structural names,
-  but most variable indices and action opcodes do not yet have gameplay names.
+  and indirect protagonist Fame/sailor reads are resolved, but many other
+  record groups, variable indices, and action opcodes do not yet have gameplay
+  names.
 - Dialogue runs are still assembled by their confirmed compound signatures,
   though their component instructions are also present in the sequential decode.
-- The fame signature is now known to be a variable assignment followed by a
-  comparison/conditional branch, but the fame-variable population path remains
-  to be named.
+- Fame comparisons now resolve through the `DC` record reference, pointer
+  adjustment, and indirect little-endian word read used by the scripts.
 - `rawHex` retains every section byte so unknown commands are not lost.
 - `SNR0` yields far fewer direct dialogue calls than messages. Its strings may
   be referenced by a different mechanism or directly from `MAIN.EXE`.
@@ -759,8 +924,9 @@ subsequent warning and its state write.
 
 1. Trace the action-handler callees at `0x377F4`–`0x3828F` and assign gameplay
    names to the remaining valid `0xC0`–`0xFC` opcodes.
-2. Map VM variable indices by correlating handler memory accesses with the known
-   save layout, starting with time, port, fame, money, and duel results.
+2. Map the remaining VM sources and record groups by correlating handler memory
+   accesses with the known save layout, especially party membership and
+   duel/battle aftermath.
 3. Correlate any newly encountered non-wildcard naval-battle qualifier with
    its zero-based sailor record; the currently observed `0x01` and `0x3C`
    values are resolved.

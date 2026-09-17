@@ -84,9 +84,9 @@ Ali receives the following one-time Trade Fame awards from his scenario:
 | Pietro and the Marco Polo Bank loan sequence    | 500 or 1,000 |
 | Sultan's allied-port and 100-ingot reward scene |        1,000 |
 
-The Pietro sequence has two scenario routes and explicitly selects either 500
-or 1,000 before adding the award. The route condition has not yet been given a
-reliable gameplay name.
+The Pietro sequence depends on Ali's earlier choice at the Istanbul Harbor.
+Lending Pietro 10,000 Gold Coins selects the 1,000-Fame route; refusing him
+selects the 500-Fame route.
 
 Every repeatable and story award is limited so that Trade Fame cannot exceed
 50,000.
@@ -94,8 +94,11 @@ Every repeatable and story award is limited so that Trade Fame cannot exceed
 ## Story threshold
 
 Ali's final Sapha and Istanbul-house sequence contains two exact checks for
-40,000 Trade Fame. His earlier chapters are driven mainly by money, rank, and
-the number of allied ports rather than by additional Trade Fame thresholds.
+40,000 Trade Fame. First, an ordinary Harbor scene sets a story flag. An
+ordinary Pub in an Ottoman-controlled port then consumes that flag and
+advances the story. His earlier chapters are driven mainly by money, rank, and
+the number of Ottoman-controlled ports rather than by additional Trade Fame
+thresholds.
 
 ## Code evidence
 

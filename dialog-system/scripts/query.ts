@@ -2,7 +2,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
+  inspectCartographers,
   inspectFame,
+  inspectGold,
+  inspectItems,
   inspectRank,
   inspectSlot,
   RANK_NAMES,
@@ -132,6 +135,13 @@ interface ExecutionState {
   flags: number;
   variables: Map<number, number>;
   variableNotEqual: Map<number, Set<number>>;
+  references: Map<
+    number,
+    | { kind: "cartographer-flags"; index: number }
+    | { kind: "inventory-item"; indexVariable: number }
+    | { kind: "record"; data: Buffer; offset: number }
+  >;
+  cartographerFlags: number[];
   dialogue: DialogueLine[];
   uncertainties: string[];
   effects: string[];
@@ -234,7 +244,9 @@ function knownSystemValue(
   systemId: number,
   portId: number,
   ticks: number,
+  day: number,
 ): number | undefined {
+  if (systemId === 4) return day;
   if (systemId === 5) return portId;
   if (systemId === 7) return ticks;
   return undefined;
@@ -325,6 +337,8 @@ function cloneState(state: ExecutionState): ExecutionState {
         new Set(values),
       ]),
     ),
+    references: new Map(state.references),
+    cartographerFlags: [...state.cartographerFlags],
     dialogue: [...state.dialogue],
     uncertainties: [...state.uncertainties],
     effects: [...state.effects],
@@ -346,6 +360,13 @@ function executeRoute(
   initialVariables: ReadonlyMap<number, number>,
   portId: number,
   ticks: number,
+  day: number,
+  initialCartographerFlags: readonly number[],
+  gold: number,
+  inventory: readonly number[],
+  protagonistId: number,
+  protagonistFameRecord: Buffer,
+  protagonistSailorRecord: Buffer,
 ): { outcomes: ScenarioQueryOutcome[]; truncated: boolean } {
   const section = scenario.sections[sectionId]!;
   const instructions = new Map(
@@ -365,6 +386,8 @@ function executeRoute(
       flags: initialFlags,
       variables: new Map(initialVariables),
       variableNotEqual: new Map(),
+      references: new Map(),
+      cartographerFlags: [...initialCartographerFlags],
       dialogue: [],
       uncertainties: [],
       effects: [],
@@ -417,13 +440,125 @@ function executeRoute(
     if (line) state.dialogue.push(line);
 
     const bytes = Buffer.from(instruction.rawHex, "hex");
-    if (instruction.opcode === 0x2c) {
+    if (
+      instruction.opcode === 0xdc &&
+      bytes[3] === protagonistId &&
+      (bytes[2] === 0x01 || bytes[2] === 0x03)
+    ) {
+      state.references.set(bytes[1]!, {
+        kind: "record",
+        data:
+          bytes[2] === 0x01 ? protagonistFameRecord : protagonistSailorRecord,
+        offset: bytes[4]!,
+      });
+    } else if (
+      instruction.opcode === 0xdc &&
+      bytes[2] === 0x04 &&
+      bytes[3]! >= 0x05 &&
+      bytes[3]! <= 0x09 &&
+      bytes[4] === 0x16
+    ) {
+      state.references.set(bytes[1]!, {
+        kind: "cartographer-flags",
+        index: bytes[3]! - 0x05,
+      });
+    } else if (
+      instruction.opcode === 0xd0 &&
+      bytes[2] === 0x06 &&
+      bytes[4] === 0x3f
+    ) {
+      state.references.set(bytes[1]!, {
+        kind: "inventory-item",
+        indexVariable: bytes[3]!,
+      });
+    } else if (instruction.opcode === 0x04) {
+      const reference = state.references.get(bytes[2]!);
+      if (
+        reference?.kind === "record" &&
+        reference.offset + 1 < reference.data.length
+      ) {
+        state.variables.set(
+          bytes[1]!,
+          reference.data.readUInt16LE(reference.offset),
+        );
+      } else {
+        state.variables.delete(bytes[1]!);
+      }
+      state.variableNotEqual.delete(bytes[1]!);
+    } else if (instruction.opcode === 0x05) {
+      const reference = state.references.get(bytes[2]!);
+      if (
+        reference?.kind === "record" &&
+        reference.offset < reference.data.length
+      ) {
+        state.variables.set(bytes[1]!, reference.data[reference.offset]!);
+        state.variableNotEqual.delete(bytes[1]!);
+      } else if (reference?.kind === "cartographer-flags") {
+        state.variables.set(
+          bytes[1]!,
+          state.cartographerFlags[reference.index]!,
+        );
+        state.variableNotEqual.delete(bytes[1]!);
+      } else if (reference?.kind === "inventory-item") {
+        const index = state.variables.get(reference.indexVariable);
+        const value = index === undefined ? undefined : inventory[index];
+        if (value === undefined) state.variables.delete(bytes[1]!);
+        else state.variables.set(bytes[1]!, value);
+        state.variableNotEqual.delete(bytes[1]!);
+      } else {
+        state.variables.delete(bytes[1]!);
+        state.variableNotEqual.delete(bytes[1]!);
+      }
+    } else if (instruction.opcode === 0x11) {
+      const reference = state.references.get(bytes[1]!);
+      const value = state.variables.get(bytes[2]!);
+      if (reference?.kind === "cartographer-flags" && value !== undefined) {
+        const previous = state.cartographerFlags[reference.index]!;
+        state.cartographerFlags[reference.index] = value;
+        if ((previous & 0x10) !== (value & 0x10)) {
+          const names = [
+            "Giovanni Verrazano",
+            "Gerard de Jode",
+            "Diogo Ribeiro",
+            "Olives",
+            "Mercator",
+          ];
+          state.effects.push(
+            `${value & 0x10 ? "activate" : "clear"} ${names[reference.index]} cartographer contract`,
+          );
+        }
+      }
+    } else if (instruction.opcode === 0x6c || instruction.opcode === 0x6d) {
+      const variable = bytes[1]!;
+      const value = state.variables.get(variable);
+      if (value !== undefined) {
+        state.variables.set(
+          variable,
+          instruction.opcode === 0x6c ? value | bytes[2]! : value & bytes[2]!,
+        );
+        state.variableNotEqual.delete(variable);
+      }
+    } else if (instruction.opcode === 0x4c) {
+      const variable = bytes[1]!;
+      const reference = state.references.get(variable);
+      if (reference?.kind === "record") {
+        state.references.set(variable, {
+          ...reference,
+          offset: reference.offset + bytes[2]!,
+        });
+      } else {
+        const value = state.variables.get(variable);
+        if (value === undefined) state.variables.delete(variable);
+        else state.variables.set(variable, (value + bytes[2]!) & 0xffff);
+      }
+      state.variableNotEqual.delete(variable);
+    } else if (instruction.opcode === 0x2c) {
       state.flags = writeFlag(state.flags, bytes[1]!, bytes[2]!);
     } else if (instruction.opcode === 0x0c) {
       state.variables.set(bytes[1]!, bytes.readUInt16BE(2));
       state.variableNotEqual.delete(bytes[1]!);
     } else if (instruction.opcode === 0x0f) {
-      const value = knownSystemValue(bytes[2]!, portId, ticks);
+      const value = knownSystemValue(bytes[2]!, portId, ticks, day);
       if (value === undefined) {
         state.variables.delete(bytes[1]!);
         state.variableNotEqual.delete(bytes[1]!);
@@ -431,6 +566,9 @@ function executeRoute(
         state.variables.set(bytes[1]!, value);
         state.variableNotEqual.delete(bytes[1]!);
       }
+    } else if (instruction.opcode === 0xea) {
+      state.variables.set(bytes[1]!, Math.floor(gold / 10_000));
+      state.variableNotEqual.delete(bytes[1]!);
     } else if (instruction.kind === "assignment") {
       const destinationMode = (instruction.opcode >> 4) & 3;
       if (destinationMode === 0) {
@@ -450,6 +588,8 @@ function executeRoute(
       state.effects.push("advance subsection when the interpreter returns");
     else if (instruction.opcode === 0xf1)
       state.effects.push("advance section when the interpreter returns");
+    else if (instruction.opcode === 0xf8)
+      state.effects.push("suppress normal building menu and force exit");
 
     if (instruction.opcode === 0xf2) {
       finish(state);
@@ -748,6 +888,19 @@ export async function queryScenario(
     variables,
     portId,
     ticks,
+    save[base + 8]!,
+    inspectCartographers(save, slot).map((cartographer) => cartographer.flags),
+    inspectGold(save, slot),
+    inspectItems(save, slot),
+    protagonistId,
+    save.subarray(
+      base + 0x5b6 + protagonistId * 14,
+      base + 0x5b6 + (protagonistId + 1) * 14,
+    ),
+    save.subarray(
+      base + 0x612 + protagonistId * 42,
+      base + 0x612 + (protagonistId + 1) * 42,
+    ),
   );
   if (execution.truncated)
     notes.push("Symbolic execution reached its path or instruction limit.");
@@ -780,6 +933,27 @@ export async function queryScenario(
     if (ticks < 0x0d || ticks > 0x33)
       notes.push(
         "The João 2,000-fame Pub handler only reaches its story dialogue through 17:00; its internal lower bound is 04:20, but the Pub normally opens at 08:00.",
+      );
+  }
+  if (
+    outcomesWithDialogue.length === 0 &&
+    scenarioId === 5 &&
+    sectionId === 1 &&
+    action.type === "building" &&
+    action.context === BUILDING_CONTEXTS.pub
+  ) {
+    const gold = inspectGold(save, slot);
+    if (gold < 10_000)
+      notes.push(
+        `The Golden Medallion Pub handler requires at least one Gold Ingot (10,000 combined on-hand gold); this save has ${gold.toLocaleString("en-US")} combined on-hand gold. Adventure Fame is not checked.`,
+      );
+    if (portId < 42)
+      notes.push(
+        `The Golden Medallion Pub handler rejects port ID ${portId}; it requires ID 42 or higher.`,
+      );
+    if (!inspectItems(save, slot).includes(0xff))
+      notes.push(
+        "The Golden Medallion Pub handler requires an empty item-inventory slot.",
       );
   }
   const availableOutcomes = buildingOpen === false ? [] : outcomesWithDialogue;
@@ -889,7 +1063,9 @@ mission. Ambiguous results show each possible protagonist path and the undecoded
 VM condition responsible for it. Ordinary building dialogue is not evaluated.`;
 
 async function main(): Promise<void> {
-  const [file, slotText, actionText] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  if (args[0] === "--") args.shift();
+  const [file, slotText, actionText] = args;
   if (!file || !slotText || !actionText || process.argv.includes("--help")) {
     console.log(help);
     return;

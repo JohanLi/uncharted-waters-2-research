@@ -46,6 +46,14 @@ flags, highest-Fame tie result, next-title threshold, cached mission family,
 and the matching shared route. Decoded building hours are applied before a
 matched route is described as triggerable.
 
+It also resolves the indirect active-cartographer field used by Ernst's
+Mercator routes, including automatic contract renewal when another
+cartographer is active. Gold-ingot and item-inventory reads are modeled
+for Pietro's Golden Medallion Pub gate. Indirect reads from protagonist Fame
+and sailor records are modeled for storyline affiliation and Fame gates. The
+calendar-day source used by Catalina's Lucia sequence is also resolved, so its
+same-day and after-midnight paths no longer appear as ambiguous alternatives.
+
 Ordinary executable-driven building dialog and indirect `SNR0` message calls
 are not yet evaluated. `none` therefore means no resolved protagonist story
 dialog, not that the building displays nothing.

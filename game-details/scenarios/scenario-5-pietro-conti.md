@@ -1,17 +1,18 @@
 # Scenario 5: Pietro Conti
 
 Pietro's story uses Adventure Fame, money and item checks, and randomized
-destinations. The first major gate is still partly decoded; the later 10,000
-and 40,000 Adventure Fame comparisons are exact.
+destinations. The Golden Medallion activation is a money, port-ID, and
+inventory-space check; the later 10,000 and 40,000 Adventure Fame comparisons
+are exact.
 
 ## Story and threshold map
 
-| Section | Gate                                           | Story                                    |
-| ------: | ---------------------------------------------- | ---------------------------------------- |
-|       0 | —                                              | Camillo and Duchess Franco's sponsorship |
-|       1 | Candidate 1,000 Adventure Fame plus 2,000 gold | Golden Medallion and El Dorado           |
-|       2 | 10,000 Adventure Fame                          | Poseidon's Staff                         |
-|       3 | 40,000 Adventure Fame                          | Zipangu, Raul Franco, and El Dorado      |
+| Section | Gate                                                               | Story                                    |
+| ------: | ------------------------------------------------------------------ | ---------------------------------------- |
+|       0 | —                                                                  | Camillo and Duchess Franco's sponsorship |
+|       1 | 1 Gold Ingot (10,000 combined gold), port ID ≥ 42, empty item slot | Golden Medallion and El Dorado           |
+|       2 | 10,000 Adventure Fame                                              | Poseidon's Staff                         |
+|       3 | 40,000 Adventure Fame                                              | Zipangu, Raul Franco, and El Dorado      |
 
 ## Section guide
 
@@ -22,11 +23,22 @@ equipment and money rewards, and Pietro's departure.
 
 ### 1: Golden Medallion
 
-African-port and resource comparisons lead to the map offer. Harbor possession
-checks later advance the section. The dialog and constants support a combined
-1,000-Adventure-Fame and 2,000-gold requirement, but the relevant VM source
-operands are not fully named, so this remains a **Candidate** rather than a
-decoded general rule.
+The any-port Pub route reads the displayed Gold Ingots count and requires at
+least one ingot. It separately requires a port ID of at least 42 and
+scans all twenty item slots for `0xFF`, rejecting the event if the inventory is
+full. Madeira is port 57 and therefore passes the port test. Adventure Fame is
+not read by this route.
+
+The seller initially asks 2,000 gold. Refusing produces a 1,000-gold
+counteroffer, so 2,000 is neither an activation threshold nor necessarily the
+final price. Harbor possession checks later advance the section.
+
+Controlled 9,999/10,000-gold captures isolate this boundary with zero Adventure
+Fame. Both are in Madeira at 13:40, in section 1/subsection 0, with two occupied
+item slots and eighteen empty slots. The save-aware executor rejects 9,999 and
+reaches message 109, “Ye’re $n, the adventurer, right?”, at 10,000. Runtime
+testing confirms the same split: 9,999 leaves the Pub behaving normally, while
+10,000 triggers the Golden Medallion dialogue.
 
 ### 2: Poseidon's Staff
 
@@ -45,17 +57,15 @@ ports, South America, Raul Franco, and the Lisbon ending.
 
 ## Practical progression guide
 
-| If the story appears stuck at… | Check…                                                                                |
-| ------------------------------ | ------------------------------------------------------------------------------------- |
-| Opening                        | Complete Genoa and Lisbon sponsor/equipment stages before departure                   |
-| Golden Medallion               | Try the African Pub/Harbor sequence with at least 1,000 Adventure Fame and 2,000 gold |
-| Poseidon's Staff               | Reach 10,000 only after finishing the Medallion section; follow the randomized lead   |
-| Return destination differs     | This is expected: the scenario stores randomized port values                          |
-| Finale                         | Reach 40,000 and follow both Japanese-port and South American stages                  |
+| If the story appears stuck at… | Check…                                                                              |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| Opening                        | Complete Genoa and Lisbon sponsor/equipment stages before departure                 |
+| Golden Medallion               | Carry at least 10,000 gold, leave an item slot empty, and try a Pub in port ID 42+  |
+| Poseidon's Staff               | Reach 10,000 only after finishing the Medallion section; follow the randomized lead |
+| Return destination differs     | This is expected: the scenario stores randomized port values                        |
+| Finale                         | Reach 40,000 and follow both Japanese-port and South American stages                |
 
 ## Highest-value validation
 
-- Four saves testing 999/1,000 Adventure Fame independently of 1,999/2,000
-  gold before the first African Pub offer.
 - A mapping from each randomized destination value to its port.
 - Controlled item-presence boundaries in the Harbor handoff.
