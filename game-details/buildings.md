@@ -57,6 +57,54 @@ Some commands lead to another menu. `Moor`, for example, opens `Store`,
 `Load Capacity`, and `Rename`. The Pub's `Meet` and `Waitress` commands likewise
 open character-specific submenus.
 
+The Palace's **Defect** entry is enabled only at a foreign capital and only
+when no royal invitation, offer, or accepted royal mission is active. Its
+complete predicate is documented under
+[Defection](friendship.md#when-the-command-is-available).
+
+### Vendor portraits and dialogue panels
+
+Ordinary building greetings use a fixed 136×112 vendor image from
+`GRAPH.DAT`. Zero-based records 6–17 correspond directly to displayed building
+IDs 1–12: the portrait record is normally `building ID + 5`. The
+religious-building routine substitutes record 20 for a Mosque.
+
+|  ID | Building              | `GRAPH.DAT` record | Extracted filename      |
+| --: | --------------------- | -----------------: | ----------------------- |
+|   1 | Market                |                  6 | `graph-006-136x112.png` |
+|   2 | Pub                   |                  7 | `graph-007-136x112.png` |
+|   3 | Shipyard              |                  8 | `graph-008-136x112.png` |
+|   4 | Harbor                |                  9 | `graph-009-136x112.png` |
+|   5 | Lodge                 |                 10 | `graph-010-136x112.png` |
+|   6 | Palace                |                 11 | `graph-011-136x112.png` |
+|   7 | Guild                 |                 12 | `graph-012-136x112.png` |
+|   8 | Special NPC residence |                 13 | `graph-013-136x112.png` |
+|   9 | Bank                  |                 14 | `graph-014-136x112.png` |
+|  10 | Item Shop             |                 15 | `graph-015-136x112.png` |
+|  11 | Church                |                 16 | `graph-016-136x112.png` |
+|  11 | Mosque                |                 20 | `graph-020-136x112.png` |
+|  12 | House of Fortune      |                 17 | `graph-017-136x112.png` |
+
+The vendor image occupies the upper dialogue panel. A story character can
+visually cover that presentation with an upper scenario panel, but the vendor
+and story portrait are not displayed there simultaneously. The lower dialogue
+panel is used by story characters, not by an ordinary vendor. Dialogue does
+not need to alternate between the panels; several consecutive lines can remain
+in the lower panel.
+
+Scenario position 0 reuses the building-supplied speaker rather than selecting
+a portrait through the scenario's `CC` instruction. In a Pub search scene, for
+example, the bartender's replies appear in the existing upper vendor panel
+while Andreas remains visible in a lower scenario panel. Advancing a line
+clears its text but leaves its panel and portrait in place. The `C4` scenario
+action is stronger: it closes both scenario panels and exposes the ordinary
+vendor presentation underneath.
+
+Portrait artwork and speaker identity are separate for ID 8. Collectors,
+cartographers, teachers, and named story occupants all retain residence image 13. The current occupant—Mercator, Gerard de Jode, Olives, Dr. Wolf, or another
+character—determines who is speaking and which text or menu is used; it does
+not select a different ordinary vendor image.
+
 Poor personal Friendship with the nation controlling a port can replace normal entry with a hostile encounter. The
 Palace and ordinary buildings use different encounter probabilities and confiscation rules, documented under
 [Hostile-country building encounters](friendship.md#hostile-country-building-encounters). The escape score uses
@@ -180,6 +228,8 @@ Muscat, Quatar, Shiraz, Trebizond, and Tripoli.
   transcribed above.
 - `raw/MESSAGE.DAT` contains the greetings, including message 804, "Welcome to
   our mosque."
+- `raw/GRAPH.DAT` records 6–17 contain the twelve ordinary building-vendor
+  images in building-ID order; record 20 contains the Mosque vendor.
 - `MAIN.EXE` file offsets `0x32BFA-0x32C39` load the current port's
   `CHIP_NO.DAT` byte and classify tileset `2` as the Mosque variant.
 - `MAIN.EXE` file offsets `0x209A8-0x209C3` hard-code the Item Shop's two

@@ -583,7 +583,9 @@ function executeRoute(
     else if (instruction.opcode === 0xe8)
       state.effects.push(`start duel (operand ${hex(bytes[1]!, 2)})`);
     else if (instruction.opcode === 0xcb)
-      state.effects.push(`show event art ${bytes.at(-1)}`);
+      state.effects.push(
+        `show EVENT${scenario.scenarioId}.DAT record ${bytes[5]} at (${bytes.readUInt16BE(1)}, ${bytes.readUInt16BE(3)})`,
+      );
     else if (instruction.opcode === 0xf0)
       state.effects.push("advance subsection when the interpreter returns");
     else if (instruction.opcode === 0xf1)
@@ -1034,7 +1036,7 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
     if (outcome.dialogue.length === 0) lines.push("  No story dialogue.");
     for (const line of outcome.dialogue)
       lines.push(
-        `  ${hex(line.offset)} · message ${line.messageId}${line.presentation === "choice-prompt" ? ` · choice → flag ${line.choiceFlag}` : ""} · ${line.speakerLabel ?? (line.characterId === undefined ? "Narration" : `Character ${line.characterId}`)}: ${line.body}`,
+        `  ${hex(line.offset)} · message ${line.messageId}${line.presentation === "choice-prompt" ? ` · choice → flag ${line.choiceFlag}` : ""} · ${line.speakerLabel ?? (line.characterId !== undefined ? `Character ${line.characterId}` : line.characterVariable !== undefined ? `Character from variable ${line.characterVariable}` : "Narration")}: ${line.body}`,
       );
     for (const effect of outcome.effects) lines.push(`  Effect: ${effect}`);
     for (const uncertainty of outcome.uncertainties)

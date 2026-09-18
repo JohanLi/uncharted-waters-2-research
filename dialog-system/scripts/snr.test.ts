@@ -249,9 +249,25 @@ test("disassembles João's building dialogue and one-shot state writes", async (
     ),
     {
       offset: 0x0d3b,
+      commandOffset: 0x0d3d,
+      resourceFile: "EVENT1.DAT",
       eventImageIndex: 0,
+      x: 112,
+      y: 24,
+      extractedAsset: "event1-00-192x144.png",
       rawHex: "c003cb0070001800",
     },
+  );
+
+  const eventArtCalls = (
+    await Promise.all([1, 2, 3, 4, 5, 6].map(readScenario))
+  )
+    .flatMap((candidate) => candidate.sections)
+    .flatMap((section) => section.eventArtCandidates);
+  assert.equal(eventArtCalls.length, 39);
+  assert.deepEqual(
+    [...new Set(eventArtCalls.map(({ x, y }) => `${x},${y}`))],
+    ["112,24"],
   );
 
   const navalBattleRoutes = scenario.sections[2]!.entryRouteTables.flatMap(
@@ -351,6 +367,27 @@ test("sequential VM decoding follows table-relative control flow", async () => {
     choiceFlag: 16,
     rawHex: "c001cc0012c80135e910",
   });
+  const sharedCourierLines = scenarios[0]!.sections[7]!.dialogueRuns.flatMap(
+    (run) => run.lines,
+  );
+  assert.deepEqual(
+    [155, 174].map((messageId) => {
+      const line = sharedCourierLines.find(
+        (candidate) => candidate.messageId === messageId,
+      );
+      return [
+        line?.offset,
+        line?.position,
+        line?.characterId,
+        line?.characterVariable,
+        line?.rawHex,
+      ];
+    }),
+    [
+      [0x19f7, 1, undefined, 50, "c001cd32c8009ac7"],
+      [0x1c49, 1, undefined, 51, "c001cd33c800adc7"],
+    ],
+  );
   assert.deepEqual(
     opening.instructions
       .filter((instruction) => instruction.offset >= 0x02e1)

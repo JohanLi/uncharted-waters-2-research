@@ -75,6 +75,8 @@ function routeMeaning(route: ScenarioRoute): string {
 function lineSpeaker(line: DialogueLine): string {
   if (line.speakerLabel) return line.speakerLabel;
   if (line.characterId !== undefined) return `Character ${line.characterId}`;
+  if (line.characterVariable !== undefined)
+    return `Character from variable ${line.characterVariable}`;
   return "Narration";
 }
 
@@ -189,11 +191,11 @@ function renderSectionMarkdown(section: ScenarioSection): string[] {
     lines.push(
       "### Event-art candidates",
       "",
-      "| Offset | Image index | Bytes |",
-      "| ---: | ---: | --- |",
+      "| Offset | Resource | Image index | Position | Extracted asset | Bytes |",
+      "| ---: | --- | ---: | ---: | --- | --- |",
       ...section.eventArtCandidates.map(
         (candidate) =>
-          `| ${hex(candidate.offset)} | ${candidate.eventImageIndex} | \`${candidate.rawHex.toUpperCase()}\` |`,
+          `| ${hex(candidate.offset)} | \`${candidate.resourceFile}\` | ${candidate.eventImageIndex} | ${candidate.x}, ${candidate.y} | \`${candidate.extractedAsset}\` | \`${candidate.rawHex.toUpperCase()}\` |`,
       ),
       "",
     );
@@ -279,6 +281,7 @@ function renderCsv(scenarios: readonly DisassembledScenario[]): string {
       "lineOffset",
       "position",
       "characterId",
+      "characterVariable",
       "messageId",
       "speakerLabel",
       "presentation",
@@ -299,6 +302,7 @@ function renderCsv(scenarios: readonly DisassembledScenario[]): string {
             line.offset,
             line.position,
             line.characterId,
+            line.characterVariable,
             line.messageId,
             line.speakerLabel,
             line.presentation,

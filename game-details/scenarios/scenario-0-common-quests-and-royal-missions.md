@@ -351,6 +351,12 @@ player-facing rule is therefore:
   ruler that you are giving up, divides each of Trade, Piracy, and Adventure
   Fame by two. This is a much more serious consequence than simply losing the
   invitation.
+- **Confirmed/decoded:** losing one's title through the same-nation naval
+  **shame** or **exile** branch also cancels an active royal mission, resets the
+  shared scenario to section/subsection `0/0`, and clears shared flags 16–18.
+  This automatic cancellation does **not** use the refusal/give-up penalty and
+  leaves all three Fame totals unchanged. Exile additionally changes
+  affiliation to Piracy; shame retains the existing national affiliation.
 - **Likely:** there is no calendar deadline. The royal mission dialogue and
   decoded paths contain progress checks and an explicit give-up choice, but no
   Guild-style deadline text or identified deadline comparison.
