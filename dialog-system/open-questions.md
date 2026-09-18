@@ -188,23 +188,7 @@ building conversations, but position 0 may be context-sensitive.
 in a non-building event. The broad capture corpus originally requested is no
 longer needed.
 
-## 7. Music selection outside `CA`
-
-**Unknown:** Which executable or scenario paths change music without an
-adjacent `CA <track>` instruction? Does building entry choose a default theme
-before scenario execution, and can other presentation actions override it?
-
-The battle theme heard before João's initial 2,000-fame Pub scene has no nearby
-`CA 10` in the decoded route.
-
-**Why it matters:** A conversation transcript should report all audible music
-changes, not only explicit SNR cues.
-
-**Next evidence:** Break on the central music-selection routine and log
-callers during ordinary entry, explicit `CA` scenes, and the known implicit
-battle-theme scene.
-
-## 8. Complete route-context mapping
+## 7. Complete route-context mapping
 
 **Decoded:** Ordinary building qualifiers `0x00` through `0x0B` map in order
 to Market, Pub, Shipyard, Harbor, Lodge, Palace, Guild, special residence,
@@ -224,7 +208,7 @@ that `MAIN.EXE` supplies for the current interaction.
 and log selector/qualifier pairs while entering every building and invoking
 sub-interactions such as Treat, Job Assignment, and Palace audiences.
 
-## 9. Remaining VM inputs and save fields
+## 8. Remaining VM inputs and save fields
 
 **Decoded:** Calendar day, port, time-of-day, flags, persistent VM variables,
 indirect Fame and sailor-record reads, random operations, gold-ingot counts,
@@ -256,7 +240,7 @@ their inclusive boundaries. Explicit literal thresholds should therefore be
 treated as reliable without requesting a runtime pair unless dispatch, field
 semantics, or another external precondition remains uncertain.
 
-## 10. Ordinary vendor portrait and speaker selection — resolved
+## 9. Ordinary vendor portrait and speaker selection — resolved
 
 Ordinary vendors use fixed `GRAPH.DAT` artwork based on building type.
 Zero-based records 6–17 correspond in order to building IDs 1–12.
@@ -274,7 +258,7 @@ with a scenario portrait in that panel. Scenario dialogue can instead use an
 upper character portrait or the lower panel. This functional mapping is now
 documented in [Buildings](../game-details/buildings.md#vendor-portraits-and-dialogue-panels).
 
-## 11. Randomness and cached outcomes
+## 10. Randomness and cached outcomes
 
 **Decoded:** `EB` generates explicit uniform scenario values using remainder
 division, and small bounds can be represented as probability branches.
@@ -291,7 +275,7 @@ state not currently read from the save.
 ordinary handlers, repeat entries without advancing time, and compare runs
 across reloads and day transitions.
 
-## 12. Voyage-day lifecycle
+## 11. Voyage-day lifecycle
 
 **Decoded:** Protagonist selector `0xA0` receives the current voyage-day
 counter, and known João routes respond to specific values.

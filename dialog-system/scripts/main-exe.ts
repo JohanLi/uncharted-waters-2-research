@@ -53,6 +53,19 @@ export interface ScenarioVmExecutableAnalysis {
       readonly protagonistAfterDispatchOffset: number;
     };
   };
+  readonly musicSelection: {
+    readonly driver: string;
+    readonly scenarioActionHandlerOffset: number;
+    readonly scenarioWrapperOffset: number;
+    readonly scenarioDriverCallOffset: number;
+    readonly portRegionDriverCallOffset: number;
+    readonly ordinaryBuildingDriverCallOffset: number;
+    readonly pubTrackId: number;
+    readonly palaceTrackId: number;
+    readonly resumeCurrentTrackCallOffset: number;
+    readonly currentTrackSource: string;
+    readonly otherDirectDriverCallOffsets: readonly number[];
+  };
   readonly globals: Readonly<Record<string, string>>;
   readonly systemValues: readonly {
     readonly id: number;
@@ -152,6 +165,21 @@ export function analyzeScenarioVmExecutable(
         sharedAfterDispatchOffset: 0x16191,
         protagonistAfterDispatchOffset: 0x1619c,
       },
+    },
+    musicSelection: {
+      driver: "0000:952E",
+      scenarioActionHandlerOffset: 0x38d20,
+      scenarioWrapperOffset: 0x37980,
+      scenarioDriverCallOffset: 0x37984,
+      portRegionDriverCallOffset: 0x20682,
+      ordinaryBuildingDriverCallOffset: 0x20a0e,
+      pubTrackId: 0x13,
+      palaceTrackId: 0x12,
+      resumeCurrentTrackCallOffset: 0x26ba6,
+      currentTrackSource: "DS:0x903A",
+      otherDirectDriverCallOffsets: [
+        0x15b4a, 0x15bb3, 0x15d6e, 0x1c2b8, 0x1c8c9,
+      ],
     },
     globals: {
       currentSection: "DS:0x060E",

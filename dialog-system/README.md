@@ -333,9 +333,20 @@ message 67
 ```
 
 Runtime observation confirms a brief screen clear after message 66, followed
-by the flute theme when message 67 appears. Elsewhere, raw `CA 10` selects the
-battle theme and `CA 05` selects Catalina's theme. Track operands in byte dumps
-are hexadecimal; generated JSON writes their numeric value in decimal.
+by João's theme when message 67 appears. Elsewhere, raw `CA 10` selects the
+battle theme, `CA 05` selects Catalina's theme, `CA 06` selects Otto's theme,
+and `CA 13` selects the Pub theme (“Fiddler's Green”). Track operands in
+byte dumps are hexadecimal; generated JSON writes their numeric value in
+decimal.
+
+Controlled auditions establish the exhaustive PC range as `CA 00` through
+`CA 15`. The endpoints and early IDs are Opening (`00`), Ending A / Duke
+promotion (`01`), Ending B (`02`), Initial Setup (`03`), and naval-victory
+Fanfare (`15`). The decoder's `KNOWN_MUSIC_TRACKS` table names the complete
+range.
+In the naval-victory sequence, `15` accompanies the brief initial victory
+report; acknowledging that report switches to Post-Battle (`11`) for the
+random gold and item rewards.
 
 A later João Pub scene shows the operation in detail. After João says
 “Lucia!”, `C4` closes the lower and upper scenario panels in turn, briefly
@@ -344,8 +355,12 @@ revealing the ordinary Pub vendor presentation underneath. Lucia's subsequent
 both scenario-panel states; it does not merely insert a timing pause or clear
 the text in the currently active panel.
 
-Not every observed music change has a nearby `CA`. This means that another
-scenario action or surrounding executable logic can also influence music.
+All supplied scenario transition captures have a matching adjacent `CA`.
+Ordinary music outside scenario bytecode is selected by the executable: port
+entry chooses a regional track, while building entry overrides it only for a
+Pub (`0x13`) or Palace (`0x12`). Other building types retain the regional port
+track. Battle/result, game-over, and music-option resume paths also call the
+same central player directly. No second SNR music opcode is currently known.
 
 ### Event art
 
