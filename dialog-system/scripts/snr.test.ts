@@ -78,6 +78,19 @@ test("MAIN.EXE exposes the scenario loader and four-family VM dispatch", async (
       protagonistAfterDispatchOffset: 0x1619c,
     },
   });
+  assert.deepEqual(analysis.musicSelection, {
+    driver: "0000:952E",
+    scenarioActionHandlerOffset: 0x38d20,
+    scenarioWrapperOffset: 0x37980,
+    scenarioDriverCallOffset: 0x37984,
+    portRegionDriverCallOffset: 0x20682,
+    ordinaryBuildingDriverCallOffset: 0x20a0e,
+    pubTrackId: 0x13,
+    palaceTrackId: 0x12,
+    resumeCurrentTrackCallOffset: 0x26ba6,
+    currentTrackSource: "DS:0x903A",
+    otherDirectDriverCallOffsets: [0x15b4a, 0x15bb3, 0x15d6e, 0x1c2b8, 0x1c8c9],
+  });
   assert.deepEqual(analysis.systemValues, [
     {
       id: 5,
@@ -176,7 +189,7 @@ test("disassembles João's building dialogue and one-shot state writes", async (
   assert.deepEqual(opening.musicCueCandidates[0], {
     offset: 0x0306,
     trackId: 4,
-    knownTrack: "flute-theme",
+    knownTrack: "joao-theme",
     rawHex: "ca04",
   });
   assert.deepEqual(opening.sceneBreakCandidates[0], {
@@ -216,7 +229,7 @@ test("disassembles João's building dialogue and one-shot state writes", async (
       {
         offset: 0x0d2d,
         trackId: 4,
-        knownTrack: "flute-theme",
+        knownTrack: "joao-theme",
         rawHex: "ca04",
       },
       {
@@ -234,7 +247,7 @@ test("disassembles João's building dialogue and one-shot state writes", async (
       {
         offset: 0x10a2,
         trackId: 10,
-        knownTrack: "port-theme",
+        knownTrack: "european-port-theme",
         rawHex: "ca0a",
       },
     ],
@@ -307,6 +320,40 @@ test("disassembles João's building dialogue and one-shot state writes", async (
   assert.deepEqual(
     [antonioRoute.opposingCaptainId, antonioRoute.knownOpposingCaptain],
     [60, "Antonio Khan"],
+  );
+});
+
+test("identifies every naturally occurring scenario music cue", async () => {
+  const scenarios = await Promise.all(
+    Array.from({ length: 7 }, (_, id) => readScenario(id)),
+  );
+  const allCues = scenarios.flatMap((scenario) =>
+    scenario.sections.flatMap((section) => section.musicCueCandidates),
+  );
+  assert.equal(allCues.filter((cue) => cue.knownTrack === undefined).length, 0);
+
+  const catalina = scenarios[2]!;
+  const cues = catalina.sections.flatMap((section) =>
+    section.musicCueCandidates.map((cue) => [cue.offset, cue.knownTrack]),
+  );
+
+  assert.ok(
+    cues.some(
+      ([offset, knownTrack]) =>
+        offset === 0x1b9b && knownTrack === "otto-theme",
+    ),
+  );
+  for (const offset of [0x126f, 0x12a3])
+    assert.ok(
+      cues.some(
+        ([candidateOffset, knownTrack]) =>
+          candidateOffset === offset && knownTrack === "pub-theme",
+      ),
+    );
+  assert.ok(
+    cues.some(
+      ([offset, knownTrack]) => offset === 0x0239 && knownTrack === "fanfare",
+    ),
   );
 });
 

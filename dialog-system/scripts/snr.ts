@@ -91,11 +91,28 @@ export type KnownRouteEvent =
 export type KnownOpposingCaptain = "Catalina Erantzo" | "Antonio Khan";
 
 export type KnownMusicTrack =
-  | "flute-theme"
+  | "opening-theme" // Wind Ahead
+  | "ending-a-theme" // Duke
+  | "ending-b-theme" // Close to Home
+  | "initial-setup-theme" // Opening Menu
+  | "joao-theme" // Caprice for the Lute
   | "catalina-theme"
-  | "port-theme"
-  | "battle-theme"
-  | "game-over-theme";
+  | "otto-theme"
+  | "ernst-theme"
+  | "pietro-theme"
+  | "ali-theme"
+  | "european-port-theme" // Mast in the Mist
+  | "middle-eastern-port-theme" // Moslem Dance
+  | "indian-port-theme" // The Mahout
+  | "east-asian-port-theme" // Land of Luxury
+  | "supply-port-theme"
+  | "americas-africa-port-theme" // Empty Eyes
+  | "battle-theme" // The Chase
+  | "post-battle-theme" // Capturing Enemies' Ships
+  | "palace-theme"
+  | "pub-theme" // Fiddler's Green
+  | "game-over-theme" // Defeated
+  | "fanfare"; // Victory in a Naval Battle
 
 export interface ScenarioSection {
   readonly id: number;
@@ -178,11 +195,28 @@ const KNOWN_LOCATIONS = new Map<number, KnownLocation>([
 ]);
 
 const KNOWN_MUSIC_TRACKS = new Map<number, KnownMusicTrack>([
-  [4, "flute-theme"],
-  [5, "catalina-theme"],
-  [10, "port-theme"],
-  [16, "battle-theme"],
-  [20, "game-over-theme"],
+  [0x00, "opening-theme"],
+  [0x01, "ending-a-theme"],
+  [0x02, "ending-b-theme"],
+  [0x03, "initial-setup-theme"],
+  [0x04, "joao-theme"],
+  [0x05, "catalina-theme"],
+  [0x06, "otto-theme"],
+  [0x07, "ernst-theme"],
+  [0x08, "pietro-theme"],
+  [0x09, "ali-theme"],
+  [0x0a, "european-port-theme"],
+  [0x0b, "middle-eastern-port-theme"],
+  [0x0c, "indian-port-theme"],
+  [0x0d, "east-asian-port-theme"],
+  [0x0e, "supply-port-theme"],
+  [0x0f, "americas-africa-port-theme"],
+  [0x10, "battle-theme"],
+  [0x11, "post-battle-theme"],
+  [0x12, "palace-theme"],
+  [0x13, "pub-theme"],
+  [0x14, "game-over-theme"],
+  [0x15, "fanfare"],
 ]);
 
 const KNOWN_OPPOSING_CAPTAINS = new Map<number, KnownOpposingCaptain>([

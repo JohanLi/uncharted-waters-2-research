@@ -535,25 +535,51 @@ The initial pub introduction contains two commands between dialogue runs:
 ```
 
 Live testing observes a brief pause and screen clear after message 66. The
-flute theme then starts when message 67 appears, replacing the ordinary pub
+João theme then starts when message 67 appears, replacing the ordinary Pub
 music. Later observations prove that these are independent instructions:
 `C4` causes a scene break or screen clear, while `CA <track ID>` selects music.
 
-João section 1 now provides these confirmed track mappings:
+The supplied transition captures account for every audible change with an
+adjacent `CA` instruction:
 
-| DAT offset | Bytes   | Track                                          |
-| ---------: | ------- | ---------------------------------------------- |
-|   `0x0C77` | `CA 10` | Battle theme before the shipyard confrontation |
-|   `0x0CD0` | `CA 05` | Catalina's theme before she intervenes         |
-|   `0x0D2D` | `CA 04` | Flute theme before message 292                 |
-|   `0x0D39` | `CA 10` | Battle theme before Catalina challenges João   |
-|   `0x1009` | `CA 14` | Defeat/game-over theme after losing the duel   |
-|   `0x10A2` | `CA 0A` | Port theme before leaving for the Palace       |
+| Bytes   | PC track                      | Confirmed transitions |
+| ------- | ----------------------------- | --------------------: |
+| `CA 04` | João / “Caprice for the Lute” |                     2 |
+| `CA 05` | Catalina                      |                     3 |
+| `CA 06` | Otto                          |                     1 |
+| `CA 10` | Battle / “The Chase”          |                     4 |
+| `CA 13` | Pub / “Fiddler's Green”       |                     2 |
+
+An additional controlled audition of the previously unnamed bounds established
+`00` as Opening / “Wind Ahead,” `01` as Ending A and the Duke-promotion music,
+`02` as Ending B / “Close to Home,” `03` as Initial Setup, and `15` as the
+naval-victory Fanfare. Together with the executable's environmental and result
+selectors, this completes the PC range `00`–`15`.
+
+The operands are the PC executable's internal hexadecimal track IDs. The
+disassembler writes the same values in decimal in generated JSON.
+
+`CA`'s handler at `MAIN.EXE 0x38D20` reads its byte operand and calls the
+wrapper at `0x37980`. That wrapper passes the ID to the central music driver at
+`0000:952E`. Non-scenario systems call the same driver directly:
+
+- port entry derives `0x0A` through `0x0F` from the port's music-region field
+  and calls the driver at `0x20682`;
+- ordinary building entry plays `0x13` for a Pub or `0x12` for a Palace at
+  `0x20A0E`; other building types make no music call and retain the port track;
+- after a naval victory, `0x15B4A` selects `15` for the brief initial victory
+  report; after the player acknowledges it, `0x15BB3` selects `11` for the
+  post-battle gold/item reward sequence. The defeat path selects `14` at
+  `0x15D6E`, and the game-over path does the same at `0x1C8C9`. Another
+  non-scenario presentation flow selects raw track `03` at `0x1C2B8`, but that
+  flow's exact role remains unnamed;
+- the music-option path resumes the saved current track from `DS:0x903A` at
+  `0x26BA6` when music is re-enabled.
 
 The disassembler emits all `CA` instructions as `musicCueCandidates` and all
-observed `C4` instructions as `sceneBreakCandidates`. The battle music heard
-before the initial 2,000-fame pub dialogue has no nearby `CA 10`, so another
-event or presentation instruction may also select music.
+observed `C4` instructions as `sceneBreakCandidates`. No other SNR presentation
+opcode has been found to select music. In particular, `C3` calls the dialogue-
+panel cleanup routine at `0x37850`; it is not an alternate music command.
 
 ## Duel and event-art evidence
 
