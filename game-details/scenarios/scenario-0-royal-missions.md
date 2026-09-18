@@ -48,6 +48,40 @@ directions by 10**, capped at the maximum stored Relation value. Structurally
 this mission resembles document delivery, but its Relation effect is twice as
 large.
 
+### Dynamic ruler portraits
+
+The two diplomatic missions select ruler portraits dynamically, but this is
+separate from the ordinary Palace presentation that selects the ruler of the
+capital being visited. Visiting Lisbon outside the diplomatic mission route,
+for example, displays King Manuel through the ordinary location-driven Palace
+path.
+
+For royal-mission dialogue, the script recomputes variable 50 from the current
+player fleet's commander: it follows that sailor's record, reads the
+affiliation byte at `+0x29`, masks it to the low three bits, and maps the
+resulting nation to its ruler's character index. Variable 50 is therefore the
+**current allegiance ruler**, not a ruler inferred from the Palace location or
+a permanently stored commissioning-ruler portrait.
+
+Variable 51 is built separately from the diplomatic mission's stored
+destination-nation value. It selects the destination ruler. Both variables are
+passed through `CD` and shown in the upper story panel. Under the normal
+mission flow, the current allegiance ruler is also the ruler who commissioned
+the mission, but those descriptions should not be treated as the variable's
+underlying source.
+
+The Palace menu prevents a natural mid-mission allegiance change: **Defect**
+is disabled while a royal invitation/offer is armed and throughout accepted
+royal-mission sections 6–12. The hypothetical case in which variable 50's
+current-allegiance portrait differs from the commissioning ruler therefore
+requires an artificial save edit; it is not reachable through the ordinary
+Palace menu during the mission.
+
+This selection rule applies to every national pair in both diplomatic mission
+types. Offer and completion dialogue use the ruler mapped from variable 50,
+while delivery or negotiation dialogue uses the ruler mapped from variable 51.
+The script contains mappings for all six nations.
+
 ## Establish allied ports (section 9)
 
 The ruler requires the nation to control a number of allied ports. The decoded

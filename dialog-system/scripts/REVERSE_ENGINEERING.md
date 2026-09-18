@@ -357,11 +357,77 @@ C0 <position> CC <character-index:u16be> C8 <message-index:u16be> C7
 `position` is currently observed as `1` or `2`. Character and message indices
 are stored zero-based and converted to one-based JSON IDs.
 
+Runtime captures resolve the positions spatially: position 1 is the upper
+dialogue panel and position 2 is the lower panel. Multiple consecutive lines
+may reuse either position. The ordinary vendor image is restricted to the
+upper panel; scenario characters can visually cover it there or appear below.
+Dismissing a line clears its text while retaining the panel and portrait. The
+other panel therefore remains visible, with its previous portrait and an empty
+text area, when the next line moves between positions.
+
+Ordinary vendor artwork comes from `GRAPH.DAT`, separately from the scenario
+character selected by `CC`. Zero-based records 6–17 correspond to building IDs
+1–12 in order. Church/Mosque is the one variant: Church uses record 16 and
+Mosque uses record 20. Special residences retain record 13 regardless of
+whether their current speaker is a collector, cartographer, teacher, or story
+occupant.
+
 Text without a portrait uses:
 
 ```text
 C0 00 C8 <message-index:u16be> C7
 ```
+
+Runtime observation of Catalina questioning a Pub bartender establishes the
+building-context behavior of position 0. It writes the selected message into
+the existing upper vendor panel without a scenario `CC`; the bartender remains
+visible while the lower Andreas panel persists with cleared text. Position 0
+should therefore be described as using the surrounding building speaker, not
+as displaying portraitless text. Its behavior outside building interactions
+is not yet generalized.
+
+The same captures distinguish presentation lifetime from the extractor's
+structural `dialogueRun` grouping. João's 1,000-coin reward splits two runs but
+does not clear either panel. The gold display changes and Rocco replaces the
+upper portrait while João remains below. A later `C4`, immediately after João
+says “Lucia!”, visibly closes both scenario panels with horizontal wipes,
+reveals the ordinary Pub vendor underneath, and allows the following line to
+construct a new upper panel.
+
+`SNR1.DAT`–`SNR6.DAT` use `CC` after nonzero dialogue positions. `SNR0.DAT`
+instead uses the indirect form:
+
+```text
+C0 <position> CD <variable:u8> C8 <message-index:u16be> C7
+```
+
+The `CD` handler at `MAIN.EXE` file offset `0x38D5C` reads the one-byte
+operand, doubles it to index the VM's 16-bit variable table, loads that word,
+and calls the same portrait-selection routine as the `CC` handler at
+`0x38D52`.
+
+In the royal-mission sections, variable 50 is recomputed from the protagonist's
+current affiliation. The script obtains the player fleet's commander through a
+group-2 record, follows the resulting group-3 sailor record to byte `+0x29`,
+and masks that affiliation value with `0x07`. It then maps the nation to its
+ruler's zero-based character index. Variable 51 is mapped separately from the
+diplomatic mission's stored destination-nation variable. Neither selection is
+derived merely from the capital building currently on screen.
+
+The six values assigned according to nation are `0x14`, `0x18`, `0x1D`,
+`0x1B`, `0x25`, and `0x1C` for Portugal, Spain, Ottoman Turkey, England,
+Italy, and Holland respectively. A Holland-to-England document mission
+runtime-confirms variable 50 selecting the Dutch Governor-General for the
+offer, variable 51 selecting King Henry at the destination, and variable 50
+selecting the Dutch Governor-General again on return. Every line remains in
+position 1, the upper scenario panel. Ordinary Palace dialogue still selects
+the ruler belonging to the capital being visited through a separate
+location-driven path.
+
+The extractor now recognizes this compound form and records
+`characterVariable` separately from a fixed `characterId`. This recovers 83
+indirect-character dialogue occurrences in `SNR0`: 59 through variable 50 and
+24 through variable 51.
 
 Consecutive instructions are emitted as a `dialogueRun`. An action, condition,
 or unknown instruction between two lines causes a new run even if the player
@@ -503,11 +569,34 @@ Immediately before message 293, the scenario executes:
 0x0D3B  C0 03 CB 0070 0018 00
 ```
 
-This fixed form occurs with final indices 0–5 across the protagonist scenarios
-and is emitted as an `eventArtCandidate`. The supplied
-The event images shown at this point are
-byte-for-byte identical, not merely visually similar. How the command chooses
-the EVENT resource family is still unknown.
+This fixed form occurs 39 times on reachable paths across the protagonist
+scenarios and is emitted as an `eventArtCandidate`. There are no reachable
+`CB` instructions in `SNR0`. Every call has coordinates `0x0070,0x0018`; only
+the final byte varies from 0 through 5.
+
+The `CB` handler at `MAIN.EXE` file offset `0x38D2A` reads two big-endian words
+and one byte, then calls the graphics routine through `0x3799A` with the words
+as x/y coordinates and the byte as the zero-based record index. The resulting
+destination is `(112, 24)`. `MAIN.EXE` keeps an event-art data handle opened
+from the `C:EVENT*.DAT` pattern; runtime captures establish that protagonist
+scenario `n` resolves to `EVENTn.DAT`.
+
+The visible captures match both family and index: Catalina uses `EVENT2`
+records 4 and 0, Pietro uses `EVENT5` records 0 and 2, and Ali uses `EVENT6`
+records 1 and 3. Ali's four payment branches contain four separate `CB` calls
+that all select record 1. The event art is therefore a bytecode presentation
+action, not metadata attached to the selected message.
+
+The conventional sequence is `C4`, `C0 03`, `CB`, followed by a position-2
+portrait/message line. The renderer runs before that first line is presented,
+so the event art becomes the upper scene image while subsequent dialogue uses
+the lower panel. A few branches enter the same art form without an immediately
+adjacent `C4`, showing that clearing and drawing are separate operations.
+
+The reachable VM calls do not reference `EVENT0` record 0 or records 2, 3, 0,
+2, 5, and 0 in `EVENT1` through `EVENT6`, respectively. This does not prove
+that the images are unused: executable-side callers and unreachable bytecode
+remain possible.
 
 ## Fame evidence
 

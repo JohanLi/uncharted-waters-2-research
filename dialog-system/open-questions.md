@@ -22,8 +22,7 @@ bytecode.
    shared quests produce transcripts rather than only matched routes.
 2. Trace complete building-entry precedence, including the point at which an
    SNR route suppresses ordinary dialogue or the building menu.
-3. Map ordinary `MESSAGE.DAT`/`MESSAGE2.DAT` callers and speaker/portrait
-   selection.
+3. Map ordinary `MESSAGE.DAT`/`MESSAGE2.DAT` callers and speaker selection.
 4. Decode the remaining VM record groups and action opcodes that occur on
    reachable story paths.
 
@@ -92,19 +91,37 @@ publishes both `rawIndex` and `entryNumber` explicitly.
 
 ## 4. Complete `SNR0` message invocation
 
-**Unknown:** Why does the current compound-signature extractor find far fewer
-direct dialog calls in `SNR0.DAT` than there are strings in `SNR0.MES`?
+**Partly decoded:** The extractor previously missed the shared scenario's
+dynamic portrait form:
 
-Possibilities include another message-selection action, indirect indices,
-message IDs passed to executable quest handlers, or direct `MAIN.EXE` access to
-the shared MES handle.
+```text
+C0 <position> CD <variable> C8 <message> C7
+```
+
+The `CD` handler reads a one-byte VM-variable number, loads the 16-bit
+character index stored in that variable, and calls the same portrait-selection
+routine as `CC`. `SNR0` derives variable 50 from the protagonist's current
+sailor affiliation and variable 51 from the diplomatic mission's stored
+destination nation. Runtime observation confirms the general
+current-allegiance ruler → destination ruler → current-allegiance ruler
+sequence in the upper panel; the mapping covers all six nations and does not
+depend on the visited Palace. Ordinary capital Palace dialogue selects its
+ruler through a separate, location-driven path.
+
+The decoder now recognizes 83 such indirect-character lines: 59 using variable
+50 and 24 using variable 51. Together with one position-0 line, this accounts
+for 84 of the 272 `SNR0.MES` messages.
+
+**Still unknown:** The remaining messages may be selected after intervening
+branches rather than in one compound signature, passed to executable quest
+handlers, or read directly through the shared MES handle.
 
 **Why it matters:** The query can now report shared state and the matching
 route, but it cannot reproduce the shared conversation generally.
 
-**Next evidence:** Trace reads from the shared SNR MES handle and compare
-runtime breakpoints for a Guild contract offer, Treat rumor, Palace mission
-offer, mission completion, and rejection path.
+**Next evidence:** Make dialogue extraction stateful across branches and trace
+reads from the shared SNR MES handle for a Guild contract offer, Treat rumor,
+mission progress, and rejection paths.
 
 ## 5. Remaining scenario actions
 
@@ -112,9 +129,12 @@ offer, mission completion, and rejection path.
 reference into a VM variable. Combined with indirect assignment modes, it can
 read and write structured save records. Group-1 and group-3 references resolve
 protagonist Fame/state and sailor fields, while the Ernst routes use group 4
-for the active cartographer-contract byte. `F8` returns the forced-building-
-exit/menu-suppression result. `EA <variable>` stores the displayed gold-ingot
-count in a VM variable.
+for the active cartographer-contract byte. `CD <variable>` selects a character
+indirectly through a VM variable. `F8` returns the forced-building-exit/menu-
+suppression result. `EA <variable>` stores the displayed gold-ingot count in a
+VM variable. `CB <x:u16> <y:u16> <index>` draws the indexed record from the
+current protagonist's `EVENTn.DAT` resource; all 39 reachable calls use
+position `(112, 24)` and are prefixed by `C0 03`.
 
 **Unknown:** What are the gameplay names and side effects of the remaining
 valid `0xC0`–`0xFC` action opcodes?
@@ -132,23 +152,41 @@ range recorded in the
 Correlate each handler's memory writes and calls with controlled before/after
 saves and runtime observations.
 
-## 6. Dialog-slot and portrait lifetime
+## 6. Dialog-slot and portrait lifetime — mostly resolved
 
-**Decoded:** `C0` selects positions 0, 1, or 2; `CC` selects a character;
-position 0 is used by lines without an explicit portrait selection.
+**Decoded and runtime-confirmed:** `C0` position 1 selects the upper scenario
+panel and position 2 the lower; `CC` supplies that panel's character. Dialogue
+need not alternate. Dismissing a line clears its text but retains the panel and
+portrait, so the inactive panel may remain on screen with an empty text area.
+Selecting the same panel with another `CC` replaces its portrait.
 
-**Unknown:** Are positions 1 and 2 always fixed screen sides? Do they instead
-select reusable actor slots? When are an earlier portrait, nameplate, or
-background cleared? What happens if a line changes position without another
-`CC`?
+In an ordinary Pub, position 0 reuses the building-supplied bartender in the
+upper panel. It does not select a scenario portrait, and a lower scenario
+portrait remains visible while the bartender answers. Leaving and re-entering
+the building reconstructs the ordinary vendor presentation rather than
+carrying scenario-panel contents across visits.
 
-**Why it matters:** The current output can state the encoded slot and character
-but cannot promise the exact on-screen composition in every sequence.
+`C4` closes and removes both scenario panels with a horizontal wipe, briefly
+revealing the ordinary vendor underneath; the next portrait line constructs a
+new panel. By contrast, a state-changing action that splits the extractor's
+`dialogueRun`—the 1,000-coin grant in João's Pub scene—does not clear either
+panel. The display updates and the conversation continues in place.
 
-**Next evidence:** Build a corpus of short sequences covering slot
-changes, repeated characters, `C4`, position 0, and dialog-run boundaries.
-Capture frames or trace the presentation globals written by the `C0`, `CC`,
-and `C7` handlers.
+`SNR0`'s alternate character selector is also resolved: `CD 32` and `CD 33`
+read character indices from VM variables 50 and 51. Royal-mission captures
+confirm that the resolved ruler is displayed in the same upper panel selected
+by position 1.
+
+**Still unknown:** Is position 0 always a request to use the surrounding
+executable's current speaker presentation, including outside ordinary
+buildings?
+
+**Why it matters:** The exact composition can now be described for ordinary
+building conversations, but position 0 may be context-sensitive.
+
+**Next evidence:** Trace the presentation globals used by the position-0 path
+in a non-building event. The broad capture corpus originally requested is no
+longer needed.
 
 ## 7. Music selection outside `CA`
 
@@ -218,23 +256,23 @@ their inclusive boundaries. Explicit literal thresholds should therefore be
 treated as reliable without requesting a runtime pair unless dispatch, field
 semantics, or another external precondition remains uncertain.
 
-## 10. Ordinary vendor portrait and speaker selection
+## 10. Ordinary vendor portrait and speaker selection — resolved
 
-**Unknown:** How does ordinary building code select the visible vendor,
-portrait, and speaker name? Is it fixed by building type, port tileset, occupant
-data, executable constants, or another resource table?
+Ordinary vendors use fixed `GRAPH.DAT` artwork based on building type.
+Zero-based records 6–17 correspond in order to building IDs 1–12.
+Church/Mosque is the only port variant: a Church uses record 16, while a Mosque
+uses record 20. The port's tileset already determines which religious variant
+applies.
 
-Special residences demonstrate that one building slot can represent a
-collector, cartographer, teacher, or story residence. General message text
-alone does not identify the complete presentation.
+Special residences always use record 13. Their occupant controls the speaker,
+text, and available interaction—not the vendor portrait. Thus Mercator,
+Gerard de Jode, Olives, Dr. Wolf, collectors, and story occupants can all speak
+over the same residence artwork.
 
-**Why it matters:** A complete conversation result should distinguish the
-speaking vendor from a portraitless system message and a scenario-selected
-character.
-
-**Next evidence:** Trace the portrait-selection call before ordinary
-greetings in several instances of each building type, especially special
-residences and Church/Mosque variants.
+The vendor is rendered in the upper dialogue panel and never simultaneously
+with a scenario portrait in that panel. Scenario dialogue can instead use an
+upper character portrait or the lower panel. This functional mapping is now
+documented in [Buildings](../game-details/buildings.md#vendor-portraits-and-dialogue-panels).
 
 ## 11. Randomness and cached outcomes
 

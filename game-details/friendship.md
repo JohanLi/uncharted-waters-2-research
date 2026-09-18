@@ -31,7 +31,7 @@ separate bytes in the save.
 The starting displayed Relation matrix is:
 
 | From / toward | Portugal | Spain | Turkey | England | Italy | Holland | Piracy |
-|---------------|---------:|------:|-------:|--------:|------:|--------:|-------:|
+| ------------- | -------: | ----: | -----: | ------: | ----: | ------: | -----: |
 | Portugal      |       70 |  55 A |      0 |      20 |    40 |      20 |     10 |
 | Spain         |     55 A |    70 |      5 |      15 |    35 |      20 |    -10 |
 | Turkey        |        0 |     5 |     70 |      25 |  -5 B |      20 |     40 |
@@ -108,7 +108,7 @@ so its absolute location depends on the save slot and protagonist index.
 Royal missions change directed national Relations through the scenario relation accessor. The known mission effects are:
 
 | Mission action     | Relation change |
-|--------------------|----------------:|
+| ------------------ | --------------: |
 | Deliver documents  |              +5 |
 | Negotiate a treaty |             +10 |
 
@@ -137,6 +137,27 @@ These are player-Friendship changes. Port Support determines which nation contro
 does not modify the nation-to-nation Relations matrix.
 
 ## Defection
+
+### When the command is available
+
+The Palace constructs a disabled-entry mask for its menu at `MAIN.EXE`
+`0x30ACA–0x30B1F`. **Defect** is available only when all of these conditions
+hold:
+
+1. The visited capital belongs to a different nation from the protagonist's
+   current affiliation. The check compares the low three bits of port-record
+   byte `+0x13` with the low three bits of the protagonist sailor's byte
+   `+0x29`.
+2. Shared Scenario 0 flags 17 and 18 are both clear. Thus an armed royal
+   invitation or an offer already in progress disables defection.
+3. No accepted royal mission is active. When the shared section is neither
+   `0` nor `255`, shared variable 6 values of 6 or higher disable the command;
+   values 6–12 are the seven royal-mission sections. Common Guild missions in
+   sections 1–5 do not trigger this particular restriction.
+
+The first condition alone explains why **Defect** is gray in the
+protagonist's own capital. During an active royal mission it remains gray even
+at a foreign capital.
 
 Defecting at a Palace changes the protagonist's current affiliation to the destination nation. It reduces personal
 Friendship with the former affiliation by 30, provided that its stored value is at least `30`, and increases personal
@@ -246,7 +267,7 @@ calculation sees the battle-start Relation, while the Friendship calculation see
 For different home and target nations, the class selects these parameters:
 
 | Class | Condition                            | Home multiplier | Target scale |
-|------:|--------------------------------------|----------------:|-------------:|
+| ----: | ------------------------------------ | --------------: | -----------: |
 |     0 | No matching Marque                   |              +1 |           30 |
 |     1 | Marque, no later condition           |              +1 |           30 |
 |     2 | Stored Relation ≤40                  |              +2 |           10 |
@@ -296,6 +317,25 @@ Exile retains the post-deduction Friendship value, subject to the normal stored-
 The messages for these branches are "You have been exiled from your mother country" and "Your name has been shamed, and
 your title has been stripped away," respectively.
 
+Both punishments also cancel the shared royal-mission state, but without using
+the mission's voluntary refusal/give-up path. The converged code at `MAIN.EXE`
+`0x16020–0x16038`:
+
+- sets the protagonist's rank to **No Rank**;
+- resets shared Scenario 0 to section 0, subsection 0; and
+- clears shared flags 16–18, removing eligibility, an armed invitation, and an
+  offer/mission in progress.
+
+It does not halve Trade, Piracy, or Adventure Fame. Controlled document-mission
+states confirm this distinction. The shame branch left the protagonist allied
+to Holland with stored Dutch Friendship `51` (displayed `−49`); the exile
+branch changed the affiliation to Piracy with stored Dutch Friendship `32`
+(displayed `−68`). Both changed the rank to No Rank and reset the shared
+section/subsection to `0/0`, while all three Fame totals remained unchanged.
+Mission variables such as the former section and destination can remain as
+stale data after the control state has been reset; they no longer make the
+mission active.
+
 Battle-result state controls whether the naval update runs. An accepted pre-combat Merchant surrender uses the reduced
 Fame battle-result factor described in `fame/piracy-fame.md`; a fleet made to flee during combat receives the full
 award. The same-nation Friendship behavior remains separate from that Fame factor.
@@ -311,12 +351,15 @@ multiplier.
 
 - `MAIN.EXE` `0x15240–0x152FB`: Marque scan and diplomatic classifier.
 - `MAIN.EXE` `0x15DE5–0x1603F`: Relation and personal-Friendship updates.
+- `MAIN.EXE` `0x16020–0x16038`: common shame/exile rank removal and shared royal-mission reset.
 - `MAIN.EXE` `0x20835–0x2092F`: ordinary-building confrontation, escape check, gold seizure, and Friendship increase.
 - `MAIN.EXE` `0x20A70–0x20B2F`: ordinary-building eligibility and encounter rolls.
 - `MAIN.EXE` `0x3080B–0x309A4`: Palace escape check, gold seizure, and Friendship reset.
 - `MAIN.EXE` `0x309A5–0x30A1A`: Palace Friendship threshold and hostile-reception roll.
 - `MAIN.EXE` `0x3051A–0x30632`: defection, affiliation change, former-affiliation Friendship loss, and destination-nation
   Friendship increase.
+- `MAIN.EXE` `0x30ACA–0x30B1F`: Palace menu mask for own-nation, royal-invitation, and active-royal-mission defection
+  restrictions.
 - `MAIN.EXE` `0x327C5–0x328A2`: port-controller selection and the personal-Friendship effects of a controller change.
 - `MAIN.EXE` `0x0E074–0x0E100` and `0x2E55F–0x2E643`: blockade-dependent hostile-port actor setup.
 - `MAIN.EXE` `0x1D13F–0x1D245`: national-state update that branches on both status flags.

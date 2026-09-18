@@ -215,10 +215,15 @@ The operations are:
 | `C8 <message>`   | Select a zero-based entry in the active `SNR*.MES` |
 | `C7`             | Present the selected dialog                        |
 
-Observed positions `1` and `2` are two presentation slots or sides. They do
-not identify the speaker: `CC` does that. Calling them **slot 1** and **slot 2**
-is safer than assigning permanent meanings such as player/NPC or left/right
-until the visual orientation has been tested systematically.
+Position `1` is the upper dialogue panel and position `2` is the lower panel.
+They do not identify the speaker: `CC` does that. Either panel may continue
+across several consecutive lines; dialogue does not necessarily alternate
+between them. Ordinary building vendors appear only in the upper panel. A
+scenario character can visually cover the vendor there, while other scenario
+characters can use the lower panel. When the player dismisses a line, its text
+is erased but the panel and portrait remain. The other panel can therefore
+stay visible with its previous portrait and an empty text area while the next
+line is presented.
 
 For example:
 
@@ -229,6 +234,27 @@ C0 02 CC 0000 C8 0016 C7
 selects slot 2, character index 0, and raw message index `0x16`; the generated
 transcript reports character 1 and public message 23.
 
+### Indirect portrait dialog
+
+Shared royal missions use a dynamic variant:
+
+```text
+C0 <position> CD <variable:u8> C8 <message-index:u16be> C7
+```
+
+`CD` reads a character index from the named 16-bit scenario VM variable and
+passes the resolved value to the same portrait-selection routine used by
+`CC`. It is therefore an indirect character selection, not a different kind of
+panel. In `SNR0`, variable 50 selects the ruler of the protagonist's current
+allegiance, while variable 51 selects the ruler of the diplomatic mission's
+stored destination nation. This is separate from ordinary Palace dialogue,
+whose ruler follows the capital being visited.
+
+The mapping covers all six nations. Runtime validation confirms the general
+upper-panel sequence: the current-allegiance ruler at the offer, the
+destination ruler at delivery or negotiation, and the current-allegiance ruler
+again on completion.
+
 ### Text without an explicit portrait
 
 The confirmed form is:
@@ -237,9 +263,21 @@ The confirmed form is:
 C0 00 C8 <message-index:u16be> C7
 ```
 
-Position 0 is emitted as text without an explicitly selected portrait. The
-remaining lifetime and clearing rules for previously selected portraits are
-not fully established.
+Position 0 does not select a scenario portrait. In an ordinary Pub, runtime
+observation shows it writing into the already established vendor's upper
+panel: the bartender portrait remains visible while the position-0 text is
+shown. A lower scenario panel and its portrait remain present, with their text
+cleared, while the bartender replies. This establishes position 0 as reuse of
+the building-supplied speaker presentation in this context, not as a
+portraitless full-screen message. Whether every non-building use has the same
+presentation still requires a caller-by-caller check.
+
+Ordinary vendor portraits are selected separately from scenario `CC`
+characters. Zero-based `GRAPH.DAT` records 6–17 map in order to building IDs
+1–12, with record 20 replacing the Church portrait in Mosque ports. Special
+residences always retain record 13 even when a named collector, cartographer,
+teacher, or story character supplies the dialogue. See
+[Buildings](../game-details/buildings.md#vendor-portraits-and-dialogue-panels).
 
 ### Runs and conversations
 
@@ -247,6 +285,11 @@ The extractor groups consecutive compound dialog instructions into a
 `dialogueRun`. An intervening action, branch, or unknown instruction ends a
 run. Several runs can therefore still belong to one player-visible
 conversation.
+
+An extractor run boundary is not necessarily a visual boundary. In João's
+opening Pub funding scene, the 1,000-coin grant separates two extracted runs,
+but both dialogue panels and their portraits remain in place. The gold display
+updates when the following Rocco line appears; there is no intervening clear.
 
 A complete conversation must be reconstructed from control flow, not merely
 by taking adjacent MES strings or adjacent runs in file order. Generated
@@ -262,21 +305,21 @@ For example, João's message 310 uses `E9 10` and records the answer in flag 16.
 
 The following operations matter when describing what the player experiences:
 
-| Form                          | Status                       | Effect                                                               |
-| ----------------------------- | ---------------------------- | -------------------------------------------------------------------- |
-| `C4`                          | **Confirmed**                | Scene break or screen clear; observed as a short break between lines |
-| `CA <track>`                  | **Confirmed**                | Select background-music track                                        |
-| `CB ...`                      | **Decoded/partly confirmed** | Show event art; the resource-family selection is not fully known     |
-| `E8 <operand>`                | **Likely/observed**          | Start a duel; operand meaning is not fully decoded                   |
-| `E9 <flag>`                   | **Confirmed**                | Present a choice and store its result in a scenario flag             |
-| `EB <variable> <bound:u16be>` | **Decoded**                  | Store a random value from zero through `bound - 1`                   |
-| `2C <flag> <value>`           | **Confirmed**                | Write a persistent scenario flag                                     |
-| `AC` / `AD`                   | **Decoded**                  | Branch according to whether a scenario flag is set/clear             |
-| `FE <destination>`            | **Decoded**                  | Unconditional jump                                                   |
-| `F0`                          | **Decoded**                  | Advance subsection after the interpreter returns                     |
-| `F1`                          | **Decoded**                  | Advance section, reset subsection, and clear scenario flags          |
-| `F2`                          | **Decoded**                  | Stop scenario interpretation                                         |
-| `F8`                          | **Confirmed**                | Suppress the normal building menu and force the player outside       |
+| Form                          | Status              | Effect                                                             |
+| ----------------------------- | ------------------- | ------------------------------------------------------------------ |
+| `C4`                          | **Confirmed**       | Clear both scenario dialogue panels with a horizontal closing wipe |
+| `CA <track>`                  | **Confirmed**       | Select background-music track                                      |
+| `CB <x:u16> <y:u16> <index>`  | **Decoded**         | Draw a zero-based record from the protagonist's `EVENTn.DAT` file  |
+| `E8 <operand>`                | **Likely/observed** | Start a duel; operand meaning is not fully decoded                 |
+| `E9 <flag>`                   | **Confirmed**       | Present a choice and store its result in a scenario flag           |
+| `EB <variable> <bound:u16be>` | **Decoded**         | Store a random value from zero through `bound - 1`                 |
+| `2C <flag> <value>`           | **Confirmed**       | Write a persistent scenario flag                                   |
+| `AC` / `AD`                   | **Decoded**         | Branch according to whether a scenario flag is set/clear           |
+| `FE <destination>`            | **Decoded**         | Unconditional jump                                                 |
+| `F0`                          | **Decoded**         | Advance subsection after the interpreter returns                   |
+| `F1`                          | **Decoded**         | Advance section, reset subsection, and clear scenario flags        |
+| `F2`                          | **Decoded**         | Stop scenario interpretation                                       |
+| `F8`                          | **Confirmed**       | Suppress the normal building menu and force the player outside     |
 
 ### Music and clearing example
 
@@ -294,8 +337,52 @@ by the flute theme when message 67 appears. Elsewhere, raw `CA 10` selects the
 battle theme and `CA 05` selects Catalina's theme. Track operands in byte dumps
 are hexadecimal; generated JSON writes their numeric value in decimal.
 
+A later João Pub scene shows the operation in detail. After João says
+“Lucia!”, `C4` closes the lower and upper scenario panels in turn, briefly
+revealing the ordinary Pub vendor presentation underneath. Lucia's subsequent
+“I'm back.” line then constructs a new upper scenario panel. Thus `C4` clears
+both scenario-panel states; it does not merely insert a timing pause or clear
+the text in the currently active panel.
+
 Not every observed music change has a nearby `CA`. This means that another
 scenario action or surrounding executable logic can also influence music.
+
+### Event art
+
+Event art is requested explicitly by scenario bytecode; it is not inferred
+from message text, speaker, or location. Every reachable call uses this form:
+
+```text
+C0 03 CB 0070 0018 <record-index>
+```
+
+`CB` reads two big-endian words and one byte. Its executable handler at
+`MAIN.EXE 0x38D2A` passes them to the graphics routine as x coordinate 112,
+y coordinate 24, and a zero-based image index. The active protagonist selects
+the resource family: `SNR1` uses `EVENT1.DAT`, through `SNR6` using
+`EVENT6.DAT`. Thus Catalina's `CB ... 04`, for example, displays zero-based
+record 4 from `EVENT2.DAT`, extracted as
+`event2-04-192x144.png`.
+
+The usual sequence is `C4` to clear the prior scenario panels, the position-3
+art command above, and then position-2 dialogue. The event art is therefore
+drawn before the first line that accompanies it and remains behind the
+following lower panel while that part of the scene runs. It is not attached to
+an individual MES entry. Repeated calls can intentionally reuse one image;
+Ali's four payment variants all select `EVENT6.DAT` record 1.
+
+The supplied runtime captures match the static selections exactly: Catalina's
+fire-ship scene uses `EVENT2` record 4 and her Franco scene record 0; Pietro's
+harbor decision uses `EVENT5` record 0 and his meeting record 2; Ali's payment
+scene uses `EVENT6` record 1 and his palace scene record 3. The smaller x
+coordinate visible in some screenshots is due to cropping the full game
+screen; the encoded destination remains `(112, 24)`.
+
+Not every extracted record has a reachable scenario-VM reference. `EVENT0`
+has no `CB` caller in `SNR0`; records 2, 3, 0, 2, 5, and 0 are likewise absent
+from the reachable `CB` calls for `EVENT1` through `EVENT6`, respectively.
+They may be invoked directly by executable code, belong to unreachable paths,
+or be unused content; the `CB` inventory alone cannot distinguish those cases.
 
 ### Leaving or being ejected from a building
 

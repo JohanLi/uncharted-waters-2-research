@@ -9,6 +9,7 @@ export interface DialogueLine {
   readonly offset: number;
   readonly position: number;
   readonly characterId?: number;
+  readonly characterVariable?: number;
   readonly messageId: number;
   readonly body: string;
   readonly speakerLabel?: string;
@@ -146,7 +147,12 @@ export interface ScenarioSection {
   }[];
   readonly eventArtCandidates: readonly {
     offset: number;
+    commandOffset: number;
+    resourceFile: string;
     eventImageIndex: number;
+    x: number;
+    y: number;
+    extractedAsset: string;
     rawHex: string;
   }[];
   readonly instructions: readonly ScenarioInstruction[];
@@ -242,6 +248,7 @@ function readDialogueLine(
   let length: number;
   let position: number;
   let characterId: number | undefined;
+  let characterVariable: number | undefined;
   let messageIndex: number;
   let presentation: DialogueLine["presentation"];
   let choiceFlag: number | undefined;
@@ -261,6 +268,22 @@ function readDialogueLine(
     if (presentationOpcode === 0xe9) {
       presentation = "choice-prompt";
       choiceFlag = data[offset + 9];
+    }
+  } else if (
+    data[offset] === 0xc0 &&
+    (data[offset + 1] === 1 || data[offset + 1] === 2) &&
+    data[offset + 2] === 0xcd &&
+    data[offset + 4] === 0xc8 &&
+    (data[offset + 7] === 0xc7 || data[offset + 7] === 0xe9)
+  ) {
+    const presentationOpcode = data[offset + 7]!;
+    length = presentationOpcode === 0xe9 ? 9 : 8;
+    position = data[offset + 1]!;
+    characterVariable = data[offset + 3]!;
+    messageIndex = data.readUInt16BE(offset + 5);
+    if (presentationOpcode === 0xe9) {
+      presentation = "choice-prompt";
+      choiceFlag = data[offset + 8];
     }
   } else if (
     data[offset] === 0xc0 &&
@@ -288,6 +311,7 @@ function readDialogueLine(
       offset,
       position,
       ...(characterId === undefined ? {} : { characterId }),
+      ...(characterVariable === undefined ? {} : { characterVariable }),
       messageId: messageIndex + 1,
       body: message.body,
       ...(message.speakerLabel ? { speakerLabel: message.speakerLabel } : {}),
@@ -504,6 +528,7 @@ const ACTION_MNEMONICS = new Map<number, string>([
   [0xca, "play-music"],
   [0xcb, "show-event-art"],
   [0xcc, "select-character"],
+  [0xcd, "select-character-indirect"],
   [0xdc, "resolve-game-field-reference"],
   [0xe8, "start-duel"],
   [0xe9, "prompt-choice"],
@@ -798,7 +823,14 @@ export function disassembleScenario(
       )
         eventArtCandidates.push({
           offset: cursor,
+          commandOffset: cursor + 2,
+          resourceFile: `EVENT${scenarioId}.DAT`,
           eventImageIndex: dat[cursor + 7]!,
+          x: dat.readUInt16BE(cursor + 3),
+          y: dat.readUInt16BE(cursor + 5),
+          extractedAsset: `event${scenarioId}-${dat[
+            cursor + 7
+          ]!.toString().padStart(2, "0")}-192x144.png`,
           rawHex: dat.subarray(cursor, cursor + 8).toString("hex"),
         });
     }
