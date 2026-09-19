@@ -216,8 +216,33 @@ The post-Pub capture contains `0x0001` there while João is in Seville (port 1).
 Action opcode `EB <variable> <u16-bound>` assigns a random value in the range
 zero through `bound - 1`. Its handler at `MAIN.EXE` file offset `0x38E87` reads
 the variable and bound, calls `0x37F4F`, divides a generated non-negative value
-by the bound, and stores the remainder in the selected VM variable. The query
-tool models small ranges as explicit chance branches.
+by the bound, and stores the remainder in the selected VM variable.
+
+Before each protagonist-scenario dispatch, the routine beginning at
+`MAIN.EXE 0x3914B` reconstructs the 32-bit RNG seed as follows, using the date
+bytes in their saved zero-based form:
+
+```text
+seed = ((year - 1501)
+        * (month - 1)
+        * (navigation level + navigation experience)
+        + time-of-day ticks
+        + (day - 1)) << 8
+```
+
+Arithmetic wraps to 32 bits. Each `EB` call then advances and reduces the
+state:
+
+```text
+state = state * 0x5D588B65 + 1       # modulo 2^32
+value = (state >> 8) & 0x7FFF
+result = value % bound
+```
+
+The seed is rebuilt for each protagonist dispatch, so a fixed save state gives
+a deterministic `EB` result. This resembles the shared-`SNR0` seed, except
+that the protagonist-scenario formula includes the saved time-of-day. The
+query tool reproduces both the seed and successive `EB` draws.
 
 Action opcode `EA <variable>` stores the displayed Gold Ingots component in
 the selected VM variable. Its handler begins at `MAIN.EXE 0x38E7C`, reads
@@ -335,16 +360,35 @@ the Domingo dialogue. Thus the third-midnight event is not the meaning of
 
 The earlier Sunday interpretation was also disproved by controlled date tests:
 setting sail on May 18 triggers the event on May 21 at 00:00, while setting sail
-on May 19 triggers it on May 22 at 00:00. Whether entering a port resets,
-pauses, or preserves this voyage-day value is not yet confirmed.
+on May 19 triggers it on May 22 at 00:00.
+
+Controlled port-entry and midnight captures complete the counter lifecycle.
+At sea, crossing midnight increments `DS:0x2BAA`; the corresponding handler at
+`MAIN.EXE 0x1E979` executes `FE 06 AA 2B`. Entering Lisbon preserved the saved
+value of 3 while advancing the clock from 06:40 to 07:00, exactly one 20-minute
+tick. The value remained present while ashore. Choosing Sail then cleared it
+to 0 at `MAIN.EXE 0x2D7B4` (`C6 06 AA 2B 00`), before the next voyage began.
+The Harbor uses the ordinary building-duration roll of `2 + random(3)`
+20-minute ticks. Its entry routine returns that duration, and the town loop
+adds it to `DS:0x0737` at `MAIN.EXE 0x204A7` even if the Harbor interaction has
+just changed the player's state to at sea. The Sail path itself does not add a
+separate tick. The captured 07:00-to-08:00 Harbor/departure interaction
+therefore rolled three ticks, or 60 minutes.
+
+A separate uninterrupted at-sea pair moved from April 20 at 23:20 with counter
+0 to April 21 at 00:00 with counter 1. Thus `0xA0` receives the number of
+midnights crossed during the current voyage: it increments at midnight while
+at sea and is reset when the player sets sail, not when the saved state first
+changes from sea to port. Arrival's separate one-tick clock increment is at
+`MAIN.EXE 0x2051E`; it is not a departure cost.
 
 `0x0862` is a DAT dialogue-instruction offset, not another route key. Message
-190 at that offset ("Well this is a surprise...") has been observed in both
-the Bank and Lodge. The apparent random choice between their greetings is a
-runtime observation; a random opcode or its exact odds have not yet been
-identified. Message 188 at `0x0851` ("Just a little advice...") is observed at
-the Guild. These shared handlers are evidence that route keys are not always
-one-to-one universal building identifiers.
+190 at that offset ("Well this is a surprise...") can appear in both the Bank
+and Lodge, while message 188 at `0x0851` ("Just a little advice...") can appear
+at the Guild. These are branches of João's wildcard scenario handler, not
+building-specific ordinary greetings. They are selected by `EB 00 0003` using
+the deterministic protagonist-scenario seed described above. Route keys are
+therefore not always one-to-one universal building identifiers.
 
 ## Confirmed dialogue instructions
 
@@ -1045,11 +1089,9 @@ subsequent warning and its state write.
 3. Correlate any newly encountered non-wildcard naval-battle qualifier with
    its zero-based sailor record; the currently observed `0x01` and `0x3C`
    values are resolved.
-4. Test whether port entry resets, pauses, or preserves the now-identified
-   `DS:0x2BAA` voyage-day counter.
-5. Group instructions and edges into named basic blocks for a compact control-
+4. Group instructions and edges into named basic blocks for a compact control-
    flow graph rather than exposing only the instruction-level CSV.
-6. Optionally validate uncertain operations in a debugger-enabled DOSBox-X by
+5. Optionally validate uncertain operations in a debugger-enabled DOSBox-X by
    comparing memory before and after a one-shot conversation.
 
 Ghidra is not required to run the extractor. It remains useful for naming the

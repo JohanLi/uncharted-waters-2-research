@@ -36,6 +36,8 @@ export interface ScenarioVmExecutableAnalysis {
     readonly atSeaSelector: string;
     readonly atSeaQualifierSource: string;
     readonly atSeaQualifierSlot1SaveOffset: number;
+    readonly voyageDayIncrementOffset: number;
+    readonly voyageDayResetOnDepartureOffset: number;
     readonly anyRegularPortSelector: string;
     readonly protagonistRegularPortCount: number;
     readonly sharedPortCount: number;
@@ -65,6 +67,15 @@ export interface ScenarioVmExecutableAnalysis {
     readonly resumeCurrentTrackCallOffset: number;
     readonly currentTrackSource: string;
     readonly otherDirectDriverCallOffsets: readonly number[];
+  };
+  readonly buildingTiming: {
+    readonly generalRandomOffset: number;
+    readonly durationRollOffset: number;
+    readonly minimumDurationTicks: number;
+    readonly randomDurationBound: number;
+    readonly durationReturnOffset: number;
+    readonly townClockAddOffset: number;
+    readonly portArrivalIncrementOffset: number;
   };
   readonly globals: Readonly<Record<string, string>>;
   readonly systemValues: readonly {
@@ -149,6 +160,8 @@ export function analyzeScenarioVmExecutable(
       atSeaSelector: "0xA0",
       atSeaQualifierSource: "DS:0x2BAA",
       atSeaQualifierSlot1SaveOffset: 0x1e19,
+      voyageDayIncrementOffset: 0x1e979,
+      voyageDayResetOnDepartureOffset: 0x2d7b4,
       anyRegularPortSelector: "0xA3",
       protagonistRegularPortCount: 100,
       sharedPortCount: 130,
@@ -180,6 +193,15 @@ export function analyzeScenarioVmExecutable(
       otherDirectDriverCallOffsets: [
         0x15b4a, 0x15bb3, 0x15d6e, 0x1c2b8, 0x1c8c9,
       ],
+    },
+    buildingTiming: {
+      generalRandomOffset: 0x0a198,
+      durationRollOffset: 0x209e9,
+      minimumDurationTicks: 2,
+      randomDurationBound: 3,
+      durationReturnOffset: 0x20b36,
+      townClockAddOffset: 0x204a7,
+      portArrivalIncrementOffset: 0x2051e,
     },
     globals: {
       currentSection: "DS:0x060E",

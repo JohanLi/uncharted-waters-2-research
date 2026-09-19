@@ -436,6 +436,11 @@ Conditions can also depend on money, rank, items, allied ports, date, choices,
 battle opponents/results, and randomness. Some of these are well understood
 for individual quests without yet having a complete general VM name.
 
+The voyage-day counter is the number of midnights crossed during the current
+voyage. It increments at midnight while at sea. Entering a port takes one
+20-minute tick and leaves the stored value intact while ashore; choosing Sail
+clears it to zero before the next voyage begins.
+
 The scenario state is progressive rather than a simple “quest completed”
 number. A section can contain several flag-controlled building stages. Entering
 the correct building may set a flag without showing dialog, causing a later
@@ -481,8 +486,10 @@ pnpm run query-dialog -- save-editor/KOUKAI2-original.DAT 1 special-building
 
 It reads the selected slot's scenario state, calendar, clock, port,
 protagonist, and fame, applies the decoded building schedule, then reports outcomes as
-`confirmed`, `decoded`, `ambiguous`, or `none`. Explicit small random ranges
-become separate probability branches.
+`confirmed`, `decoded`, `ambiguous`, or `none`. It reconstructs the
+protagonist-scenario RNG seed from the saved calendar, clock, and protagonist
+navigation fields, so explicit `EB` draws resolve to the same branch the game
+will select.
 
 It also reports the shared `SNR0` section, flags, highest-Fame eligibility,
 next-title threshold, cached mission family, and matching shared route. It does

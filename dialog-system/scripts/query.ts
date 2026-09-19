@@ -145,8 +145,36 @@ interface ExecutionState {
   dialogue: DialogueLine[];
   uncertainties: string[];
   effects: string[];
+  randomState: number;
   probability: number;
   steps: number;
+}
+
+export function protagonistScenarioRandomSeed(
+  savedYear: number,
+  savedMonth: number,
+  savedDay: number,
+  ticks: number,
+  navigationLevel: number,
+  navigationExperience: number,
+): number {
+  const dateProduct = Math.imul(
+    Math.imul(savedYear, savedMonth),
+    navigationLevel + navigationExperience,
+  );
+  return ((dateProduct + savedDay + ticks) << 8) >>> 0;
+}
+
+export function nextScenarioRandom(
+  state: number,
+  bound: number,
+): { state: number; result: number } {
+  if (bound <= 0) throw new Error(`Invalid scenario random bound: ${bound}`);
+  const nextState = (Math.imul(state, 0x5d58_8b65) + 1) >>> 0;
+  return {
+    state: nextState,
+    result: ((nextState >>> 8) & 0x7fff) % bound,
+  };
 }
 
 function hex(value: number, width = 4): string {
@@ -367,6 +395,7 @@ function executeRoute(
   protagonistId: number,
   protagonistFameRecord: Buffer,
   protagonistSailorRecord: Buffer,
+  initialRandomState: number,
 ): { outcomes: ScenarioQueryOutcome[]; truncated: boolean } {
   const section = scenario.sections[sectionId]!;
   const instructions = new Map(
@@ -391,6 +420,7 @@ function executeRoute(
       dialogue: [],
       uncertainties: [],
       effects: [],
+      randomState: initialRandomState,
       probability: 1,
       steps: 0,
     },
@@ -600,24 +630,18 @@ function executeRoute(
     if (instruction.opcode === 0xeb) {
       const variable = bytes[1]!;
       const bound = bytes.readUInt16BE(2);
-      if (bound > 0 && bound <= 16) {
-        for (let value = 0; value < bound; value++) {
-          const branch = cloneState(state);
-          branch.variables.set(variable, value);
-          branch.variableNotEqual.delete(variable);
-          branch.probability /= bound;
-          branch.offset = instruction.endOffset;
-          pending.push(branch);
-        }
+      if (bound > 0) {
+        const draw = nextScenarioRandom(state.randomState, bound);
+        state.randomState = draw.state;
+        state.variables.set(variable, draw.result);
+        state.variableNotEqual.delete(variable);
       } else {
         state.variables.delete(variable);
         state.variableNotEqual.delete(variable);
-        state.uncertainties.push(
-          `random variable ${variable} is in range 0–${Math.max(0, bound - 1)}`,
-        );
-        state.offset = instruction.endOffset;
-        pending.push(state);
+        state.uncertainties.push(`random variable ${variable} has bound zero`);
       }
+      state.offset = instruction.endOffset;
+      pending.push(state);
       continue;
     }
     if (instruction.opcode === 0xac || instruction.opcode === 0xad) {
@@ -903,6 +927,14 @@ export async function queryScenario(
       base + 0x612 + protagonistId * 42,
       base + 0x612 + (protagonistId + 1) * 42,
     ),
+    protagonistScenarioRandomSeed(
+      save[base + 6]!,
+      save[base + 7]!,
+      save[base + 8]!,
+      ticks,
+      save[base + 0x612 + protagonistId * 42 + 0x1c]!,
+      save.readUInt16LE(base + 0x612 + protagonistId * 42 + 0x1e),
+    ),
   );
   if (execution.truncated)
     notes.push("Symbolic execution reached its path or instruction limit.");
@@ -912,10 +944,6 @@ export async function queryScenario(
   if (uncertainties.length > 0)
     notes.push(
       "Ambiguous outcomes cross VM conditions whose input source has not yet been decoded.",
-    );
-  if (execution.outcomes.some((outcome) => outcome.probability < 1))
-    notes.push(
-      "Multiple outcomes reflect an explicit random draw in the scenario bytecode.",
     );
   const outcomesWithDialogue = execution.outcomes.filter(
     (outcome) => outcome.dialogue.length > 0 || outcome.effects.length > 0,
