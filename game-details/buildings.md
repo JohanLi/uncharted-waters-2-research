@@ -132,6 +132,38 @@ this routine. Palace rank restrictions, Church/Mosque religious restrictions,
 hostile-port behavior, and story events are separate access or dialogue checks;
 they do not alter these hours.
 
+### Visit duration
+
+A successful building visit consumes 40, 60, or 80 minutes. After confirming
+that the building is open, the entry routine calculates:
+
+```text
+duration = 2 + random(3)    # 20-minute ticks
+```
+
+The result is therefore 2, 3, or 4 ticks. The routine returns that value to
+the surrounding town loop, which applies it after the interaction. Thus the
+clock shown during a greeting is the entry time; the randomly selected cost
+affects the time shown on the following visit.
+
+The Harbor follows the same rule. If the player chooses Sail, the town loop
+still applies the Harbor visit's returned duration after the interaction; the
+Sail action does not add another tick. Going ashore is separate and advances
+the clock by one 20-minute tick.
+
+This uses the executable's general gameplay RNG at `MAIN.EXE 0x0A198`, not the
+scenario RNG used by `EB`. The general generator advances a persistent
+in-memory state whenever gameplay calls it:
+
+```text
+state = state * 0x41C64E6D + 0x3039    # modulo 2^32
+value = (state >> 16) & 0x7FFF
+result = value % bound
+```
+
+The `random(3) + 2` call is at `MAIN.EXE 0x209E9-0x209F5`; the entry routine
+returns the resulting tick count at `0x20B36`.
+
 ### Item Shop late opening
 
 Every Item Shop opens for an additional hour from 2:00 AM through 3:00 AM,

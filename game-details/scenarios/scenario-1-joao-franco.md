@@ -88,17 +88,28 @@ Domingo still appears normally on voyage day 3.
 
 ### Lisbon building behavior during preparation
 
-| Building               | Story behavior                                                                                                                                                                                                                       |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Franco home            | Starts Duke Leon's briefing. Before the night meeting is ready, Marco refuses entry. After Lucia carries the message, the 22:00–midnight visit gives the tiara.                                                                      |
-| Pub                    | Before the briefing, the first visit plays the full Carlotta/Lucia introduction and ends with Rocco's message that Duke Leon is calling for João; subsequent pre-briefing visits use only Carlotta's shorter reminder to go home. After the briefing, one visit supplies the money and has Lucia arrange the night meeting. Until that meeting occurs, later visits eject João with Lucia's 22:00–midnight reminder; afterward, normal Pub services, including crew recruitment, become available. |
-| Palace                 | Before the briefing, the attendant says Duke Leon was looking for João. After the briefing, João is refused entry because the Duke has ordered everyone to treat him as a commoner.                                                  |
-| Church                 | Before the briefing, Father Felippe supplies another hint to go home. During preparation, he introduces Enrico and asks João to take him east. A later visit can offer João money; the dialogue has accept/refuse branches.          |
-| Shipyard               | Before the ship is collected, the shipwright mentions the vessel being built for Duke Leon. The main scene supplies the Latin-rigged _Hermes II_.                                                                                    |
-| Harbor                 | Acts as a preparation checklist with branch-specific behavior. Without a ship, Rocco directs João to the Shipyard, but João remains inside and can open the Harbor menu; Sail and Supply are disabled. Without Enrico, the Father Felippe reminder ejects João before the menu. The missing-money reminder does not eject him; Set Sail remains available, subject to the engine's ship-and-crew checks. Once all checklist flags are satisfied, the trading/crew tutorial plays. |
-| Market                 | Gives early Lisbon/Seville trade advice; without a ship, the trader points out that João has nowhere to store goods.                                                                                                                 |
-| Item Shop              | Marco has prepaid for a rapier. It is a one-time pickup, and the shopkeeper reminds João to equip it. This appears optional to story progression.                                                                                    |
-| Guild, Bank, and Lodge | All use the same wildcard building route rather than building-specific dialogue. On each visit before the briefing, the script randomly selects one of three runs: a greeting followed by the news that Rocco was looking for João; advice to visit Carlotta's Pub; or the generic “Are you avoiding something?” exchange. After the briefing, it randomly selects one of three other runs: João asking to be treated like a regular sailor; encouragement about finding Atlantis; or a remark that João will be leaving soon. None advances the opening sequence. |
+| Building                                 | Story behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Franco home                              | Starts Duke Leon's briefing. Before the night meeting is ready, Marco refuses entry. After Lucia carries the message, the 22:00–midnight visit gives the tiara.                                                                                                                                                                                                                                                                                                                                                                                         |
+| Pub                                      | Before the briefing, the first visit plays the full Carlotta/Lucia introduction and ends with Rocco's message that Duke Leon is calling for João; subsequent pre-briefing visits use only Carlotta's shorter reminder to go home. After the briefing, one visit supplies the money and has Lucia arrange the night meeting. Until that meeting occurs, later visits eject João with Lucia's 22:00–midnight reminder; afterward, normal Pub services, including crew recruitment, become available.                                                      |
+| Palace                                   | Before the briefing, the attendant says Duke Leon was looking for João. After the briefing, João is refused entry because the Duke has ordered everyone to treat him as a commoner.                                                                                                                                                                                                                                                                                                                                                                     |
+| Church                                   | Before the briefing, Father Felippe supplies another hint to go home. During preparation, he introduces Enrico and asks João to take him east. A later visit can offer João money; the dialogue has accept/refuse branches.                                                                                                                                                                                                                                                                                                                             |
+| Shipyard                                 | Before the ship is collected, the shipwright mentions the vessel being built for Duke Leon. The main scene supplies the Latin-rigged _Hermes II_.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Harbor                                   | Acts as a preparation checklist with branch-specific behavior. Without a ship, Rocco directs João to the Shipyard, but João remains inside and can open the Harbor menu; Sail and Supply are disabled. Without Enrico, the Father Felippe reminder ejects João before the menu. The missing-money reminder does not eject him; Set Sail remains available, subject to the engine's ship-and-crew checks. Once all checklist flags are satisfied, the trading/crew tutorial plays.                                                                       |
+| Market                                   | Gives early Lisbon/Seville trade advice; without a ship, the trader points out that João has nowhere to store goods.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Item Shop                                | Marco has prepaid for a rapier. It is a one-time pickup, and the shopkeeper reminds João to equip it. This appears optional to story progression.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Guild, Bank, Lodge, and House of Fortune | These buildings have no specific opening route, so all use the same wildcard handler. On each visit before the briefing, `EB 00 0003` selects one of three runs: a greeting followed by the news that Rocco was looking for João; advice to visit Carlotta's Pub; or the generic “Are you avoiding something?” exchange. After the briefing, it selects one of three other runs: João asking to be treated like a regular sailor; encouragement about finding Atlantis; or a remark that João will be leaving soon. None advances the opening sequence. |
+
+The three-way selection is deterministic for the current saved state, not a
+fresh unpredictable roll. It uses the same generator and almost the same seed
+construction as royal-mission selection. The important difference is that a
+protagonist-scenario dispatch includes the current time-of-day in its seed;
+the shared royal-mission seed does not. Re-entering at the same timestamp
+therefore selects the same run in any of these four buildings. In two
+continuous Guild-entry trials, all five timestamps shared by both runs—08:00,
+08:40, 10:00, 11:20, and 13:20—gave the same greeting. The sequences diverged
+only as differing building-entry time costs led to different later
+timestamps.
 
 ## Section 1: Alberto and Duke Franco (2,000 Fame)
 
@@ -165,7 +176,8 @@ The opening Pub warning has no special time test and does not exclude Lisbon,
 Seville, or Istanbul; only normal Pub hours apply. Catalina's 50% roll is made
 on an eligible building visit, not necessarily another Pub visit.
 
-[^catalina-fleet]: Catalina's ten La Reales are not created by this scenario
+[^catalina-fleet]:
+    Catalina's ten La Reales are not created by this scenario
     event. In the untouched `raw/KOUKAI2.DAT`, Catalina points to fleet ID
     `0x0A`. Its fleet record begins at absolute file offset `0x23A9`, its ten
     ship slots begin at `0x23D4`, and every slot initially contains the empty
@@ -328,13 +340,13 @@ ships.
 
 The five pursuers are:
 
-| Fleet ID | Class          | Captain          |
-| -------: | -------------- | ---------------- |
-|       25 | Convoy         | Rashid Jabbar    |
-|       26 | Convoy         | Walid Kemal      |
-|       27 | Voyaging Fleet | Afmed Muhiddin   |
-|       28 | Voyaging Fleet | Sallah Iskal     |
-|       29 | Voyaging Fleet | Siddarth Kebin   |
+| Fleet ID | Class          | Captain        |
+| -------: | -------------- | -------------- |
+|       25 | Convoy         | Rashid Jabbar  |
+|       26 | Convoy         | Walid Kemal    |
+|       27 | Voyaging Fleet | Afmed Muhiddin |
+|       28 | Voyaging Fleet | Sallah Iskal   |
+|       29 | Voyaging Fleet | Siddarth Kebin |
 
 Both before-battle routes still use wildcard selector `0xA1FF`, but internal
 checks at `0x2776–0x2787` and `0x27FF–0x2810` resolve the opposing captain's
@@ -385,7 +397,8 @@ The Fame check is attached to the generic Pub route, so reaching 30,000 at sea,
 in another building, or in the Lisbon Pub does not by itself begin Enrico's
 request.
 
-[^japanese-ports]: Sakai and Nagasaki are port IDs `0x62` and `0x63`. Their
+[^japanese-ports]:
+    Sakai and Nagasaki are port IDs `0x62` and `0x63`. Their
     saved 20-byte port records use byte `+0x13` as a packed status field: bit
     `0x10` means already discovered, while bit `0x20` excludes the port from
     discovery. The untouched `KOUKAI2.DAT` template gives both ports status
@@ -449,7 +462,8 @@ The Pub has its own specific route, so while flag 0 is clear it does not also
 perform the wildcard one-in-ten search roll. The useful search attempts are
 other ordinary buildings in the eligible South American ports.
 
-[^rudolph-stats]: “Pirate Rudolph” has no separate sailor record. The scene
+[^rudolph-stats]:
+    “Pirate Rudolph” has no separate sailor record. The scene
     repurposes sailor ID `0x3C` (60), normally Antonio Khan: it writes `0x3B`
     to the record's displayed-character/portrait selector at `+0x12`, loads the
     strings “Pirate” and “Rudolph” from message entries `0x041C` and `0x041D`,
@@ -465,14 +479,14 @@ other ordinary buildings in the eligible South American ports.
 
 ### Ezequiel, Martinez, and the ending
 
-| Stage                         | Building or event                     | Result                                                                                                                        |
-| ----------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Plan the attack               | **Harbor**                            | Lucia explains Neo-Atlantis, and the scenario mobilizes Catalina and five Spanish fleets around João.                         |
+| Stage                         | Building or event                     | Result                                                                                                                                    |
+| ----------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Plan the attack               | **Harbor**                            | Lucia explains Neo-Atlantis, and the scenario mobilizes Catalina and five Spanish fleets around João.                                     |
 | Wait for the departure window | **Harbor**                            | The Harbor permits departure only on a later calendar date from 08:20 through 14:40. Otherwise Rocco or Catalina sends João to the Lodge. |
-| Recruit Ezequiel              | Encounter with one of the five fleets | Catalina surrenders; João explains Neo-Atlantis; Ezequiel joins the attack. The scenario then reorganizes both pursuit groups. |
-| Attack Neo-Atlantis           | Before-battle hooks                   | Martinez taunts the allies. Ezequiel attacks the fortress and Catalina handles the other fleets while João targets Martinez.  |
-| Win                           | After-battle hook                     | Martinez is defeated, Neo-Atlantis collapses, and João decides to return home.                                                |
-| End the scenario              | Lisbon **Franco home**                | The route invokes the ending operation. Other Lisbon buildings have explicit no-op routes at this final substage.             |
+| Recruit Ezequiel              | Encounter with one of the five fleets | Catalina surrenders; João explains Neo-Atlantis; Ezequiel joins the attack. The scenario then reorganizes both pursuit groups.            |
+| Attack Neo-Atlantis           | Before-battle hooks                   | Martinez taunts the allies. Ezequiel attacks the fortress and Catalina handles the other fleets while João targets Martinez.              |
+| Win                           | After-battle hook                     | Martinez is defeated, Neo-Atlantis collapses, and João decides to return home.                                                            |
+| End the scenario              | Lisbon **Franco home**                | The route invokes the ending operation. Other Lisbon buildings have explicit no-op routes at this final substage.                         |
 
 The Harbor planning scene saves the current year, month, and day. A return on
 that same date always produces the "tomorrow is the big day" Lodge reminder.
@@ -487,13 +501,13 @@ ID `0` (João), and marks them active. Catalina's fleet, ID `10` (`0x0A`), is
 also placed at João's position, but receives scripted-pursuit objective `10`.
 The five Spanish fleets are:[^finale-fleet-code]
 
-| Fleet ID | Captain         | Normal role     |
-| -------- | --------------- | --------------- |
-| `15`     | Tonio Burciaga  | Convoy          |
-| `16`     | Hugo Montoya    | Convoy          |
-| `17`     | Xavier Navarro  | Voyaging Fleet  |
-| `18`     | Bernal Loyola   | Voyaging Fleet  |
-| `19`     | Hernan Chavez   | Voyaging Fleet  |
+| Fleet ID | Captain        | Normal role    |
+| -------- | -------------- | -------------- |
+| `15`     | Tonio Burciaga | Convoy         |
+| `16`     | Hugo Montoya   | Convoy         |
+| `17`     | Xavier Navarro | Voyaging Fleet |
+| `18`     | Bernal Loyola  | Voyaging Fleet |
+| `19`     | Hernan Chavez  | Voyaging Fleet |
 
 The first encounter with any one of fleet IDs `15–19` invokes the Ezequiel
 scene. The hook checks the opponent's linked fleet ID, so it does not depend on
@@ -528,7 +542,8 @@ refill durability, or reconstruct destroyed fleets. Consequently “spawn” her
 means reactivating and relocating Rudolph's and the regular pirates' existing
 fleet records, with whatever ships those records currently contain.
 
-[^finale-fleet-code]: The first setup is in `raw/SNR1.DAT` around
+[^finale-fleet-code]:
+    The first setup is in `raw/SNR1.DAT` around
     `0x3578–0x360A`. It reads João's fleet position dynamically, selects linked
     fleet IDs `0x0F–0x13`, and writes current X/Y, objective `7`, target sailor
     `0`, and flags `0x41`; it separately gives fleet `0x0A` objective `10`. The
@@ -542,10 +557,10 @@ fleet records, with whatever ships those records currently contain.
 
 The finale contains two deliberate safeguards against attacking allies:
 
-| Target | Warning route | Name imposed after choosing **Yes** |
-| ------ | ------------- | ----------------------------------- |
-| Catalina, fleet ID `10` | Rocco asks, “Do ye really want to attack?” The following exchange calls João cruel and spiteful. | **Spiteful** |
-| Ezequiel's Spanish force, fleet IDs `15–19` | Rocco asks whether João really means to attack Ezequiel and the Spanish fleet. The following exchange calls him a nitwit. | **Nitwit** |
+| Target                                      | Warning route                                                                                                             | Name imposed after choosing **Yes** |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| Catalina, fleet ID `10`                     | Rocco asks, “Do ye really want to attack?” The following exchange calls João cruel and spiteful.                          | **Spiteful**                        |
+| Ezequiel's Spanish force, fleet IDs `15–19` | Rocco asks whether João really means to attack Ezequiel and the Spanish fleet. The following exchange calls him a nitwit. | **Nitwit**                          |
 
 Choosing **No** returns to the intended Martinez battle. Choosing **Yes**
 allows the attack but deliberately makes the scenario unwinnable. Both routes
@@ -579,7 +594,8 @@ not been deleted. Once João's story control is gone, the ordinary NPC fleet
 lifecycle can eventually give the surviving autonomous Spanish fleets new
 assignments.
 
-[^ally-attack-failure]: The Catalina failure block is in `raw/SNR1.DAT` around
+[^ally-attack-failure]:
+    The Catalina failure block is in `raw/SNR1.DAT` around
     `0x38AB–0x39C7`; the parallel Ezequiel/Spanish block is around
     `0x39F1–0x3B0D`. Each rewrites João's first name and attributes, assigns
     return-home objective `0` and active flags to fleets `0x0F–0x13` and
@@ -591,7 +607,7 @@ assignments.
 
 | If the story seems stuck at… | Try…                                                                                                                 |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Lisbon preparation           | Home → Pub once → Home after 22:00 → Church → Shipyard → recruit crew at the Pub → Harbor                           |
+| Lisbon preparation           | Home → Pub once → Home after 22:00 → Church → Shipyard → recruit crew at the Pub → Harbor                            |
 | 2,000 Fame                   | Harbor, then a Pub outside Lisbon, Seville, and Istanbul before 17:00                                                |
 | Missing Domingo              | Shipyard; the Lodge clue is optional                                                                                 |
 | Duke Franco's arrest         | Lisbon home → Palace → home → Harbor                                                                                 |

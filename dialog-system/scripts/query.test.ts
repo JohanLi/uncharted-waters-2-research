@@ -18,13 +18,24 @@ import {
   isBuildingOpen,
   loadProtagonistScenario,
   loadSharedScenario,
+  nextScenarioRandom,
   parseQueryAction,
+  protagonistScenarioRandomSeed,
   queryScenario,
 } from "./query.js";
 
 async function originalSave(): Promise<Buffer> {
   return readFile(join(repoRoot, "raw/KOUKAI2.DAT"));
 }
+
+test("reproduces protagonist scenario random draws", () => {
+  const seed = protagonistScenarioRandomSeed(21, 4, 17, 24, 10, 1_224);
+  assert.equal(seed, 0x0195_1100);
+  assert.deepEqual(nextScenarioRandom(seed, 3), {
+    state: 0x680a_b501,
+    result: 2,
+  });
+});
 
 test("decodes source placeholders in query dialogue", async () => {
   const save = await originalSave();

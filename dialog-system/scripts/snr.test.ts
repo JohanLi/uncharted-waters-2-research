@@ -61,6 +61,8 @@ test("MAIN.EXE exposes the scenario loader and four-family VM dispatch", async (
     atSeaSelector: "0xA0",
     atSeaQualifierSource: "DS:0x2BAA",
     atSeaQualifierSlot1SaveOffset: 0x1e19,
+    voyageDayIncrementOffset: 0x1e979,
+    voyageDayResetOnDepartureOffset: 0x2d7b4,
     anyRegularPortSelector: "0xA3",
     protagonistRegularPortCount: 100,
     sharedPortCount: 130,
@@ -90,6 +92,15 @@ test("MAIN.EXE exposes the scenario loader and four-family VM dispatch", async (
     resumeCurrentTrackCallOffset: 0x26ba6,
     currentTrackSource: "DS:0x903A",
     otherDirectDriverCallOffsets: [0x15b4a, 0x15bb3, 0x15d6e, 0x1c2b8, 0x1c8c9],
+  });
+  assert.deepEqual(analysis.buildingTiming, {
+    generalRandomOffset: 0x0a198,
+    durationRollOffset: 0x209e9,
+    minimumDurationTicks: 2,
+    randomDurationBound: 3,
+    durationReturnOffset: 0x20b36,
+    townClockAddOffset: 0x204a7,
+    portArrivalIncrementOffset: 0x2051e,
   });
   assert.deepEqual(analysis.systemValues, [
     {

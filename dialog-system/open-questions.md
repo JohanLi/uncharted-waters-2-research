@@ -26,13 +26,6 @@ bytecode.
 4. Decode the remaining VM record groups and action opcodes that occur on
    reachable story paths.
 
-### Highest-value runtime tests
-
-| Priority | Test                      | Save immediately before…                                                | Evidence to record                                                          |
-| -------: | ------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-|        1 | Voyage-day lifecycle      | Midnight at sea and the corresponding port-entry/departure alternatives | Voyage-day byte before and after midnight, port entry, and departure        |
-|        2 | Ordinary random greetings | Repeated entry into the same Bank or Lodge without advancing time       | Dialogue across repeated entries, reloads, and the next time/day transition |
-
 ## 1. Building-entry dispatch and precedence
 
 **Unknown:** What is the exact execution order among ordinary access checks,
@@ -258,34 +251,30 @@ with a scenario portrait in that panel. Scenario dialogue can instead use an
 upper character portrait or the lower panel. This functional mapping is now
 documented in [Buildings](../game-details/buildings.md#vendor-portraits-and-dialogue-panels).
 
-## 10. Randomness and cached outcomes
+## 10. Scenario RNG decoded; ordinary-handler randomness remains
 
-**Decoded:** `EB` generates explicit uniform scenario values using remainder
-division, and small bounds can be represented as probability branches.
+**Decoded:** `EB` advances the scenario RNG, divides the generated value by
+its bound, and stores the remainder. Before each protagonist-scenario dispatch,
+the executable reconstructs the seed from the saved year, month, day,
+time-of-day, and the protagonist's navigation level and experience. The query
+tool now reproduces the resulting value rather than emitting hypothetical
+probability branches.
 
-**Unknown:** Which ordinary-building choices use separate random sources, when
-their results are cached, and when time/day/entry refreshes them? The observed
-Bank/Lodge greeting variation in João's opening is one unresolved example.
+João's opening Guild/Bank/Lodge/House-of-Fortune variation is therefore not an
+ordinary vendor choice or a cached greeting. It is the explicit `EB 00 0003`
+in `SNR1`. Two continuous-entry recordings selected the same line at every
+timestamp common to both runs: 08:00, 08:40, 10:00, 11:20, and 13:20. Their
+later sequences diverged when building entry consumed different amounts of
+time and therefore changed the next dispatch seed.
 
-**Why it matters:** “Given a player state” may yield a probability distribution
-rather than one deterministic conversation, or may require hidden RNG/cache
-state not currently read from the save.
+**Remaining unknown:** Whether any choices made inside the executable's
+ordinary-building handlers use the scenario generator or cached state. One
+ordinary entry choice is now decoded: every successful building visit uses the
+general gameplay RNG to select a duration of `2 + random(3)` twenty-minute
+ticks. This generator has its own continuously advancing in-memory state; it
+is not the reseeded scenario generator used by `EB`. No confirmed ordinary-
+building random greeting currently requires a runtime test.
 
-**Next evidence:** Trace the random generator and cached state around the
-ordinary handlers, repeat entries without advancing time, and compare runs
-across reloads and day transitions.
-
-## 11. Voyage-day lifecycle
-
-**Decoded:** Protagonist selector `0xA0` receives the current voyage-day
-counter, and known João routes respond to specific values.
-
-**Unknown:** Does entering a port reset, pause, or preserve that counter, and
-exactly when is it incremented relative to midnight and scenario dispatch?
-
-**Why it matters:** Some building conversations become available only after an
-at-sea transition has advanced the scenario subsection.
-
-**Next evidence:** Use otherwise identical saves to enter a port, remain
-at sea, or depart again around midnight, and compare both the counter and the
-selected `0xA0` route.
+**Next evidence:** First identify a random call or branch in an ordinary
+building handler statically. Then design a focused runtime capture around that
+specific caller if its seed or cache lifecycle remains unclear.
