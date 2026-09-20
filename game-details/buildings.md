@@ -52,15 +52,425 @@ one of them. Menu spelling and capitalization are copied from `raw/MENU.DAT`.
 |  11 | Mosque                           | "Welcome to our mosque."                                                                                                                 | Pray; Donate                                                    |
 |  12 | House of Fortune                 | "Welcome to the House of Fortune. What do you want to know?"                                                                             | Life; Career; Love; Mates                                       |
 
+### Executable entry-message mapping
+
+Market, Pub, Shipyard, Harbor, Lodge, Guild, Bank, Item Shop, Church, and House
+of Fortune all enter with the vendor image and message in the upper panel while
+the main menu is already selectable. Their handlers call the message helper
+and then proceed directly to the menu loop; they do not call the acknowledge
+helper between those operations.
+
+The Palace is different. Its greeting is displayed alone and passed through
+the acknowledge helper at `MAIN.EXE 0x30AB0`; only afterward does the handler
+construct and show the Palace menu. The greeting remains visible behind the
+menu.
+
+The entry messages map to `MESSAGE.DAT` as follows. Indices are raw,
+zero-based indices; entry numbers are included to make prose citations
+unambiguous.
+
+| Building or branch                    | Message raw index (entry) | Message-call offset | Selection and substitutions                                                                                                  |
+| ------------------------------------- | ------------------------: | ------------------: | ---------------------------------------------------------------------------------------------------------------------------- |
+| Market                                |            0 (1) or 1 (2) |           `0x2B023` | Below 1,000 Trade Fame it uses “How may I help you?”; otherwise “Hello, %s %s!” with the protagonist's first and last names. |
+| Pub                                   |                   18 (19) |           `0x2D499` | `%s` is the port's Pub specialty.                                                                                            |
+| Shipyard                              |                   77 (78) |           `0x329EE` | Fixed.                                                                                                                       |
+| Harbor                                |                   56 (57) |           `0x2DD5E` | Fixed; other Harbor modes contain equivalent call sites.                                                                     |
+| Lodge                                 |                   66 (67) |           `0x2EB5D` | Fixed.                                                                                                                       |
+| Palace, titled admission              |                 444 (445) |           `0x30A9C` | `%s %s` is the protagonist's title and last name.                                                                            |
+| Palace, invited commoner              |                 576 (577) |           `0x30AAA` | Fixed Palace Guard line.                                                                                                     |
+| Palace, rejected commoner             |                   84 (85) |           `0x30A60` | Acknowledged, then returns outside without a menu.                                                                           |
+| Palace, hostile reception             |                 443 (444) |           `0x30A08` | Uses the protagonist's names and diverts into the hostile Palace path.                                                       |
+| Guild                                 |                   85 (86) |           `0x332FC` | Fixed.                                                                                                                       |
+| Bank, Amsterdam                       |                   97 (98) |           `0x2F166` | Selected when current port ID is 13.                                                                                         |
+| Bank, regional branch                 |                   98 (99) |           `0x2F17D` | Selected at every other Bank.                                                                                                |
+| Item Shop                             |                 235 (236) |           `0x2FCC6` | Fixed on every reachable open-hours entry.                                                                                   |
+| Church                                |                   91 (92) |           `0x32C67` | Computed as `91 + 712 × mosque`; Church uses zero.                                                                           |
+| Mosque                                |                 803 (804) |           `0x32C67` | The same computation uses one for a Mosque.                                                                                  |
+| House of Fortune                      |                 298 (299) |           `0x33534` | Fixed.                                                                                                                       |
+| Special residence, generic            |                 477 (478) |           `0x339F2` | “May I help you?”                                                                                                            |
+| Special residence, recognized visitor |                 478 (479) |           `0x339E4` | Uses the protagonist's first and last names.                                                                                 |
+
+Religious rejection uses the same upper-panel helper but does not enter the
+menu. A Muslim entering a Church receives raw index 90 (entry 91), while a
+Christian entering a Mosque receives raw index 802 (entry 803). The executable
+computes the normal Church/Mosque greeting dynamically, which is why neither
+greeting appears as a literal direct-reference row in the generated call-site
+inventory.
+
+### Item Shop command dialogue
+
+The Item Shop handler begins at `MAIN.EXE 0x2FC9A`. **Buy** dispatches to
+`0x2F9CC`, and **Sell** dispatches to `0x2FB03`. Both commands contain an
+internal item-selection loop. Cancelling that loop returns to the Item Shop's
+two-command menu; leaving the main menu returns outside without an additional
+farewell.
+
+**Buy** uses these `MESSAGE.DAT` raw indices:
+
+| Condition or stage              | Raw index (entry) | Result                                                                                                                                     |
+| ------------------------------- | ----------------: | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| No gold                         |         236 (237) | “It seems you have no gold.” The command ends.                                                                                             |
+| All 20 inventory slots occupied |         237 (238) | The command ends.                                                                                                                          |
+| First item selection            |         238 (239) | “I'm sure you'll find something you like.”                                                                                                 |
+| Later item selections           |         242 (243) | “Are you interested in anything else?”                                                                                                     |
+| Duplicate restricted item       |         332 (333) | “You already have one.” The executable applies this only to item types whose low type nibble is below 7.                                   |
+| Selected item                   |         240 (241) | Supplies the item name and its price in gold, then asks for confirmation.                                                                  |
+| Insufficient gold               |         239 (240) | The purchase is not performed.                                                                                                             |
+| Confirmed purchase              |                 — | Deducts the price, puts the item in the first empty inventory slot, then repeats with the “interested in anything else?” selection prompt. |
+
+**Sell** uses this sequence:
+
+| Condition or stage            | Raw index (entry) | Result                                                                                                                     |
+| ----------------------------- | ----------------: | -------------------------------------------------------------------------------------------------------------------------- |
+| No carried items              |         243 (244) | “You don't have any items.” The command ends.                                                                              |
+| First item selection          |         244 (245) | “What would you like to sell?”                                                                                             |
+| Later item selections         |         248 (249) | “What else can you sell me?”                                                                                               |
+| Item is currently equipped    |         333 (334) | It cannot be sold.                                                                                                         |
+| Item is not accepted by shops |         929 (930) | “Sorry, but I can't buy this item.”                                                                                        |
+| Initial offer                 |         245 (246) | Supplies the item name and the base sale price. Accepting sells immediately.                                               |
+| Successful counteroffer       |         246 (247) | Rejecting the initial offer performs a Luck-based roll. Success produces a higher offer; failure returns to the item list. |
+
+Raw index 247 (“I'll take it for %ld gold pieces.”) is adjacent to the sale
+messages but is not referenced by this Item Shop sell routine. A confirmed
+sale adds the agreed price, subject to the on-hand-gold cap, removes the item,
+and repeats the selection loop.
+
+### Bank command dialogue
+
+The four Bank commands are separate routines: **Deposit** at `0x2EBF2`,
+**Withdraw** at `0x2ED63`, **Borrow** at `0x2EE8F`, and **Repay** at
+`0x2EFF9`. The main handler begins at `0x2F146`. Each command returns to the
+Bank menu. Leaving that menu displays raw index 164 (entry 165), “Thank you for
+choosing Marco Polo Bank,” and waits for acknowledgement before returning
+outside.
+
+The account is treated as one signed balance: positive values are savings,
+zero is an empty account, and negative values are debt.
+
+| Command  | Branch or stage                         |        Raw index (entry) | Substitution or continuation                                             |
+| -------- | --------------------------------------- | -----------------------: | ------------------------------------------------------------------------ |
+| Deposit  | On-hand gold is at most 1,000           |                100 (101) | Refuses the deposit.                                                     |
+| Deposit  | Savings have reached 1,000,000          |                101 (102) | Refuses the deposit.                                                     |
+| Deposit  | Account is in debt                      |                102 (103) | Requires repayment first.                                                |
+| Deposit  | Existing positive savings               |                103 (104) | Supplies the current balance.                                            |
+| Deposit  | Empty account                           |                104 (105) | “You don't have any gold in your account.”                               |
+| Deposit  | Amount prompt                           |                105 (106) | Maximum is limited by on-hand gold and remaining account capacity.       |
+| Deposit  | Positive amount entered                 |                106 (107) | Supplies the deposited amount, then raw index 103 shows the new balance. |
+| Withdraw | Account is empty or in debt             |                104 (105) | The command ends.                                                        |
+| Withdraw | Less than 100 gold of carrying room     |                107 (108) | Refuses because the protagonist already has enough gold.                 |
+| Withdraw | Amount prompt                           |                108 (109) | Maximum is the positive savings balance.                                 |
+| Withdraw | Result would exceed 600,000,000 on hand |                109 (110) | Refuses the withdrawal.                                                  |
+| Withdraw | Valid amount                            |                110 (111) | Supplies the amount, then raw index 103 shows the remaining savings.     |
+| Borrow   | Account contains savings                |                111 (112) | Refuses a loan while savings remain.                                     |
+| Borrow   | Rank/debt credit test fails             |                113 (114) | “With your poor credit history...”                                       |
+| Borrow   | At least 1,000,000 gold already on hand |                112 (113) | Refuses because the loan is unnecessary.                                 |
+| Borrow   | Eligible                                |                114 (115) | Shows the calculated credit line.                                        |
+| Borrow   | Amount prompt                           |                115 (116) | Maximum is the calculated credit line.                                   |
+| Borrow   | Positive amount entered                 |  116, then 117 (117–118) | Shows the loan amount and the 10% monthly-interest warning.              |
+| Repay    | Account is not in debt                  |                118 (119) | “You don't owe us any money.”                                            |
+| Repay    | Existing debt                           |                149 (150) | Supplies the current debt as a positive amount.                          |
+| Repay    | Amount prompt                           |                119 (120) | Maximum is limited by the debt and on-hand gold.                         |
+| Repay    | Positive amount entered                 |                120 (121) | Confirms payment.                                                        |
+| Repay    | Debt remains                            | 149, then 117 (150, 118) | Shows the remainder and repeats the interest warning.                    |
+| Repay    | Debt cleared                            |                382 (383) | Confirms that the debt is fully paid.                                    |
+
+### Church and Mosque command dialogue
+
+The shared religious-building menu begins at `MAIN.EXE 0x32C3C`. Its message
+indices are computed as `church index + 712 × mosque`, allowing the same code
+to select the paired Christian and Muslim text. **Pray** begins at `0x32AA8`;
+**Donate** begins at `0x32AF0`. Both return to the Pray/Donate menu.
+
+| Stage                  | Church raw index (entry) | Mosque raw index (entry) | Continuation or effect                                                                                       |
+| ---------------------- | -----------------------: | -----------------------: | ------------------------------------------------------------------------------------------------------------ |
+| Pray                   |                  92 (93) |                804 (805) | Displays the prayer. The first Pray command during a visit also adds a random 0 or 1 to Luck, capped at 100. |
+| Donation amount prompt |                  93 (94) |                805 (806) | Accepts an amount up to all on-hand gold.                                                                    |
+| Smaller donation       |                  94 (95) |                806 (807) | Selected when `floor(gold before donation / donation) > 10`.                                                 |
+| Large donation         |                  95 (96) |                807 (808) | Selected when `floor(gold before donation / donation) <= 10`.                                                |
+| Leave the building     |                  96 (97) |                808 (809) | Displays a farewell, waits for acknowledgement, then returns outside.                                        |
+
+Attempting **Donate** with no gold instead clears to a system-message layout
+and displays raw index 28 (entry 29), “We have no gold!” A zero donation simply
+returns to the menu. A positive donation is deducted immediately. If it is at
+least `(random(5) + 1) × 100` gold, the routine also calculates
+`Luck − floor(gold before donation / donation) + 11`, capped at 100. Unlike
+Pray's one-roll-per-visit guard, this calculation is performed for each
+positive donation.
+
+### Market command dialogue
+
+The Market main handler begins at `MAIN.EXE 0x2AFD1`. **Buy Goods** begins at
+`0x2A6DB`, **Sell Goods** at `0x2A8C4`, **Invest** at `0x2ABC7`, and
+**Market Rate** at `0x2AFA5`. Buy Goods delegates its selection and transaction
+work to the larger routine at `0x2A336`. Cancelling a command returns to the
+four-command Market menu; leaving that menu returns outside without a farewell.
+
+**Buy Goods** constructs its selection list from the current port's stock.
+The first screen uses raw index 3 (entry 4), “What are you looking for today?”,
+and raw index 406 (entry 407) as the goods/rate heading. Selecting a commodity
+then follows this dialogue:
+
+| Stage or condition               |   Raw index (entry) | Continuation                                                                            |
+| -------------------------------- | ------------------: | --------------------------------------------------------------------------------------- |
+| Commodity is unavailable         |               4 (5) | Supplies the goods name and returns to the list.                                        |
+| Commodity is the local specialty |               5 (6) | Supplies its name and identifies it as the specialty.                                   |
+| Quantity prompt                  |              9 (10) | Supplies the goods name; the input is limited by stock, cargo room, and available gold. |
+| Ordinary price confirmation      |           150 (151) | Supplies the goods name and per-lot price.                                              |
+| Mate's price assessment          |       23–25 (24–26) | Classifies the price as a bargain, expensive, or acceptable.                            |
+| Insufficient gold                |             22 (23) | The purchase is not performed.                                                          |
+| Counteroffer prompt              |               6 (7) | Supplies the highest permitted offer.                                                   |
+| Offer is much too low            |             11 (12) | Rejects the offer.                                                                      |
+| Seller makes a counteroffer      |             12 (13) | Supplies the revised unit price.                                                        |
+| Unprofitable attempted trick     |           851 (852) | Rejects the offer and supplies the lowest still-profitable price.                       |
+| Successful negotiated price      | 10 or 852 (11, 853) | Accepts directly or yields with a revised price.                                        |
+
+The negotiation is part of the same commodity-selection loop. A completed
+purchase deducts the total price, adds the lots to the selected fleet's cargo,
+updates the port's remaining stock, and returns to the goods list.
+
+**Sell Goods** first compacts the fleet's cargo list and displays raw indices
+407 and 408 (entries 408–409) as its `Goods / Load / Rate` table and row
+format. If no saleable goods remain, raw index 21 (entry 22) ends the command.
+Otherwise, the selected quantity is removed, its proceeds are added to
+on-hand gold, the port's stock and rate are updated, and the revised list is
+shown again. Cancelling the cargo list returns to the Market menu.
+
+**Invest** distinguishes the Market's commercial power from the Shipyard's
+industrial power, but shares the same dialogue and reward thresholds with the
+Shipyard command:
+
+| Condition or amount                | Raw index (entry) | Result                                                         |
+| ---------------------------------- | ----------------: | -------------------------------------------------------------- |
+| Current port is a national capital |             2 (3) | Supplies the port and nation names; investment is unavailable. |
+| Relevant power has reached 50,000  |             7 (8) | Refuses further investment.                                    |
+| Investment is available            |             8 (9) | Opens the amount input.                                        |
+| No gold is available               |           28 (29) | Ends the command.                                              |
+| Zero entered                       |           13 (14) | “Come back again.”                                             |
+| 1–499 gold                         |           14 (15) | “What? Is this all?! Thanks for nothing!”                      |
+| 500–9,999 gold                     |           15 (16) | “Thank you very much.”                                         |
+| At least 10,000 gold               |           16 (17) | “I won't forget your generosity.”                              |
+
+The entered amount is capped by the remaining room below 50,000. A positive
+investment deducts the gold, changes the port's relevant power and
+sphere-of-influence distribution, and refreshes the associated market or
+shipyard state.
+
+**Market Rate** builds a ten-goods working list, then displays the present
+port's commodity information in successive tables. Raw index 151 (entry 152)
+supplies a commodity category and its price index; raw index 379 (entry 380)
+is the repeated `Goods / Sells at / Buys at` heading. Acknowledging the last
+table returns to the Market menu.
+
+### Pub command dialogue
+
+The Pub main handler begins at `MAIN.EXE 0x2D410`. Its six commands are
+**Recruit Crew**, **Dismiss Crew**, **Treat**, **Meet**, **Waitress**, and
+**Gamble**. The executable initializes the available patrons and waitress
+before displaying the menu, so several commands operate on a port-dependent
+character list rather than on fixed text alone.
+
+**Recruit Crew** begins at `0x2B68A` and delegates its prompts and random
+recruitment result to `0x2B16D`. It refuses when the fleet already has enough
+sailors (raw index 29, entry 30) or when fewer than 10 gold pieces are available
+(raw index 30, entry 31). Otherwise it may warn that drinks are needed to
+attract recruits (raw 31), ask whether to recruit (raw 32), and call for sailors
+(raw 33). The result is one of:
+
+- raw index 121 (entry 122), with the full number rounded up;
+- raw index 122 (entry 123), with only part of the requested number; or
+- raw index 123 (entry 124), when nobody comes forward.
+
+The amount and cost prompts use raw indices 124 and 125 (entries 125–126).
+The number who respond is calculated from the port and protagonist state; it
+is not a fixed textual choice.
+
+**Dismiss Crew** begins at `0x2B739` and delegates assignment to `0x2B50E`. It
+enumerates the fleet's ships and captains, using `MESSAGE2.DAT` raw indices
+396–400 (combined indices 1396–1400) for the captain, Navigation, Lookout,
+Combat, and minimum-crew display. Raw index 857 (entry 858) asks how many
+sailors to assign to each ship. If this leaves sailors unassigned, raw index
+858 (entry 859) asks whether to discharge them; raw index 231 (entry 232) is
+the direct dismissal confirmation. Rejecting a confirmation resumes assignment
+rather than leaving the Pub.
+
+**Treat** begins at `0x2BC8D`; its Fame and invitation logic occupies
+`0x2BAFA–0x2BC8C`. Its Fame-dependent thanks and the possible royal-invitation
+side effect are described under the shared scenario and royal mission
+mechanics. This command has no scenario-dispatch call: the invitation test is
+executable code, and the command returns to the Pub menu afterward.
+
+**Meet** uses the patron-selection loop rooted at `0x2C6E2`. Selecting a
+patron opens the character menu `Treat / Gossip / Hire / Duel`. Its dialogue
+depends on whether the patron is a mate, an employed captain, a wandering
+navigator, or an ordinary sailor.
+
+| Interaction or condition                  |      Raw indices | Meaning                                                                               |
+| ----------------------------------------- | ---------------: | ------------------------------------------------------------------------------------- |
+| Ordinary introduction                     |            41–43 | Sailor, named captain, or vagabond introduction.                                      |
+| Personal specialty                        |          46, 139 | Introduces a skill possessed by the navigator.                                        |
+| Navigator rumor                           |          570–571 | Names a navigator and port, or reports that the port has no capable sailors.          |
+| Recruitment invitation and wage           |          48, 142 | Offers a place, then supplies the requested monthly wage.                             |
+| Role-, ship-, or experience-based refusal | 49, 140–141, 145 | Rejects employment.                                                                   |
+| Accepted or declined offer                |          143–144 | Ends the hire attempt and returns to the selected patron's menu.                      |
+| No useful recruit                         |               39 | Ends the selection when no eligible navigator is present.                             |
+| Map owner or Bank debt collector          |          604–614 | Runs the map sale or debt-collection interaction instead of the ordinary patron menu. |
+
+The same patron can therefore expose different dialogue and submenu commands;
+`Meet` is not merely a random-greeting command.
+
+**Waitress** begins at `0x2D102`. Raw index 146 (entry 147) names the port's
+waitress and requests a 10-gold tip; raw index 147 refuses the interaction if
+the protagonist cannot pay. Once paid, it opens `Tell Stories / Give Gift /
+Investigation / Ask Info`:
+
+- **Tell Stories** selects a discovery and uses raw indices 312–320 for the
+  waitress's subject-dependent reaction.
+- **Give Gift** selects an eligible item and uses raw indices 321–325 for her
+  reaction or reward. Raw indices 330–331 cover having no acceptable gift.
+- **Investigation** and **Ask Info** assemble answers from the requested
+  captain, fleet objective, port, commodity, discovery, or mission state.
+  Their sentences are composed from reusable fragments such as raw indices
+  398–403 and 540–553 rather than from one fixed transcript.
+
+The tip is charged before the four-command waitress menu. Leaving a nested
+selection returns through that menu and then to the main Pub menu.
+
+**Gamble** begins at `0x2D249`. With no gold it displays `MESSAGE2.DAT` raw
+index 10 (combined index 1010), “I don't deal with paupers.” Otherwise it
+opens the Black Jack/Dice game selector and hands control to the two gambling
+engines. `MESSAGE2.DAT` raw indices 0–9 contain the gambler's invitations,
+win/loss reactions, replay prompts, and responses to quitting. Those messages
+belong to the gambling engine rather than to the ordinary Pub speaker loop.
+
+### Shipyard command dialogue
+
+The Shipyard main handler begins at `MAIN.EXE 0x329B0`. Before its greeting
+and menu, it checks the hostile-building state and can instead display raw
+index 249 (entry 250) and eject the protagonist. The six ordinary commands are
+**New Ship**, **Used Ship**, **Repair**, **Sell**, **Remodel**, and **Invest**.
+
+**New Ship** begins at `0x31D15`; its design-and-order routine begins at
+`0x31A70`. The preliminary path may refuse because this port builds no new
+ships (raw index 251, entry 252) or the protagonist already has the maximum
+number of owned ships (raw 377). Raw index 252 opens the eligible ordering
+path. Its construction sequence is:
+
+| Stage                          | Raw index (entry) | Continuation                           |
+| ------------------------------ | ----------------: | -------------------------------------- |
+| Select model                   |         253 (254) | Confirms the chosen model.             |
+| Select hull material           |         254 (255) | Opens the material list.               |
+| Confirm current design         |         255 (256) | Follows the displayed ship statistics. |
+| Configure crew bunks           |         258 (259) | Numerical capacity input.              |
+| Configure gun space            |         259 (260) | Numerical capacity input.              |
+| Confirm capacity configuration |         260 (261) | Accepts or returns to configuration.   |
+| Confirm calculated price       |         256 (257) | Supplies the complete ship price.      |
+| Place order                    |         257 (258) | Begins construction.                   |
+| Construction time              |         262 (263) | Supplies the required number of days.  |
+
+Construction completion is building-entry preprocessing, not another New Ship
+menu selection. Before the due date raw index 261 reports the days remaining.
+Once ready, raw index 250 announces the ship, raw index 263 asks whether to add
+it to the fleet, and raw indices 264–265 cover leaving it in the dock. Fleet
+and dock capacity can instead invoke the ship-limit and swap-ship paths.
+
+**Used Ship** begins at `0x31DE9`; its price-negotiation helper begins at
+`0x317FD`. Raw indices 193–194 select a ship and show its price. Rejecting the
+listed price opens raw index 195's offer prompt; a mate may supply raw 196's
+estimated minimum. Raw indices 197–198 reject unacceptable offers, while raw
+863 accepts a negotiated price. A completed purchase uses raw index 199 and
+immediately asks for the ship's name.
+
+**Repair** begins at `0x31EE4`. Raw index 204 reports that the selected ship
+already needs no work. Otherwise raw index 205 supplies the repair cost and
+asks for confirmation; raw 206 follows a refusal, and raw 207 reports
+insufficient gold. Completion uses `MESSAGE2.DAT` raw index 47 (combined index
+1047), “This ship is in tiptop shape.”
+
+**Sell** begins at `0x31FF1` and uses this guarded sequence:
+
+| Condition or stage            | Raw index (entry) | Continuation                                                   |
+| ----------------------------- | ----------------: | -------------------------------------------------------------- |
+| Only the flagship exists      |         208 (209) | Refuses the command.                                           |
+| Ship selection                | 200–201 (201–202) | Selects and confirms the ship.                                 |
+| Selected ship is the flagship | 209–210 (210–211) | Requires confirmation and selection of a replacement flagship. |
+| Cargo remains aboard          |         211 (212) | Requires confirmation before discarding it.                    |
+| Crew remains aboard           |         212 (213) | Requires confirmation before dismissing them.                  |
+| Sale offer                    |         213 (214) | Supplies the price and asks for final confirmation.            |
+| Sale declined                 |         214 (215) | Returns to ship selection.                                     |
+
+**Remodel** begins at `0x3263D` and opens `Figurehead / Guns / Load Capacity /
+Rename`. Figurehead and Guns begin at `0x32344` and `0x32410`; Load Capacity
+and Rename begin at `0x324C9` and `0x3259B`.
+
+| Subcommand       | Principal messages | Behavior                                                                                                   |
+| ---------------- | -----------------: | ---------------------------------------------------------------------------------------------------------- |
+| Figurehead       |            266–269 | Announces the selection, chooses a ship and figurehead, then supplies the installed price.                 |
+| Guns             |  266, 270–272, 334 | Chooses a ship and gun type, reports remaining capacity, accepts a quantity, and supplies the total price. |
+| Guns unavailable |   `MESSAGE2` 20–21 | Distinguishes a full gun allocation from a ship model that cannot carry guns.                              |
+| Load Capacity    |            273–274 | Chooses a ship, previews the cargo-capacity change, and supplies its price.                                |
+| Rename           |           273, 275 | Chooses a ship and opens the name-entry control.                                                           |
+
+Paid remodels use raw index 207 when on-hand gold is insufficient. Each
+subcommand owns its ship-selection loop; cancelling it returns to the Remodel
+menu, and cancelling Remodel returns to the main Shipyard menu.
+
+**Invest** begins at `0x328A3`. It applies the same 50,000 cap and message
+thresholds as Market Invest, but tests and changes the port's industrial power.
+Its internal recalculation helpers begin at `0x3269F` and `0x327C3`; those are
+not separately selectable commands.
+
 Some commands lead to another menu. `Moor`, for example, opens `Store`,
 `Commission`, and `Exchange`; `Remodel` opens `Figurehead`, `Guns`,
 `Load Capacity`, and `Rename`. The Pub's `Meet` and `Waitress` commands likewise
 open character-specific submenus.
 
+Building entry and menu commands are separate dispatch points. Controlled
+shared-quest captures establish the following examples:
+
+- Transport Goods delivery runs as the destination Market is entered, before
+  the ordinary menu. Complete delivery then exposes the menu; partial delivery
+  suppresses it and returns the player outside.
+- A Guild first shows its ordinary greeting and main menu. Assignment dialogue
+  begins only after `Job Assignment` and a listed job are selected. Accepting
+  returns to the main menu, whereas rejecting returns to the job list.
+- Royal-mission progress at a Palace is evaluated through `Meet Ruler`, not by
+  entry alone. A hostile Palace reception is an earlier entry check and can
+  eject the player before the menu or audience action becomes available.
+
+The command-to-scenario mapping is narrower than the visible menus suggest.
+After a job is chosen, `Job Assignment` invokes shared scenario context
+`current port + 0x06`, reusing the Guild qualifier. `Treat` invokes no scenario
+route; its invitation behavior is implemented directly in the executable.
+`Meet Ruler` dispatches shared Palace context `0x05`, followed by protagonist
+and shared audience context `0x15`. No other menu command has a scenario
+matcher or dispatcher call site.
+
+For the ordinary buildings eligible for hostile-country encounters, scenario
+entry hooks run first. The dispatcher calls shared and protagonist scenario
+matching at `MAIN.EXE 0x20A1B–0x20A4C`, evaluates their returned menu-control
+values, and reaches the hostile path at `0x20A70` only if interaction may
+continue. An `F8` result therefore normally prevents the later hostile check.
+A non-ejecting story route does not: it can be followed by either a hostile
+confrontation or the ordinary greeting and menu, depending on the random
+gates. The Lodge is an explicit exception: its branch at `0x20A61` continues
+into hostile processing even after `F8`. A controlled Trebizond visit therefore
+showed João's `F8`-ending story conversation, the hostile-port warning, and the
+ordinary Lodge menu in sequence after the confrontation roll missed. At the
+same story stage, ejecting routes in other eligible buildings stop before the
+hostile check.
+
 The Palace's **Defect** entry is enabled only at a foreign capital and only
 when no royal invitation, offer, or accepted royal mission is active. Its
 complete predicate is documented under
 [Defection](friendship.md#when-the-command-is-available).
+
+The Palace's initial admission check is separate from its menu mask. After the
+Palace-specific hostile-reception check, an untitled character is rejected
+only if all four conditions hold: the Palace is foreign, the character is not
+affiliated with the Pirates, shared flag 17 is clear, and shared flag 18 is
+clear. A title, one's own capital, Pirate affiliation, an armed royal
+invitation, or an offer already in progress therefore passes this gate. The
+check occupies `MAIN.EXE 0x30A1B–0x30A68`; rejection begins at `0x30A5B`.
 
 ### Vendor portraits and dialogue panels
 

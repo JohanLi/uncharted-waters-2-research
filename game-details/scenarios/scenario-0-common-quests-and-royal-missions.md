@@ -28,6 +28,82 @@ affect:
 - [Trade Fame](../fame/trade-fame.md#guild-assignments)
 - [Piracy Fame](../fame/piracy-fame.md#guild-assignments)
 
+## Transport Goods
+
+Transport Goods is section 1 of the shared scenario. The complete low-rank
+runtime sequence is now confirmed, and its calculations are decoded from the
+bytecode.
+
+### Offer and activation
+
+Entering the Guild shows its ordinary greeting and main menu; it does not
+immediately run a shared assignment route. Selecting `Job Assignment` opens
+the executable-managed job list, and choosing one of those jobs invokes the
+corresponding SNR0 offer. The job list remains open if the player rejects the
+Old Guild Worker's offer. Accepting returns to the Guild's main menu, which
+contains `Job Assignment` and `Country Info`. Asking for another assignment
+then produces a reminder that the player is already on a mission; at the
+selected origin port, the wording specifically says that the mission is for
+someone in the current port.
+
+Visiting the origin Market reaches the Head Trader's actual cargo offer. The
+base quantity is selected as:
+
+```text
+50 + 10 × random(10) lots
+```
+
+The game separately calculates the fleet's free cargo capacity, multiplies it
+by 8, divides by 10 with integer truncation, and caps the offer at that value:
+
+```text
+offered lots = min(base quantity, floor(free cargo capacity × 8 / 10))
+```
+
+This leaves some capacity for provisions. In the controlled near-full case,
+two internal cargo units free become an offer of one lot. If the capped result
+is zero, the trader says there is no room and does not offer the contract.
+
+Rank controls the deadline, payment, and Trade Fame award:
+
+| Rank band       | Deadline |   Gold | Trade Fame |
+| --------------- | -------: | -----: | ---------: |
+| Commoner–Squire |  1 month |  1,000 |        200 |
+| Knight–Baron    | 2 months | 10,000 |        700 |
+| Viscount–Duke   | 3 months | 30,000 |      1,500 |
+
+Accepting loads the offered commodity into the fleet and advances the shared
+scenario to the active mission subsection. Rejecting ends the assignment and
+returns the shared scenario to its idle section.
+
+### Progress, delivery, and payment
+
+Returning to the origin Market before delivery produces a progress reminder,
+reports the time remaining, and offers a chance to give up. Continuing leaves
+the assignment active. Giving up resets the shared scenario and applies the
+Trade Fame calculation documented under
+[deadlines and failure](../fame/trade-fame.md#deadlines-and-failure).
+
+The destination Market evaluates delivery immediately upon entry, before its
+ordinary menu. If the fleet carries fewer lots than required, the trader
+accepts that partial shipment, reports the remaining quantity and time, leaves
+the assignment active, and ejects the player. The player can return with the
+balance. Delivering the entire remaining quantity marks the shipment complete,
+directs the player back to the origin port, and then leaves the ordinary Market
+menu available.
+
+The final origin-Market visit pays the promised gold, awards the rank-band
+Trade Fame, and resets the shared scenario to section/subsection `0/0`.
+
+### Building exit behavior
+
+The bytecode explicitly uses `F8` after accepting or rejecting the cargo offer,
+after the active progress/give-up paths, and after a partial delivery, matching
+the observed return to the street. The zero-capacity response, successful
+destination delivery, and final payment paths do not contain that `F8`. This
+distinction is useful for separating scenario-requested ejection from any
+additional menu behavior in the surrounding Market code.
+
 ## Becoming eligible for a royal mission
 
 The following rule is **decoded** from Scenario 0 section 0:
@@ -111,8 +187,9 @@ comparison described below establishes this flow:
 3. Either visit the **Harbor**, or enter a Pub and use **Treat**. The game
    announces that the character's ruler is looking for them and sets **flag
    17**, arming the mission.
-4. Visit the Palace in the character's national capital. The selected royal
-   mission section checks flag 17 before proceeding to the ruler's offer.
+4. Enter the Palace in the character's national capital and select **Meet
+   Ruler**. The selected royal mission section checks flag 17 before proceeding
+   to the ruler's offer.
 
 Merely entering a Pub does **not** arm the mission. The player must select
 **Treat** and complete the treat interaction. A random patron first responds
@@ -225,10 +302,12 @@ variable 30; variable 31 records the corresponding random-state checkpoint.
 
 The candidate is not continuously recalculated merely because the protagonist
 remains eligible. The general town dispatcher supplies the current port and
-building/context ID to SNR0. A Guild visit uses `A306`; Harbor, Pub/Treat,
-Lodge, Market, Shipyard, and other ordinary contexts fall through to `A3FF`.
-Both routes recalculate flag 16 and the candidate. The Palace's specific
-context-5 route does neither before consuming an armed mission.
+building/context ID to SNR0. A Guild visit and the later `Job Assignment`
+dispatch both use context `0x06`; Harbor, ordinary Pub entry, Lodge, Market,
+Shipyard, and other ordinary contexts fall through to `A3FF`. Both routes
+recalculate flag 16 and the candidate. `Treat` itself does not dispatch SNR0;
+its invitation check is executable logic. The Palace's specific context-5
+route does not recalculate the candidate before consuming an armed mission.
 
 Advancing the day is not itself a special mission-roll operation. It changes
 the seed, and the following applicable town/building dispatch caches the new
@@ -236,13 +315,14 @@ result. A same-day refresh normally appears to do nothing because rebuilding
 the same seed produces the same numeric rolls. It becomes visible if another
 input—such as the highest Fame category—has been edited or otherwise changed.
 
-An armed Palace visit is different. `MAIN.EXE` reads cached variable 30 from
-`DS:0x0F28`, writes it directly to the shared scenario's current-section byte,
-resets the subsection, and dispatches that mission's Palace route. It does not
-reread Fame or rerun the family selector first. Consequently, editing Fame and
-going straight to the Palace preserves the previously cached mission. A
-subsequent Harbor, Treat, or applicable day/town update refreshes variable 30
-from the edited Fame and may change the offer.
+An armed Palace audience is different. When the player selects `Meet Ruler`,
+`MAIN.EXE` reads cached variable 30 from `DS:0x0F28`, writes it directly to the
+shared scenario's current-section byte, resets the subsection, and dispatches
+that mission's audience route. It does not reread Fame or rerun the family
+selector first. Consequently, editing Fame and going directly to the audience
+preserves the previously cached mission. A subsequent Harbor visit, Pub entry
+before Treat, or other applicable town dispatch refreshes variable 30 from the
+edited Fame and may change the offer.
 
 For a character who already has a title, section 0 first calls `random(3)`:
 
@@ -382,7 +462,7 @@ discards any remainder. Fame therefore rounds down for positive odd values:
   remainder.
 - `MAIN.EXE` `0x020A1B`–`0x020A31`: general town-context matching and
   dispatch into the shared scenario.
-- `MAIN.EXE` `0x03046B`–`0x030487`: on an armed Palace visit, copy cached
+- `MAIN.EXE` `0x03046B`–`0x030487`: on an armed `Meet Ruler` audience, copy cached
   variable 30 (`DS:0x0F28`) into the current shared section (`DS:0x0EE2`),
   reset its subsection, and dispatch the mission.
 - `SNR0.DAT` sections 6–12: offers, progress checks, refusal penalties,

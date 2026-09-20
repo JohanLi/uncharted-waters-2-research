@@ -10,11 +10,17 @@ export interface DialogueLine {
   readonly position: number;
   readonly characterId?: number;
   readonly characterVariable?: number;
+  readonly speakerMessageId?: number;
   readonly messageId: number;
   readonly body: string;
   readonly speakerLabel?: string;
   readonly presentation?: "choice-prompt";
   readonly choiceFlag?: number;
+  /**
+   * Present when the logical presentation sequence is not contiguous in the
+   * bytecode. Branches may separate C0/C8 selection from the eventual C7/E9.
+   */
+  readonly presentationInstructionOffsets?: readonly number[];
   readonly rawHex: string;
 }
 
@@ -283,11 +289,28 @@ function readDialogueLine(
   let position: number;
   let characterId: number | undefined;
   let characterVariable: number | undefined;
+  let speakerMessageIndex: number | undefined;
   let messageIndex: number;
   let presentation: DialogueLine["presentation"];
   let choiceFlag: number | undefined;
 
   if (
+    data[offset] === 0xc0 &&
+    data[offset + 1] === 0 &&
+    data[offset + 2] === 0xc8 &&
+    data[offset + 5] === 0xc8 &&
+    (data[offset + 8] === 0xc7 || data[offset + 8] === 0xe9)
+  ) {
+    const presentationOpcode = data[offset + 8]!;
+    length = presentationOpcode === 0xe9 ? 10 : 9;
+    position = 0;
+    speakerMessageIndex = data.readUInt16BE(offset + 3);
+    messageIndex = data.readUInt16BE(offset + 6);
+    if (presentationOpcode === 0xe9) {
+      presentation = "choice-prompt";
+      choiceFlag = data[offset + 9];
+    }
+  } else if (
     data[offset] === 0xc0 &&
     (data[offset + 1] === 1 || data[offset + 1] === 2) &&
     data[offset + 2] === 0xcc &&
@@ -339,6 +362,11 @@ function readDialogueLine(
 
   const message = messages[messageIndex];
   if (!message) return undefined;
+  const speakerMessage =
+    speakerMessageIndex === undefined
+      ? undefined
+      : messages[speakerMessageIndex];
+  if (speakerMessageIndex !== undefined && !speakerMessage) return undefined;
   return {
     length,
     line: {
@@ -346,9 +374,16 @@ function readDialogueLine(
       position,
       ...(characterId === undefined ? {} : { characterId }),
       ...(characterVariable === undefined ? {} : { characterVariable }),
+      ...(speakerMessageIndex === undefined
+        ? {}
+        : { speakerMessageId: speakerMessageIndex + 1 }),
       messageId: messageIndex + 1,
       body: message.body,
-      ...(message.speakerLabel ? { speakerLabel: message.speakerLabel } : {}),
+      ...(speakerMessage?.speakerLabel
+        ? { speakerLabel: speakerMessage.speakerLabel }
+        : message.speakerLabel
+          ? { speakerLabel: message.speakerLabel }
+          : {}),
       ...(presentation ? { presentation } : {}),
       ...(choiceFlag === undefined ? {} : { choiceFlag }),
       rawHex: data.subarray(offset, offset + length).toString("hex"),
@@ -556,6 +591,7 @@ const ACTION_LENGTHS = new Map<number, number>([
 
 const ACTION_MNEMONICS = new Map<number, string>([
   [0xc0, "set-dialogue-position"],
+  [0xc3, "clear-dialogue-panels"],
   [0xc4, "scene-break"],
   [0xc7, "present-dialogue"],
   [0xc8, "select-message"],
@@ -563,10 +599,17 @@ const ACTION_MNEMONICS = new Map<number, string>([
   [0xcb, "show-event-art"],
   [0xcc, "select-character"],
   [0xcd, "select-character-indirect"],
+  [0xd0, "resolve-indexed-game-field-reference"],
   [0xdc, "resolve-game-field-reference"],
+  [0xe2, "load-goods"],
+  [0xe3, "transfer-goods"],
+  [0xe6, "add-gold"],
+  [0xe7, "deduct-gold"],
   [0xe8, "start-duel"],
   [0xe9, "prompt-choice"],
   [0xea, "read-gold-ingots"],
+  [0xeb, "random"],
+  [0xee, "read-free-cargo-capacity"],
   [0xf0, "advance-subsection-on-return"],
   [0xf1, "advance-section-on-return"],
   [0xf2, "stop"],
@@ -734,6 +777,189 @@ function readReachableInstructions(
   };
 }
 
+interface StatefulDialogueLine {
+  readonly line: DialogueLine;
+  readonly endOffset: number;
+}
+
+interface PendingDialoguePresentation {
+  readonly startOffset: number;
+  readonly position: number;
+  readonly characterId?: number;
+  readonly characterVariable?: number;
+  readonly messageIndices: readonly number[];
+  readonly lastMessageInstructionEndOffset?: number;
+  readonly instructionOffsets: readonly number[];
+  readonly rawParts: readonly string[];
+}
+
+function presentationStateKey(
+  offset: number,
+  state: PendingDialoguePresentation | undefined,
+): string {
+  return state
+    ? `${offset}|${state.startOffset}|${state.position}|${state.characterId ?? ""}|${state.characterVariable ?? ""}|${state.messageIndices.join(",")}|${state.lastMessageInstructionEndOffset ?? ""}|${state.instructionOffsets.join(",")}`
+    : `${offset}|empty`;
+}
+
+/**
+ * Propagate the VM's pending dialogue selection through control-flow edges.
+ * SNR0 frequently selects a position, speaker-label message, and body message,
+ * branches on a deadline value, and only then reaches a shared C7 or E9.
+ * Adjacent-byte signatures cannot recover those lines.
+ */
+function readStatefulDialogueLines(
+  data: Buffer,
+  messages: readonly ScenarioMessage[],
+  instructions: readonly ScenarioInstruction[],
+  controlFlowEdges: readonly ScenarioControlFlowEdge[],
+  entryOffsets: readonly number[],
+): StatefulDialogueLine[] {
+  const instructionByOffset = new Map(
+    instructions.map((instruction) => [instruction.offset, instruction]),
+  );
+  const outgoing = new Map<number, number[]>();
+  for (const edge of controlFlowEdges) {
+    const destinations = outgoing.get(edge.from) ?? [];
+    destinations.push(edge.to);
+    outgoing.set(edge.from, destinations);
+  }
+
+  const pending: {
+    offset: number;
+    state: PendingDialoguePresentation | undefined;
+  }[] = entryOffsets.map((offset) => ({ offset, state: undefined }));
+  const visited = new Set<string>();
+  const emitted = new Map<string, StatefulDialogueLine>();
+
+  while (pending.length > 0) {
+    const { offset, state } = pending.pop()!;
+    const instruction = instructionByOffset.get(offset);
+    if (!instruction) continue;
+    const visitKey = presentationStateKey(offset, state);
+    if (visited.has(visitKey)) continue;
+    visited.add(visitKey);
+
+    let nextState = state;
+    if (instruction.opcode === 0xc0) {
+      nextState = {
+        startOffset: offset,
+        position: data[offset + 1]!,
+        messageIndices: [],
+        instructionOffsets: [offset],
+        rawParts: [instruction.rawHex],
+      };
+    } else if (instruction.opcode === 0xc4) {
+      nextState = undefined;
+    } else if (nextState && instruction.opcode === 0xcc) {
+      const { characterVariable: _characterVariable, ...retainedState } =
+        nextState;
+      nextState = {
+        ...retainedState,
+        characterId: data.readUInt16BE(offset + 1) + 1,
+        instructionOffsets: [...nextState.instructionOffsets, offset],
+        rawParts: [...nextState.rawParts, instruction.rawHex],
+      };
+    } else if (nextState && instruction.opcode === 0xcd) {
+      const { characterId: _characterId, ...retainedState } = nextState;
+      nextState = {
+        ...retainedState,
+        characterVariable: data[offset + 1]!,
+        instructionOffsets: [...nextState.instructionOffsets, offset],
+        rawParts: [...nextState.rawParts, instruction.rawHex],
+      };
+    } else if (nextState && instruction.opcode === 0xc8) {
+      // Adjacent C8 operations build SNR0's label/body pair. If control flow
+      // intervenes, the later C8 is an alternative message selection and
+      // replaces the earlier selection. Treating alternatives as a pair would
+      // create impossible paths when correlated conditional branches merge.
+      const append = nextState.lastMessageInstructionEndOffset === offset;
+      const retainedComponentCount = append
+        ? nextState.instructionOffsets.length
+        : nextState.instructionOffsets.length - nextState.messageIndices.length;
+      nextState = {
+        ...nextState,
+        messageIndices: [
+          ...(append ? nextState.messageIndices : []),
+          data.readUInt16BE(offset + 1),
+        ],
+        lastMessageInstructionEndOffset: instruction.endOffset,
+        instructionOffsets: [
+          ...nextState.instructionOffsets.slice(0, retainedComponentCount),
+          offset,
+        ],
+        rawParts: [
+          ...nextState.rawParts.slice(0, retainedComponentCount),
+          instruction.rawHex,
+        ],
+      };
+    } else if (
+      nextState &&
+      nextState.messageIndices.length > 0 &&
+      (instruction.opcode === 0xc7 || instruction.opcode === 0xe9)
+    ) {
+      if (nextState.messageIndices.length <= 2) {
+        const messageIndex = nextState.messageIndices.at(-1)!;
+        const message = messages[messageIndex];
+        const speakerMessageIndex =
+          nextState.messageIndices.length === 2
+            ? nextState.messageIndices[0]
+            : undefined;
+        const speakerMessage =
+          speakerMessageIndex === undefined
+            ? undefined
+            : messages[speakerMessageIndex];
+        if (message && (speakerMessageIndex === undefined || speakerMessage)) {
+          const instructionOffsets = [...nextState.instructionOffsets, offset];
+          const choiceFlag =
+            instruction.opcode === 0xe9 ? data[offset + 1] : undefined;
+          const line: DialogueLine = {
+            offset: nextState.startOffset,
+            position: nextState.position,
+            ...(nextState.characterId === undefined
+              ? {}
+              : { characterId: nextState.characterId }),
+            ...(nextState.characterVariable === undefined
+              ? {}
+              : { characterVariable: nextState.characterVariable }),
+            ...(speakerMessageIndex === undefined
+              ? {}
+              : { speakerMessageId: speakerMessageIndex + 1 }),
+            messageId: messageIndex + 1,
+            body: message.body,
+            ...(speakerMessage?.speakerLabel
+              ? { speakerLabel: speakerMessage.speakerLabel }
+              : message.speakerLabel
+                ? { speakerLabel: message.speakerLabel }
+                : {}),
+            ...(instruction.opcode === 0xe9
+              ? { presentation: "choice-prompt" as const }
+              : {}),
+            ...(choiceFlag === undefined ? {} : { choiceFlag }),
+            presentationInstructionOffsets: instructionOffsets,
+            rawHex: [...nextState.rawParts, instruction.rawHex].join(""),
+          };
+          const emissionKey = `${line.offset}|${line.speakerMessageId ?? ""}|${line.messageId}|${line.presentation ?? ""}|${line.choiceFlag ?? ""}`;
+          emitted.set(emissionKey, {
+            line,
+            endOffset: instruction.endOffset,
+          });
+        }
+      }
+      nextState = undefined;
+    }
+
+    for (const destination of outgoing.get(offset) ?? [])
+      pending.push({ offset: destination, state: nextState });
+  }
+
+  return [...emitted.values()].sort(
+    (left, right) =>
+      left.line.offset - right.line.offset ||
+      left.line.messageId - right.line.messageId,
+  );
+}
+
 export function disassembleScenario(
   scenarioId: number,
   dat: Buffer,
@@ -743,27 +969,66 @@ export function disassembleScenario(
   const offsets = readSectionOffsets(dat);
   const sections = offsets.map((offset, id): ScenarioSection => {
     const endOffset = offsets[id + 1] ?? dat.length;
-    const dialogueRuns = readDialogueRuns(dat, offset, endOffset, messages);
     const header = readSectionHeader(dat, offset, endOffset);
     const entryRouteTables = header.entryOffsets.map((entryOffset) =>
       readEntryRouteTable(dat, entryOffset, endOffset),
     );
+    const routeEntries = [
+      ...header.routes.map((route) => ({
+        offset: route.destinationOffset,
+        destinationBaseOffset: header.destinationBaseOffset,
+      })),
+      ...entryRouteTables.flatMap((table) =>
+        table.routes.map((route) => ({
+          offset: route.destinationOffset,
+          destinationBaseOffset: table.offset,
+        })),
+      ),
+    ];
     const controlFlow = readReachableInstructions(
       dat,
       header.codeOffset,
       endOffset,
-      [
-        ...header.routes.map((route) => ({
-          offset: route.destinationOffset,
-          destinationBaseOffset: header.destinationBaseOffset,
-        })),
-        ...entryRouteTables.flatMap((table) =>
-          table.routes.map((route) => ({
-            offset: route.destinationOffset,
-            destinationBaseOffset: table.offset,
-          })),
+      routeEntries,
+    );
+    const directDialogueRuns = readDialogueRuns(
+      dat,
+      offset,
+      endOffset,
+      messages,
+    );
+    const directDialogueKeys = new Set(
+      directDialogueRuns.flatMap((run) =>
+        run.lines.map(
+          (line) =>
+            `${line.offset}|${line.speakerMessageId ?? ""}|${line.messageId}|${line.presentation ?? ""}|${line.choiceFlag ?? ""}`,
         ),
-      ],
+      ),
+    );
+    const additionalDialogueRuns = readStatefulDialogueLines(
+      dat,
+      messages,
+      controlFlow.instructions,
+      controlFlow.controlFlowEdges,
+      routeEntries.map((entry) => entry.offset),
+    )
+      .filter(
+        ({ line }) =>
+          !directDialogueKeys.has(
+            `${line.offset}|${line.speakerMessageId ?? ""}|${line.messageId}|${line.presentation ?? ""}|${line.choiceFlag ?? ""}`,
+          ),
+      )
+      .map(({ line, endOffset: lineEndOffset }) => ({
+        offset: line.offset,
+        endOffset: lineEndOffset,
+        lines: [line],
+      }));
+    const dialogueRuns = [
+      ...directDialogueRuns,
+      ...additionalDialogueRuns,
+    ].sort(
+      (left, right) =>
+        left.offset - right.offset || left.endOffset - right.endOffset,
     );
     const booleanStateWrites: ScenarioSection["booleanStateWrites"][number][] =
       [];

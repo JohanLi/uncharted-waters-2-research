@@ -1,6 +1,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { repoRoot, writeJson } from "../../scripts/shared.js";
+import { writeGeneralMessageCallSites } from "./general-messages.js";
 import { analyzeScenarioVmExecutable } from "./main-exe.js";
 import { writeReadableFormats } from "./readable-formats.js";
 import { disassembleScenario } from "./snr.js";
@@ -69,6 +70,7 @@ export async function run(): Promise<void> {
     join(output, "main-exe-vm.json"),
     analyzeScenarioVmExecutable(await readFile(join(repoRoot, "raw/MAIN.EXE"))),
   );
+  await writeGeneralMessageCallSites(output);
   await writeReadableFormats(output, scenarios);
 }
 if (

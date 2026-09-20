@@ -282,10 +282,12 @@ function renderCsv(scenarios: readonly DisassembledScenario[]): string {
       "position",
       "characterId",
       "characterVariable",
+      "speakerMessageId",
       "messageId",
       "speakerLabel",
       "presentation",
       "choiceFlag",
+      "presentationInstructionOffsets",
       "body",
       "rawHex",
     ],
@@ -303,10 +305,14 @@ function renderCsv(scenarios: readonly DisassembledScenario[]): string {
             line.position,
             line.characterId,
             line.characterVariable,
+            line.speakerMessageId,
             line.messageId,
             line.speakerLabel,
             line.presentation,
             line.choiceFlag,
+            line.presentationInstructionOffsets
+              ?.map((offset) => hex(offset))
+              .join(" "),
             line.body,
             line.rawHex,
           ]);

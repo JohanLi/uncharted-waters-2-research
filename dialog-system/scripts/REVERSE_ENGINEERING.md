@@ -87,6 +87,35 @@ prefer Adventure, then Piracy, then Trade. Eligibility compares that value
 with `500 × (current rank + 1)²`. Pirates are ineligible, and Duke is the
 highest title. These rules are decoded and supported by controlled tests.
 
+The ordinary assignment dialogue uses a distinct compound presentation form:
+
+```text
+C0 00 C8 <speaker-label-message:u16be> C8 <body-message:u16be> C7
+```
+
+The first MES entry contains only a role label and the second contains the
+spoken body. `E9 <flag>` replaces `C7` for a choice prompt. Controlled
+Transport Goods captures confirm the offer, rejection, acceptance, capacity
+failure, progress, delivery, and payment instances.
+
+The extractor propagates pending position, character, and message selections
+through the control-flow graph until `C7` or `E9`. This recovers both
+branch-dependent paired lines and branch-dependent indirect-character lines.
+The result accounts for all 272 `SNR0.MES` entries: 71 paired lines consume
+142 entries, 129 indirect-character lines consume 129 entries, and one
+ordinary position-0 line consumes the last entry. Noncontiguous sequences
+publish their contributing VM offsets as `presentationInstructionOffsets`.
+
+The save-aware query uses the same presentation state while executing the
+selected `SNR0` route. Its shared environment currently supplies saved
+scenario flags and variables, nation records and directed Relations, the
+player fleet record and cargo, inventory, gold, calendar fields, and the
+shared-scenario RNG seed. `E9` forks explicit Yes and No outcomes. The Palace
+invitation path is a two-stage dispatch: section 0 consumes the cached royal
+mission and advances it to subsection 1, after which context `0x15` runs the
+visible audience offer. Document-mission captures confirm the offer,
+destination delivery, and return transcripts selected by this model.
+
 `DATA1/DATA1.016` and `.017` both contain the same nine fixed-width title names:
 
 | Stored rank | Title                                                |
@@ -157,6 +186,30 @@ listed above:
   `0x38C2B`.
 - `0x39085`/`0x39129` match and dispatch shared-SNR routes;
   `0x391C6`/`0x3927C` do the same for protagonist routes.
+- The ordinary building dispatcher invokes its shared and protagonist entry
+  hooks at `0x20A1B–0x20A4C`, tests their returned interaction-control words at
+  `0x20A53–0x20A6D`, and only then enters the general hostile-building path at
+  `0x20A70`. A zero written by `F8` normally short-circuits before that path;
+  the explicit Lodge branch at `0x20A61` bypasses that short-circuit. A
+  controlled Lodge capture consequently continued from an `F8`-ending story
+  route into the hostile-port warning and ordinary menu.
+- `Job Assignment` sets the selected-job state and invokes the shared matcher
+  at `0x32F72` with the current port and qualifier `0x06`. It reuses the Guild
+  context rather than introducing a command-only context.
+- The `Treat` handler at `0x2BAFA–0x2BC8C` contains no call to either scenario
+  matcher or dispatcher. Its royal-invitation branch writes shared flag 17
+  directly at `0x2BBCD`.
+- `Meet Ruler` begins at `0x3044A` and makes three scenario dispatches using
+  the current port: shared context `0x05` at `0x30482`, protagonist context
+  `0x15` at `0x3048C`, and shared context `0x15` at `0x3049D`.
+- All town call sites pass a concrete port and context. Selector `0xA3` and
+  qualifier `0xFF` are fallbacks tested by the matcher, not values supplied by
+  a building or menu-command caller.
+- Palace handling begins at `0x309A5`. Its hostile-reception branch precedes
+  the commoner-admission predicate at `0x30A1B`: an untitled, non-Pirate
+  character is rejected at a foreign capital unless shared flag 17 or 18 is
+  set. The religious-building handler begins at `0x32CD0` and applies its
+  Church/Mosque affiliation gate at `0x32CE9`.
 - `0x2052F` dispatches protagonist route selector `0xA0` while at sea and
   supplies `DS:0x2BAA` as its qualifier. Controlled saves identify that value
   as the current voyage-day counter.
@@ -168,6 +221,57 @@ listed above:
   `DS:0x1439`, the current protagonist's zero-based sailor ID, and stores the
   other participant in both qualifier fields. Thus the `0xA1`/`0xA2`
   qualifier is the opposing captain's sailor ID.
+
+### General message-bank lookup
+
+The startup loader at `MAIN.EXE 0x1B170–0x1B19A` opens the two general message
+banks. `MESSAGE.DAT` is stored at `DS:0x05DC`; `MESSAGE2.DAT` is stored at
+`DS:0x05DE`. Their filename pointers are `DS:0x0B3E` and `DS:0x0B2E`.
+
+The bank-specific readers at `0x3929D` and `0x392EF` multiply the supplied raw
+index by two, read a big-endian table offset from the selected handle, swap its
+bytes, and read the null-terminated string. The wrapper at `0x39332` exposes a
+single combined namespace: values below 1,000 use `MESSAGE.DAT`; values at or
+above 1,000 have 1,000 subtracted and use `MESSAGE2.DAT`. Valid combined
+indices therefore run from 0 through 1,422.
+
+The generated `general-message-call-sites.json` scans calls to `0000:8D95`
+and `FF2D:5D46` and resolves literal `mov ax, id; push ax` and `push id`
+operands through that namespace. There are 554 occurrences of the two call
+signatures and 487 currently have a directly recoverable literal ID. The
+remainder compute the index in registers and require local data-flow analysis.
+
+Six ordinary-building command groups are now traced:
+
+- The Bank main handler is at `0x2F146`; Deposit, Withdraw, Borrow, and Repay
+  begin at `0x2EBF2`, `0x2ED63`, `0x2EE8F`, and `0x2EFF9`. All operate on one
+  signed account balance and return to the main Bank menu. Exiting that menu
+  prints `MESSAGE.DAT` raw index 164.
+- The Item Shop main handler is at `0x2FC9A`; Buy begins at `0x2F9CC` and Sell
+  at `0x2FB03`. Each command owns a repeatable item-selection loop and returns
+  to the main menu on cancellation. The sell path uses protagonist Luck at
+  sailor-record offset `+0x1B` when an initial offer is rejected.
+- The religious-building menu is at `0x32C3C`; Pray begins at `0x32AA8` and
+  Donate at `0x32AF0`. It derives Mosque messages by adding 712 to the Church
+  raw index. Pray's Luck update is guarded to the first Pray command of that
+  visit; Donate evaluates its Luck formula on every positive contribution.
+- The Market main handler is at `0x2AFD1`; Buy Goods, Sell Goods, Invest, and
+  Market Rate begin at `0x2A6DB`, `0x2A8C4`, `0x2ABC7`, and `0x2AFA5`.
+  Buy Goods delegates its larger selection and transaction loop to `0x2A336`;
+  selling rebuilds the cargo list after each transaction, and investment
+  selects raw messages 14, 15, or 16 at the 500- and 10,000-gold boundaries.
+- The Pub main handler is at `0x2D410`. Recruit Crew begins at `0x2B68A`,
+  Dismiss Crew at `0x2B739`, Treat at `0x2BC8D`, the Meet patron loop at
+  `0x2C6E2`, Waitress at `0x2D102`, and Gamble at `0x2D249`. The Treat command
+  calls its Fame/invitation core at `0x2BAFA–0x2BC8C`. Meet and Waitress each
+  dispatch their own character-dependent submenu; Gamble transfers to separate
+  Black Jack and Dice engines.
+- The Shipyard main handler is at `0x329B0`. New Ship begins at `0x31D15`,
+  with its design-and-order routine at `0x31A70`; Used Ship begins at
+  `0x31DE9`, Repair at `0x31EE4`, Sell at `0x31FF1`, Remodel at `0x3263D`, and
+  Invest at `0x328A3`. Its investment recalculation helpers at
+  `0x3269F` and `0x327C3` are not menu commands. Construction completion is an
+  entry-time path distinct from ordering a ship.
 
 The four opcode families are now structurally decoded:
 
@@ -192,12 +296,13 @@ pre-battle state, escape left the story at section 6/subsection 1 and produced
 only the opponent captain's ordinary retreat line, whereas victory ran the
 informant scene and advanced to subsection 2.
 
-Assignment source selector 4 reads `DS:0x0736`, the zero-based current day of
-the month, through the handler at `MAIN.EXE` file offset `0x3884C`. Selector 5
-reads `DS:0x0E32`, the current port ID, at `0x38851`. Selector 7 reads
-`DS:0x0737`, the time-of-day value in 20-minute ticks, at `0x3885B`. The query
-tool can therefore resolve comparisons using all three values directly from a
-save.
+The reachable assignment-source selector range is complete. Selectors 2, 3,
+and 4 read the stored year offset from 1501, zero-based month, and zero-based
+day from `DS:0x0734` through `DS:0x0736`. Selector 5 reads the current port ID
+from `DS:0x0E32`. Selector 6 reads the transient duel balance/result byte at
+`DS:0xA0A4`; the duel engine keeps it in the range 0–200 and treats the
+endpoints as terminal outcomes. Selector 7 reads the time of day in 20-minute
+ticks from `DS:0x0737`. Their handlers occupy `MAIN.EXE 0x38842–0x3885B`.
 
 Catalina's Lucia sequence confirms selector 4's lifecycle. Its Lisbon Pub
 agreement copies selector 4 to persistent scenario variable 0. Later Pub and
@@ -252,6 +357,19 @@ quotient in the VM variable. The gold address corresponds to save-slot relative
 `0x60A`. Thus a stored value of 25,000 is displayed as 2 Gold Ingots and 5,000
 Gold Coins: the ingot count is `floor(value / 10,000)` and the coin count is
 `value % 10,000`.
+
+Action opcode `EE <variable>` stores the current fleet's free cargo capacity
+in the selected VM variable. Its handler begins at `MAIN.EXE 0x38EB4` and
+calls the fleet-capacity routine at `0x37FE7`. Transport Goods invokes
+`EE 0A`, multiplies variable 10 by 8, divides it by 10, and caps the randomly
+generated lot count at that result. Runtime captures confirm the resulting
+adaptive offers, including a one-lot offer when the internal capacity routine
+reports only two free units.
+
+Action opcodes `E6 <variable>` and `E7 <variable>` add and deduct the gold
+amount stored in the selected VM variable. Their handlers at `0x38E50` and
+`0x38E5B` call the paired money helpers. The repeated `E7` operations in Ali's
+debt scenes and the corresponding save changes confirm the subtraction side.
 
 Pietro's section-1 Pub route uses `EA 01`, rejects values below 1, rejects port
 IDs below 42, and then scans twenty item records for the empty marker `0xFF`.
@@ -624,6 +742,27 @@ The disassembler emits all `CA` instructions as `musicCueCandidates` and all
 observed `C4` instructions as `sceneBreakCandidates`. No other SNR presentation
 opcode has been found to select music. In particular, `C3` calls the dialogue-
 panel cleanup routine at `0x37850`; it is not an alternate music command.
+
+## Executable palette-blackout evidence
+
+The successful hostile-Palace escape uses an executable presentation sequence,
+not an SNR opcode or event-art record. After the protagonist says, "I'm not
+about to let myself be captured by the likes of you!", the branch at
+`MAIN.EXE 0x3095C–0x309A4` performs dialogue cleanup and calls runtime routine
+`0000:98B1`. That routine allocates and zeroes a 48-byte palette—16 colors with
+three components each—and sends it through the palette-transition helper.
+
+The caller then passes `20` to runtime delay routine `0000:57D5`. The delay
+multiplies its input by six before waiting, giving approximately 120 refresh
+intervals, or two seconds at 60 Hz. Runtime routine `0000:98A7` subsequently
+passes the normal palette at `DS:0x9052` through the same transition helper.
+Only after that restoration does the game show "Whew, that was a narrow
+escape!"
+
+Frame measurements confirm the visible result: a roughly 0.27-second fade to
+black, about two seconds fully black, and a roughly 0.35-second fade back. This
+is distinct from scenario `C4`, which closes dialogue panels without producing
+the timed all-black interval.
 
 ## Duel and event-art evidence
 
@@ -1076,22 +1215,20 @@ subsequent warning and its state write.
 - Fame comparisons now resolve through the `DC` record reference, pointer
   adjustment, and indirect little-endian word read used by the scripts.
 - `rawHex` retains every section byte so unknown commands are not lost.
-- `SNR0` yields far fewer direct dialogue calls than messages. Its strings may
-  be referenced by a different mechanism or directly from `MAIN.EXE`.
+- Stateful presentation extraction accounts for every `SNR0.MES` entry,
+  including paired role-label/body messages and branch-dependent indirect
+  ruler lines.
 
 ## Next investigation steps
 
-1. Trace the action-handler callees at `0x377F4`–`0x3828F` and assign gameplay
-   names to the remaining valid `0xC0`–`0xFC` opcodes.
-2. Map the remaining VM sources and record groups by correlating handler memory
-   accesses with the known save layout, especially party membership and
-   duel/battle aftermath.
-3. Correlate any newly encountered non-wildcard naval-battle qualifier with
-   its zero-based sailor record; the currently observed `0x01` and `0x3C`
-   values are resolved.
-4. Group instructions and edges into named basic blocks for a compact control-
+1. Trace `D1`, `D4`, and `D9`, then the related `F9`/`FA`/`FB` cluster, and
+   assign gameplay names to the remaining reachable action opcodes.
+2. Map the remaining VM record groups by correlating handler memory accesses
+   with the known save layout, especially discoveries, party membership,
+   rewards, and story-fleet setup.
+3. Group instructions and edges into named basic blocks for a compact control-
    flow graph rather than exposing only the instruction-level CSV.
-5. Optionally validate uncertain operations in a debugger-enabled DOSBox-X by
+4. Optionally validate uncertain operations in a debugger-enabled DOSBox-X by
    comparing memory before and after a one-shot conversation.
 
 Ghidra is not required to run the extractor. It remains useful for naming the

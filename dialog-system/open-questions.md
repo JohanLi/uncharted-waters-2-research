@@ -1,280 +1,256 @@
 # Dialog-system open questions
 
-This file tracks gaps that prevent a complete answer to:
+This file tracks only gaps that still prevent a complete answer to:
 
-> Given a player state, a port, and a building, exactly what conversation and
-> post-conversation behavior will occur?
+> Given a player state, a port, and an interaction, exactly what conversation
+> and post-conversation behavior will occur?
 
-When one is resolved, update this file together with the relevant extractor,
-regression test, and [dialog-system guide](./README.md).
+Resolved investigations belong in the [dialog-system guide](./README.md), the
+[reverse-engineering notes](./scripts/REVERSE_ENGINEERING.md), and the relevant
+game-detail page rather than remaining as full sections here.
+
+Literal threshold comparisons no longer need routine boundary testing.
+Repeated controlled tests have confirmed the decoded inclusive lower bounds.
+New runtime evidence is most useful for field lifecycle, presentation, or
+executable behavior that cannot be settled from code and data.
 
 ## Current priorities
 
-The literal threshold comparisons themselves no longer need routine boundary
-testing. Repeated controlled tests have confirmed the decoded inclusive lower
-bounds. New runtime evidence is most useful when it identifies dispatch, field
-lifecycle, or presentation behavior that is not contained in the scenario
-bytecode.
+1. **Complete ordinary executable dialogue.** Finish the remaining building
+   command handlers, then add command and submenu selections to the save-aware
+   query.
+2. **Complete reachable VM state and effect coverage.** Name the remaining
+   action opcodes and game-record groups that can alter a selected route's
+   result.
+3. **Trace the general gameplay RNG lifecycle.** Determine initialization,
+   save/load persistence, and intervening draws so executable-side random
+   results can be predicted from a save when possible.
 
-### Highest-value executable investigations
+The first item remains the largest gap between the save-aware query and the
+complete interaction the player sees. Ordinary entry greetings, access
+responses, and menus are now integrated. The recommended next research task is
+the House of Fortune and Lodge command handlers. This phase is static and does
+not require new saves or recordings.
 
-1. Complete shared-`SNR0` message invocation so royal missions and ordinary
-   shared quests produce transcripts rather than only matched routes.
-2. Trace complete building-entry precedence, including the point at which an
-   SNR route suppresses ordinary dialogue or the building menu.
-3. Map ordinary `MESSAGE.DAT`/`MESSAGE2.DAT` callers and speaker selection.
-4. Decode the remaining VM record groups and action opcodes that occur on
-   reachable story paths.
+## 1. Ordinary `MESSAGE.DAT` and `MESSAGE2.DAT` dialogue
 
-## 1. Building-entry dispatch and precedence
+### Known
 
-**Unknown:** What is the exact execution order among ordinary access checks,
-hostile-country encounters, protagonist SNR routes, shared `SNR0` routes,
-ordinary greetings, and opening the building menu?
+Both files are big-endian `u16` string-offset tables. `MESSAGE.DAT` contains
+1,000 strings and `MESSAGE2.DAT` contains 423. Their text includes ordinary
+vendor greetings, access denials, menus, rumors, reusable interactions, and
+other executable-driven dialogue.
 
-Known routines prove that these systems coexist, but the repository does not
-yet have one call graph showing their complete precedence and short-circuit
-behavior. It is also unclear whether all building types share the same order.
+Scenario dialogue is already handled separately through `SNR*.MES`. The
+save-aware query selects protagonist and shared-scenario transcripts and now
+reports the ordinary building entry separately. Consequently, “no story
+dialogue” can still be followed by an ordinary greeting and menu.
 
-**Why it matters:** Without this, two individually decoded handlers cannot
-always be combined into one guaranteed player-visible outcome.
+The loading and lookup layer is now decoded. `MESSAGE.DAT` and `MESSAGE2.DAT`
+use handles `DS:0x05DC` and `DS:0x05DE`, with readers at `MAIN.EXE 0x3929D`
+and `0x392EF`. Callers address one combined namespace: `0–999` selects
+`MESSAGE.DAT`, while `1000–1422` selects `MESSAGE2.DAT` after subtracting
+1,000. A generated inventory resolves 487 direct call sites to their bank,
+raw index, entry number, and text.
 
-**Next evidence:** Trace the building-entry dispatcher from
-`MAIN.EXE 0x20930` through scenario dispatch and the individual building
-routines. Validate representative saves for a normal visit, a protagonist
-event, an `SNR0` quest, an access rejection, and a hostile-port encounter.
+The entry greetings and access responses for all twelve building types are
+also mapped. Non-Palace greetings share the upper vendor panel with the menu.
+The Palace alone acknowledges its initial greeting before showing its menu.
+Church/Mosque and Market greetings demonstrate that some handlers compute the
+message index instead of embedding a literal operand.
 
-## 2. Forced exit and menu suppression
+The Item Shop, Bank, Church/Mosque, Market, Pub, and Shipyard command handlers
+are mapped through their nested prompts and return behavior. This includes
+goods and ship trading, both investment paths, Pub crew and character
+interactions, waitress and gambling submenus, construction delivery, repairs,
+ship sales, and all four Remodel branches. The remaining uncertainty in these
+handlers is concentrated in dynamically assembled reports and in helper calls
+whose speaker or screen transition is not encoded in the message text.
 
-**Decoded:** Scenario action `F8` clears a caller-provided interaction-control
-word. In controlled Pietro routes, `F8 F2` suppresses the normal building menu
-and returns the player outside, while otherwise comparable routes ending in
-`F2` alone leave the building usable.
+The unmapped ordinary command groups are Harbor, Lodge, Guild, House of
+Fortune, Palace, and special residences. The Palace admission and Defect paths,
+Guild Job Assignment dispatch, hostile-building precedence, collector rewards,
+and cartographer contracts/reports are already documented separately; they do
+not need to be rediscovered while the surrounding command handlers are traced.
 
-**Remaining unknown:** Whether the caller always implements this result by
-changing the saved town position, and what `F8` means in non-building scenario
-contexts. Dialog wording alone is still not reliable evidence.
+For building actions, the save-aware query now selects the decoded ordinary
+greeting or access response and lists the visible main menu. It respects
+building hours and availability, Church/Mosque and Palace admission, story
+routes that certainly suppress ordinary entry, and the Lodge's caller-side
+`F8` exception. It also reports hostile-country interception as unresolved
+when the continuously advancing general RNG prevents an exact result.
 
-**Why it matters:** Predicting the spoken lines is incomplete if the caller
-cannot also know whether the building remains usable.
+### Unknown
 
-**Evidence:** Pietro's ejecting Genoa Pub, Church, and wildcard debt encounters
-all end in `F8 F2`. His non-ejecting Lodge reassurance ends in `F2` without
-`F8`. The `MAIN.EXE 0x38EE3` handler writes zero through the interaction-state
-pointer supplied to the interpreter.
+- The query interaction model names a building but not an ordinary menu command
+  or nested submenu selection. Command-level prediction will eventually need
+  those optional inputs.
+- The port-specialty substitution in the ordinary Pub greeting is not yet
+  resolved by the query.
+- Special residences are selected exactly for cartographers, but collector,
+  teacher, and story-residence occupants and menus still require executable
+  dispatch mapping.
+- Which arguments supply names, ports, goods, nations, prices, and other text
+  substitutions in the still-unmapped building handlers and composite reports.
+- How each caller selects an ordinary vendor, ruler, patron, guard, or other
+  executable-side speaker outside the mapped handlers.
+- Which messages in the remaining handlers return to a menu level, suppress a
+  menu, or end the interaction.
 
-## 3. `MESSAGE.DAT` versus `MESSAGE2.DAT`
+The semantic distinction between the two banks may not be one clean content
+category. The useful result is therefore a caller-level mapping, not merely a
+label for each file.
 
-**Decoded:** Both are big-endian `u16` string-offset tables containing 1,000
-and 423 strings respectively.
+### Next work
 
-**Unknown:** What is the precise semantic division between the banks, and
-which executable helpers select each one? Which call sites use a raw zero-based
-index, add a bank-specific base, or expose one-based numbering in research
-notes?
+1. Resume static command tracing in increasing order of scope:
+   - House of Fortune and Lodge;
+   - Guild;
+   - Palace and special residences; then
+   - Harbor, whose Sail, Supply, Moor, docked-ship, and departure paths form the
+     largest remaining building handler.
+2. Classify computed message indices, substitutions, speaker selection, and
+   continuation behavior as each handler is traced rather than as a separate
+   bank-wide pass.
+3. Resolve the Pub-specialty and non-cartographer residence selectors needed
+   to remove the remaining uncertainty from ordinary entry.
+4. Once those handlers are mapped, extend the query request with optional
+   command and submenu selections.
 
-**Why it matters:** A complete ordinary-building predictor must associate a
-branch with the correct text and runtime substitutions without off-by-one or
-wrong-bank errors.
+House of Fortune and Lodge are the next recommended research phase. Runtime
+captures should be requested only when static tracing leaves speaker placement,
+menu continuation, or a conditional branch ambiguous.
 
-**Next evidence:** Identify the load handles and central print/format
-helpers in `MAIN.EXE`, enumerate their cross-references, and record message
-bank plus raw index at each building-related caller. Add a small extractor that
-publishes both `rawIndex` and `entryNumber` explicitly.
+## 2. Remaining scenario-VM state and effects
 
-## 4. Complete `SNR0` message invocation
+### Known
 
-**Partly decoded:** The extractor previously missed the shared scenario's
-dynamic portrait form:
+The four instruction families, control flow, dialogue presentation, choices,
+scenario flags, arithmetic, comparisons, route transitions, music, event art,
+duels, forced exits, and several game-state operations are decoded. In
+particular:
+
+- `C3` clears the dialogue panels;
+- `D0` resolves an indexed game-record reference and `DC` resolves a direct
+  game-record reference;
+- `E2` loads goods and `E3` counts or transfers carried goods;
+- `E6` adds gold;
+- `E7` deducts gold;
+- `EA` reads displayed gold ingots;
+- `EB` performs a bounded scenario-RNG draw; and
+- `EE` reads fleet free-cargo capacity.
+
+The system-value selector range used by reachable scripts is now complete:
+
+| Selector | Runtime source | Meaning                            |
+| -------: | -------------- | ---------------------------------- |
+|        2 | `DS:0x0734`    | stored year offset from 1501       |
+|        3 | `DS:0x0735`    | zero-based current month           |
+|        4 | `DS:0x0736`    | zero-based current day of month    |
+|        5 | `DS:0x0E32`    | current port ID                    |
+|        6 | `DS:0xA0A4`    | post-duel balance/result meter     |
+|        7 | `DS:0x0737`    | time of day in twenty-minute ticks |
+
+Selector 6 is transient duel state rather than a saved calendar or location
+field. The duel engine keeps it in the range `0–200` and treats the endpoints as
+terminal outcomes.
+
+### Unknown
+
+Eleven reachable action opcodes still lack gameplay names:
+
+| Opcode | Reachable occurrences | Initial lead                                 |
+| -----: | --------------------: | -------------------------------------------- |
+|   `C9` |                     3 | presentation or named-character setup        |
+|   `D1` |                    22 | game-record or roster operation              |
+|   `D4` |                    18 | persistent state mutation                    |
+|   `D9` |                    16 | shared-mission/national state                |
+|   `E4` |                     2 | item or contract operation                   |
+|   `EC` |                     6 | shared Guild-assignment setup                |
+|   `ED` |                     5 | shared eligibility or title state            |
+|   `F4` |                     6 | one protagonist-specific use per scenario    |
+|   `F9` |                     7 | paired story-entity setup                    |
+|   `FA` |                     7 | paired story-entity setup                    |
+|   `FB` |                     9 | party, roster, or story-character transition |
+
+Several `D0`/`DC` record groups are only partly named. Known groups cover
+nations, Fame, sailors, cartographer contracts, inventory, fleets, and ports;
+remaining references appear around discoveries, party membership, rewards,
+and story-fleet setup. Until those groups are mapped, the query must discard
+some indirect values and may branch ambiguously at a later comparison.
+
+### Next work
+
+Trace `D1`, `D4`, and `D9` first. They account for 56 reachable instructions
+and are the most likely to change persistent quest state. Then treat
+`F9`/`FA`/`FB` as one cluster because they occur together in protagonist setup
+and recruitment sequences. For each decoded operation:
+
+1. name its operands and side effects in the disassembler;
+2. map its runtime addresses to save structures where applicable;
+3. implement the effect in the save-aware query; and
+4. add a regression drawn from a naturally reachable scenario path.
+
+Before/after saves are useful only if a handler's writes cannot be mapped
+statically. Broad opcode-audition recordings are not needed.
+
+## 3. General gameplay RNG lifecycle
+
+### Known
+
+The scenario `EB` generator is separate and already reproducible. Before each
+protagonist-scenario dispatch, its seed is reconstructed from saved calendar,
+clock, navigation-level, and navigation-experience fields.
+
+Executable-side choices use a different continuously advancing 32-bit state at
+`DS:0xC1CC`/`DS:0xC1CE`:
 
 ```text
-C0 <position> CD <variable> C8 <message> C7
+state = state * 0x41C64E6D + 0x3039    # modulo 2^32
+value = (state >> 16) & 0x7FFF
+result = value % bound
 ```
 
-The `CD` handler reads a one-byte VM-variable number, loads the 16-bit
-character index stored in that variable, and calls the same portrait-selection
-routine as `CC`. `SNR0` derives variable 50 from the protagonist's current
-sailor affiliation and variable 51 from the diplomatic mission's stored
-destination nation. Runtime observation confirms the general
-current-allegiance ruler → destination ruler → current-allegiance ruler
-sequence in the upper panel; the mapping covers all six nations and does not
-depend on the visited Palace. Ordinary capital Palace dialogue selects its
-ruler through a separate, location-driven path.
+Every successful building visit uses this generator for
+`2 + random(3)` twenty-minute ticks, producing a duration of 40, 60, or 80
+minutes. Hostile-building encounters and other ordinary handlers consume the
+same general generator.
 
-The decoder now recognizes 83 such indirect-character lines: 59 using variable
-50 and 24 using variable 51. Together with one position-0 line, this accounts
-for 84 of the 272 `SNR0.MES` messages.
+### Unknown
 
-**Still unknown:** The remaining messages may be selected after intervening
-branches rather than in one compound signature, passed to executable quest
-handlers, or read directly through the shared MES handle.
+- How the state is initialized at program startup.
+- Whether it is serialized in a save or reconstructed when a save is loaded.
+- Which loading, town, and transition paths consume draws before the next
+  player-visible result.
+- Whether exact executable-side randomness can be predicted from a save alone
+  or requires process-history state.
 
-**Why it matters:** The query can now report shared state and the matching
-route, but it cannot reproduce the shared conversation generally.
+### Next work
 
-**Next evidence:** Make dialogue extraction stateful across branches and trace
-reads from the shared SNR MES handle for a Guild contract offer, Treat rumor,
-mission progress, and rejection paths.
+Trace every write to `DS:0xC1CC`/`DS:0xC1CE`, especially startup and load-game
+paths. If static analysis does not settle persistence, compare the first
+building duration under three controlled conditions:
 
-## 5. Remaining scenario actions
+1. repeatedly reload one save without restarting the program;
+2. restart the program before each load; and
+3. perform one known random-consuming action before entering the building.
 
-**Decoded since this list was started:** `DC` resolves a game-state field
-reference into a VM variable. Combined with indirect assignment modes, it can
-read and write structured save records. Group-1 and group-3 references resolve
-protagonist Fame/state and sailor fields, while the Ernst routes use group 4
-for the active cartographer-contract byte. `CD <variable>` selects a character
-indirectly through a VM variable. `F8` returns the forced-building-exit/menu-
-suppression result. `EA <variable>` stores the displayed gold-ingot count in a
-VM variable. `CB <x:u16> <y:u16> <index>` draws the indexed record from the
-current protagonist's `EVENTn.DAT` resource; all 39 reachable calls use
-position `(112, 24)` and are prefixed by `C0 03`.
+This runtime test is not yet needed; loader tracing should come first.
 
-**Unknown:** What are the gameplay names and side effects of the remaining
-valid `0xC0`–`0xFC` action opcodes?
+## Closed investigations
 
-Particular targets include operations that may control portraits, menus,
-movement, rewards, party membership, combat results, and transitions back to
-ordinary building code.
+The following no longer need entries in this tracker:
 
-**Why it matters:** The bytecode is structurally traversable, but an unknown
-action between two dialog runs may materially change the outcome.
+- general-message bank loading, combined indices, and direct-call inventory;
+- entry greetings and command dialogue for Bank, Item Shop, Church/Mosque,
+  Market, Pub, and Shipyard;
+- building-entry precedence, the Lodge `F8` exception, and access gates;
+- menu-command selectors for `Job Assignment`, `Treat`, and `Meet Ruler`;
+- ordinary building, voyage-day, battle, and Palace-audience route contexts;
+- shared `SNR0` message invocation and save-aware transcript selection;
+- ordinary-building dialogue-panel positions, portrait lifetime, and `C4`;
+- music IDs and selection through scenario action `CA`; and
+- event-art selection through scenario action `CB`.
 
-**Next evidence:** Continue tracing the action-handler callees in the
-range recorded in the
-[reverse-engineering notes](./scripts/REVERSE_ENGINEERING.md).
-Correlate each handler's memory writes and calls with controlled before/after
-saves and runtime observations.
-
-## 6. Dialog-slot and portrait lifetime — mostly resolved
-
-**Decoded and runtime-confirmed:** `C0` position 1 selects the upper scenario
-panel and position 2 the lower; `CC` supplies that panel's character. Dialogue
-need not alternate. Dismissing a line clears its text but retains the panel and
-portrait, so the inactive panel may remain on screen with an empty text area.
-Selecting the same panel with another `CC` replaces its portrait.
-
-In an ordinary Pub, position 0 reuses the building-supplied bartender in the
-upper panel. It does not select a scenario portrait, and a lower scenario
-portrait remains visible while the bartender answers. Leaving and re-entering
-the building reconstructs the ordinary vendor presentation rather than
-carrying scenario-panel contents across visits.
-
-`C4` closes and removes both scenario panels with a horizontal wipe, briefly
-revealing the ordinary vendor underneath; the next portrait line constructs a
-new panel. By contrast, a state-changing action that splits the extractor's
-`dialogueRun`—the 1,000-coin grant in João's Pub scene—does not clear either
-panel. The display updates and the conversation continues in place.
-
-`SNR0`'s alternate character selector is also resolved: `CD 32` and `CD 33`
-read character indices from VM variables 50 and 51. Royal-mission captures
-confirm that the resolved ruler is displayed in the same upper panel selected
-by position 1.
-
-**Still unknown:** Is position 0 always a request to use the surrounding
-executable's current speaker presentation, including outside ordinary
-buildings?
-
-**Why it matters:** The exact composition can now be described for ordinary
-building conversations, but position 0 may be context-sensitive.
-
-**Next evidence:** Trace the presentation globals used by the position-0 path
-in a non-building event. The broad capture corpus originally requested is no
-longer needed.
-
-## 7. Complete route-context mapping
-
-**Decoded:** Ordinary building qualifiers `0x00` through `0x0B` map in order
-to Market, Pub, Shipyard, Harbor, Lodge, Palace, Guild, special residence,
-Bank, Item Shop, Church/Mosque, and House of Fortune. `0xFF` is a wildcard.
-Selectors `0xA0`, `0xA1`, and `0xA2` cover voyage-day, before-battle, and
-after-battle dispatch respectively.
-
-**Unknown:** What produces special contexts such as `0x15`, and when does the
-engine deliberately pass `0xFF` instead of a building's distinct qualifier?
-Sub-interactions such as Treat, Job Assignment, Palace audiences, and menu
-commands may use a second dispatch layer that is not yet enumerated.
-
-**Why it matters:** A predictor must construct the same selector and qualifier
-that `MAIN.EXE` supplies for the current interaction.
-
-**Next evidence:** Instrument both protagonist and shared route dispatch
-and log selector/qualifier pairs while entering every building and invoking
-sub-interactions such as Treat, Job Assignment, and Palace audiences.
-
-## 8. Remaining VM inputs and save fields
-
-**Decoded:** Calendar day, port, time-of-day, flags, persistent VM variables,
-indirect Fame and sailor-record reads, random operations, gold-ingot counts,
-item-slot scanning, cartographer contracts, and Ali's cached port-controller
-scan are understood. Assignment-source selector 4 reads the zero-based current
-day of the month. Catalina's Lucia sequence stores that value and uses a
-separate visit counter, so crossing midnight—not the nominal two elapsed
-hours—selects its late branch. `EA <variable>` stores
-`floor(combined on-hand gold / 10,000)`. Controlled evidence confirms Pietro's
-one-ingot gate, Ali's 100-ingot gate, and Catalina's early Fame lifecycle.
-
-**Unknown:** What are the general meanings of the remaining assignment-source
-selectors, record groups, VM variables, and comparison operands? Candidates
-include party membership, duel/battle aftermath, rewards, and quest resources.
-
-**Why it matters:** An unresolved comparison forces the query tool to emit
-ambiguous paths even when the necessary value exists in the save.
-
-**Next evidence:** Trace each source selector in the VM assignment handler,
-map its runtime address to known save structures, and add boundary saves only
-where field lifecycle or dispatch remains uncertain.
-
-The highest-value controlled saves are now before/after captures for unresolved
-fields or effects whose meaning cannot be established from the bytecode—not
-routine confirmation of decoded literal boundaries.
-
-Repeated controlled tests have confirmed the decoded comparison operators and
-their inclusive boundaries. Explicit literal thresholds should therefore be
-treated as reliable without requesting a runtime pair unless dispatch, field
-semantics, or another external precondition remains uncertain.
-
-## 9. Ordinary vendor portrait and speaker selection — resolved
-
-Ordinary vendors use fixed `GRAPH.DAT` artwork based on building type.
-Zero-based records 6–17 correspond in order to building IDs 1–12.
-Church/Mosque is the only port variant: a Church uses record 16, while a Mosque
-uses record 20. The port's tileset already determines which religious variant
-applies.
-
-Special residences always use record 13. Their occupant controls the speaker,
-text, and available interaction—not the vendor portrait. Thus Mercator,
-Gerard de Jode, Olives, Dr. Wolf, collectors, and story occupants can all speak
-over the same residence artwork.
-
-The vendor is rendered in the upper dialogue panel and never simultaneously
-with a scenario portrait in that panel. Scenario dialogue can instead use an
-upper character portrait or the lower panel. This functional mapping is now
-documented in [Buildings](../game-details/buildings.md#vendor-portraits-and-dialogue-panels).
-
-## 10. Scenario RNG decoded; ordinary-handler randomness remains
-
-**Decoded:** `EB` advances the scenario RNG, divides the generated value by
-its bound, and stores the remainder. Before each protagonist-scenario dispatch,
-the executable reconstructs the seed from the saved year, month, day,
-time-of-day, and the protagonist's navigation level and experience. The query
-tool now reproduces the resulting value rather than emitting hypothetical
-probability branches.
-
-João's opening Guild/Bank/Lodge/House-of-Fortune variation is therefore not an
-ordinary vendor choice or a cached greeting. It is the explicit `EB 00 0003`
-in `SNR1`. Two continuous-entry recordings selected the same line at every
-timestamp common to both runs: 08:00, 08:40, 10:00, 11:20, and 13:20. Their
-later sequences diverged when building entry consumed different amounts of
-time and therefore changed the next dispatch seed.
-
-**Remaining unknown:** Whether any choices made inside the executable's
-ordinary-building handlers use the scenario generator or cached state. One
-ordinary entry choice is now decoded: every successful building visit uses the
-general gameplay RNG to select a duration of `2 + random(3)` twenty-minute
-ticks. This generator has its own continuously advancing in-memory state; it
-is not the reseeded scenario generator used by `EB`. No confirmed ordinary-
-building random greeting currently requires a runtime test.
-
-**Next evidence:** First identify a random call or branch in an ordinary
-building handler statically. Then design a focused runtime capture around that
-specific caller if its seed or cache lifecycle remains unclear.
+Their evidence and implementation details remain in the dialog-system guide,
+reverse-engineering notes, generated analysis, and relevant game-detail pages.

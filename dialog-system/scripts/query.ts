@@ -14,6 +14,11 @@ import {
 } from "../../save-editor/format.js";
 import { repoRoot } from "../../scripts/shared.js";
 import {
+  loadOrdinaryDialogueData,
+  ordinaryBuildingEntry,
+  type OrdinaryBuildingEntry,
+} from "./ordinary-dialogue.js";
+import {
   disassembleScenario,
   type DialogueLine,
   type DisassembledScenario,
@@ -77,12 +82,15 @@ export interface ScenarioQueryResult {
   readonly routeTable: "primary" | `subsection-${number}`;
   readonly outcomes: readonly ScenarioQueryOutcome[];
   readonly sharedScenario: SharedScenarioStatus;
+  readonly ordinaryBuilding?: OrdinaryBuildingEntry;
   readonly notes: readonly string[];
 }
 
 export interface SharedScenarioStatus {
   readonly section: number;
   readonly subsection: number;
+  readonly executionSection: number;
+  readonly executionSubsection: number;
   readonly flagsHex: string;
   readonly eligibilityFlag: boolean;
   readonly invitationArmed: boolean;
@@ -96,6 +104,8 @@ export interface SharedScenarioStatus {
   readonly cachedMissionName?: string;
   readonly routeTable: "primary" | `subsection-${number}` | "unavailable";
   readonly route?: ScenarioRoute;
+  readonly confidence: QueryConfidence;
+  readonly outcomes: readonly ScenarioQueryOutcome[];
 }
 
 const PROTAGONISTS = [
@@ -115,6 +125,14 @@ const SCENARIO_VARIABLES_START = 0x3a;
 const SCENARIO_VARIABLE_COUNT = 64;
 const SHARED_SCENARIO_START = 0xba;
 const SHARED_VARIABLES_START = SHARED_SCENARIO_START + 0x0a;
+const PLAYER_FLEET_TABLE = 0x1de0;
+const FLEET_RECORD_SIZE = 0x85;
+const FLEET_SHIP_SLOTS = 0x2b;
+const SHIP_SLOT_SIZE = 9;
+const SHIP_INSTANCE_TABLE = 0x47fc;
+const SHIP_INSTANCE_SIZE = 0x18;
+const PLAYER_SUPPLY_RECORDS = 0x423e;
+const SUPPLY_RECORD_SIZE = 0x1e;
 const SHARED_MISSION_NAMES = new Map<number, string>([
   [1, "Transport Goods"],
   [2, "Buy Goods"],
@@ -130,6 +148,57 @@ const SHARED_MISSION_NAMES = new Map<number, string>([
   [12, "Defeat a national fleet or pirates"],
 ]);
 
+function inspectPlayerCargo(
+  save: Buffer,
+  slot: number,
+  protagonistId: number,
+): {
+  fleetId: number;
+  fleetRecord: Buffer;
+  freeCapacity: number;
+  cargoByGoodsId: Map<number, number>;
+} {
+  const base = slotOffset(slot);
+  const officer = base + 0x612 + protagonistId * 42;
+  const fleetId = save[officer + 0x24]!;
+  const fleet = base + PLAYER_FLEET_TABLE + fleetId * FLEET_RECORD_SIZE;
+  const cargoByGoodsId = new Map<number, number>();
+  let freeCapacity = 0;
+
+  for (let index = 0; index < 10; index++) {
+    const shipSlot = fleet + FLEET_SHIP_SLOTS + index * SHIP_SLOT_SIZE;
+    if (save[shipSlot] === 0xff || (save[shipSlot + 8]! & 0x30) !== 0x10)
+      continue;
+    const instanceId = save[shipSlot + 7]!;
+    const instance =
+      base + SHIP_INSTANCE_TABLE + instanceId * SHIP_INSTANCE_SIZE;
+    const capacity = save.readUInt16LE(instance + 0x16);
+    const supply = base + PLAYER_SUPPLY_RECORDS + index * SUPPLY_RECORD_SIZE;
+    let used =
+      Math.floor(save.readUInt16LE(supply) / 10) +
+      Math.floor(save.readUInt16LE(supply + 2) / 10) +
+      save.readUInt16LE(supply + 4) +
+      save.readUInt16LE(supply + 6);
+    for (let cargoIndex = 0; cargoIndex < 5; cargoIndex++) {
+      const goodsId = save[supply + 0x16 + cargoIndex]!;
+      if (goodsId === 0xff) continue;
+      const quantity = save.readUInt16LE(supply + 0x0c + cargoIndex * 2);
+      used += quantity;
+      cargoByGoodsId.set(
+        goodsId,
+        (cargoByGoodsId.get(goodsId) ?? 0) + quantity,
+      );
+    }
+    freeCapacity += Math.max(0, capacity - used);
+  }
+  return {
+    fleetId,
+    fleetRecord: save.subarray(fleet, fleet + FLEET_RECORD_SIZE),
+    freeCapacity,
+    cargoByGoodsId,
+  };
+}
+
 interface ExecutionState {
   offset: number;
   flags: number;
@@ -139,9 +208,21 @@ interface ExecutionState {
     number,
     | { kind: "cartographer-flags"; index: number }
     | { kind: "inventory-item"; indexVariable: number }
+    | { kind: "constant"; value: number }
     | { kind: "record"; data: Buffer; offset: number }
   >;
   cartographerFlags: number[];
+  cargoByGoodsId: Map<number, number>;
+  presentation?: {
+    startOffset: number;
+    position: number;
+    characterId?: number;
+    characterVariable?: number;
+    messageIndices: number[];
+    lastMessageInstructionEndOffset?: number;
+    instructionOffsets: number[];
+    rawParts: string[];
+  };
   dialogue: DialogueLine[];
   uncertainties: string[];
   effects: string[];
@@ -163,6 +244,20 @@ export function protagonistScenarioRandomSeed(
     navigationLevel + navigationExperience,
   );
   return ((dateProduct + savedDay + ticks) << 8) >>> 0;
+}
+
+export function sharedScenarioRandomSeed(
+  savedYear: number,
+  savedMonth: number,
+  savedDay: number,
+  navigationLevel: number,
+  navigationExperience: number,
+): number {
+  const dateProduct = Math.imul(
+    Math.imul(savedYear, savedMonth),
+    navigationLevel + navigationExperience,
+  );
+  return ((dateProduct + savedDay) << 8) >>> 0;
 }
 
 export function nextScenarioRandom(
@@ -273,7 +368,11 @@ function knownSystemValue(
   portId: number,
   ticks: number,
   day: number,
+  year: number,
+  month: number,
 ): number | undefined {
+  if (systemId === 2) return year;
+  if (systemId === 3) return month;
   if (systemId === 4) return day;
   if (systemId === 5) return portId;
   if (systemId === 7) return ticks;
@@ -367,10 +466,82 @@ function cloneState(state: ExecutionState): ExecutionState {
     ),
     references: new Map(state.references),
     cartographerFlags: [...state.cartographerFlags],
+    cargoByGoodsId: new Map(state.cargoByGoodsId),
+    ...(state.presentation
+      ? {
+          presentation: {
+            ...state.presentation,
+            messageIndices: [...state.presentation.messageIndices],
+            instructionOffsets: [...state.presentation.instructionOffsets],
+            rawParts: [...state.presentation.rawParts],
+          },
+        }
+      : {}),
     dialogue: [...state.dialogue],
     uncertainties: [...state.uncertainties],
     effects: [...state.effects],
   };
+}
+
+function presentDialogue(
+  scenario: DisassembledScenario,
+  state: ExecutionState,
+  instruction: ScenarioInstruction,
+  bytes: Buffer,
+): void {
+  const presentation = state.presentation;
+  if (!presentation || presentation.messageIndices.length === 0) return;
+  const messageIndex = presentation.messageIndices.at(-1)!;
+  const message = scenario.messages[messageIndex];
+  const speakerMessageIndex =
+    presentation.messageIndices.length === 2
+      ? presentation.messageIndices[0]
+      : undefined;
+  const speakerMessage =
+    speakerMessageIndex === undefined
+      ? undefined
+      : scenario.messages[speakerMessageIndex];
+  if (!message || (speakerMessageIndex !== undefined && !speakerMessage))
+    return;
+
+  const instructionOffsets = [
+    ...presentation.instructionOffsets,
+    instruction.offset,
+  ];
+  const rawParts = [...presentation.rawParts, instruction.rawHex];
+  const contiguous = instructionOffsets.every(
+    (offset, index) =>
+      index === 0 ||
+      instructionOffsets[index - 1]! + rawParts[index - 1]!.length / 2 ===
+        offset,
+  );
+  state.dialogue.push({
+    offset: presentation.startOffset,
+    position: presentation.position,
+    ...(presentation.characterId === undefined
+      ? {}
+      : { characterId: presentation.characterId }),
+    ...(presentation.characterVariable === undefined
+      ? {}
+      : { characterVariable: presentation.characterVariable }),
+    ...(speakerMessageIndex === undefined
+      ? {}
+      : { speakerMessageId: speakerMessageIndex + 1 }),
+    messageId: messageIndex + 1,
+    body: message.body,
+    ...(speakerMessage?.speakerLabel
+      ? { speakerLabel: speakerMessage.speakerLabel }
+      : message.speakerLabel
+        ? { speakerLabel: message.speakerLabel }
+        : {}),
+    ...(instruction.opcode === 0xe9
+      ? { presentation: "choice-prompt" as const, choiceFlag: bytes[1]! }
+      : {}),
+    ...(contiguous
+      ? {}
+      : { presentationInstructionOffsets: instructionOffsets }),
+    rawHex: rawParts.join(""),
+  });
 }
 
 function outcomeKey(outcome: ScenarioQueryOutcome): string {
@@ -378,6 +549,16 @@ function outcomeKey(outcome: ScenarioQueryOutcome): string {
     dialogue: outcome.dialogue.map((line) => line.messageId),
     effects: outcome.effects,
   });
+}
+
+function mergeConfidence(
+  ...values: readonly QueryConfidence[]
+): QueryConfidence {
+  const present = values.filter((value) => value !== "none");
+  if (present.length === 0) return "none";
+  if (present.includes("ambiguous")) return "ambiguous";
+  if (present.every((value) => value === "confirmed")) return "confirmed";
+  return "decoded";
 }
 
 function executeRoute(
@@ -396,6 +577,15 @@ function executeRoute(
   protagonistFameRecord: Buffer,
   protagonistSailorRecord: Buffer,
   initialRandomState: number,
+  environment: {
+    readonly savedYear: number;
+    readonly savedMonth: number;
+    readonly nationRecords?: readonly Buffer[];
+    readonly playerFleetId?: number;
+    readonly playerFleetRecord?: Buffer;
+    readonly freeCargoCapacity?: number;
+    readonly cargoByGoodsId?: ReadonlyMap<number, number>;
+  },
 ): { outcomes: ScenarioQueryOutcome[]; truncated: boolean } {
   const section = scenario.sections[sectionId]!;
   const instructions = new Map(
@@ -403,11 +593,6 @@ function executeRoute(
       instruction.offset,
       instruction,
     ]),
-  );
-  const dialogue = new Map(
-    section.dialogueRuns.flatMap((run) =>
-      run.lines.map((line) => [line.offset, line] as const),
-    ),
   );
   const pending: ExecutionState[] = [
     {
@@ -417,6 +602,7 @@ function executeRoute(
       variableNotEqual: new Map(),
       references: new Map(),
       cartographerFlags: [...initialCartographerFlags],
+      cargoByGoodsId: new Map(environment.cargoByGoodsId),
       dialogue: [],
       uncertainties: [],
       effects: [],
@@ -466,10 +652,46 @@ function executeRoute(
       finish(state);
       continue;
     }
-    const line = dialogue.get(instruction.offset);
-    if (line) state.dialogue.push(line);
-
     const bytes = Buffer.from(instruction.rawHex, "hex");
+    if (instruction.opcode === 0xc0) {
+      state.presentation = {
+        startOffset: instruction.offset,
+        position: bytes[1]!,
+        messageIndices: [],
+        instructionOffsets: [instruction.offset],
+        rawParts: [instruction.rawHex],
+      };
+    } else if (instruction.opcode === 0xc4) {
+      delete state.presentation;
+    } else if (state.presentation && instruction.opcode === 0xcc) {
+      state.presentation.characterId = bytes.readUInt16BE(1) + 1;
+      delete state.presentation.characterVariable;
+      state.presentation.instructionOffsets.push(instruction.offset);
+      state.presentation.rawParts.push(instruction.rawHex);
+    } else if (state.presentation && instruction.opcode === 0xcd) {
+      state.presentation.characterVariable = bytes[1]!;
+      delete state.presentation.characterId;
+      state.presentation.instructionOffsets.push(instruction.offset);
+      state.presentation.rawParts.push(instruction.rawHex);
+    } else if (state.presentation && instruction.opcode === 0xc8) {
+      const append =
+        state.presentation.lastMessageInstructionEndOffset ===
+        instruction.offset;
+      if (!append && state.presentation.messageIndices.length > 0) {
+        const count = state.presentation.messageIndices.length;
+        state.presentation.messageIndices = [];
+        state.presentation.instructionOffsets.splice(-count, count);
+        state.presentation.rawParts.splice(-count, count);
+      }
+      state.presentation.messageIndices.push(bytes.readUInt16BE(1));
+      state.presentation.lastMessageInstructionEndOffset =
+        instruction.endOffset;
+      state.presentation.instructionOffsets.push(instruction.offset);
+      state.presentation.rawParts.push(instruction.rawHex);
+    } else if (instruction.opcode === 0xc7 || instruction.opcode === 0xe9) {
+      presentDialogue(scenario, state, instruction, bytes);
+      delete state.presentation;
+    }
     if (
       instruction.opcode === 0xdc &&
       bytes[3] === protagonistId &&
@@ -481,6 +703,54 @@ function executeRoute(
           bytes[2] === 0x01 ? protagonistFameRecord : protagonistSailorRecord,
         offset: bytes[4]!,
       });
+    } else if (
+      instruction.opcode === 0xdc &&
+      bytes[2] === 0x02 &&
+      bytes[3] === 0x00 &&
+      bytes[4] === 0x07
+    ) {
+      state.references.set(bytes[1]!, {
+        kind: "constant",
+        value: protagonistId,
+      });
+    } else if (instruction.opcode === 0xd0 && bytes[2] === 0x00) {
+      const recordIndex = state.variables.get(bytes[3]!);
+      const record =
+        recordIndex === undefined
+          ? undefined
+          : environment.nationRecords?.[recordIndex];
+      if (record)
+        state.references.set(bytes[1]!, {
+          kind: "record",
+          data: record,
+          offset: bytes[4]!,
+        });
+      else state.references.delete(bytes[1]!);
+    } else if (
+      instruction.opcode === 0xd0 &&
+      (bytes[2] === 0x01 || bytes[2] === 0x03)
+    ) {
+      const recordIndex = state.variables.get(bytes[3]!);
+      if (recordIndex === protagonistId)
+        state.references.set(bytes[1]!, {
+          kind: "record",
+          data:
+            bytes[2] === 0x01 ? protagonistFameRecord : protagonistSailorRecord,
+          offset: bytes[4]!,
+        });
+      else state.references.delete(bytes[1]!);
+    } else if (instruction.opcode === 0xd0 && bytes[2] === 0x08) {
+      const recordIndex = state.variables.get(bytes[3]!);
+      if (
+        recordIndex === environment.playerFleetId &&
+        environment.playerFleetRecord
+      )
+        state.references.set(bytes[1]!, {
+          kind: "record",
+          data: environment.playerFleetRecord,
+          offset: bytes[4]!,
+        });
+      else state.references.delete(bytes[1]!);
     } else if (
       instruction.opcode === 0xdc &&
       bytes[2] === 0x04 &&
@@ -505,11 +775,13 @@ function executeRoute(
       const reference = state.references.get(bytes[2]!);
       if (
         reference?.kind === "record" &&
-        reference.offset + 1 < reference.data.length
+        reference.offset < reference.data.length
       ) {
         state.variables.set(
           bytes[1]!,
-          reference.data.readUInt16LE(reference.offset),
+          reference.offset + 1 < reference.data.length
+            ? reference.data.readUInt16LE(reference.offset)
+            : reference.data[reference.offset]!,
         );
       } else {
         state.variables.delete(bytes[1]!);
@@ -534,6 +806,9 @@ function executeRoute(
         const value = index === undefined ? undefined : inventory[index];
         if (value === undefined) state.variables.delete(bytes[1]!);
         else state.variables.set(bytes[1]!, value);
+        state.variableNotEqual.delete(bytes[1]!);
+      } else if (reference?.kind === "constant") {
+        state.variables.set(bytes[1]!, reference.value);
         state.variableNotEqual.delete(bytes[1]!);
       } else {
         state.variables.delete(bytes[1]!);
@@ -587,8 +862,24 @@ function executeRoute(
     } else if (instruction.opcode === 0x0c) {
       state.variables.set(bytes[1]!, bytes.readUInt16BE(2));
       state.variableNotEqual.delete(bytes[1]!);
+    } else if (
+      instruction.kind === "assignment" &&
+      ((instruction.opcode >> 4) & 3) === 0 &&
+      ((instruction.opcode >> 2) & 3) === 0
+    ) {
+      const value = state.variables.get(bytes[2]!);
+      if (value === undefined) state.variables.delete(bytes[1]!);
+      else state.variables.set(bytes[1]!, value);
+      state.variableNotEqual.delete(bytes[1]!);
     } else if (instruction.opcode === 0x0f) {
-      const value = knownSystemValue(bytes[2]!, portId, ticks, day);
+      const value = knownSystemValue(
+        bytes[2]!,
+        portId,
+        ticks,
+        day,
+        environment.savedYear,
+        environment.savedMonth,
+      );
       if (value === undefined) {
         state.variables.delete(bytes[1]!);
         state.variableNotEqual.delete(bytes[1]!);
@@ -599,6 +890,90 @@ function executeRoute(
     } else if (instruction.opcode === 0xea) {
       state.variables.set(bytes[1]!, Math.floor(gold / 10_000));
       state.variableNotEqual.delete(bytes[1]!);
+    } else if (instruction.opcode === 0xee) {
+      if (environment.freeCargoCapacity === undefined)
+        state.variables.delete(bytes[1]!);
+      else state.variables.set(bytes[1]!, environment.freeCargoCapacity);
+      state.variableNotEqual.delete(bytes[1]!);
+    } else if (instruction.opcode === 0xe2) {
+      const goodsId = state.variables.get(bytes[1]!);
+      const quantity = state.variables.get(bytes[2]!);
+      if (goodsId !== undefined && quantity !== undefined) {
+        state.cargoByGoodsId.set(
+          goodsId,
+          (state.cargoByGoodsId.get(goodsId) ?? 0) + quantity,
+        );
+        state.effects.push(`load ${quantity} lots of goods ${goodsId}`);
+      }
+    } else if (instruction.opcode === 0xe3) {
+      const goodsId = state.variables.get(bytes[1]!);
+      const requested = state.variables.get(bytes[2]!);
+      if (goodsId === undefined || requested === undefined) {
+        state.variables.delete(bytes[2]!);
+      } else {
+        const available = state.cargoByGoodsId.get(goodsId) ?? 0;
+        if (requested === 0) {
+          state.variables.set(bytes[2]!, available);
+        } else {
+          const transferred = Math.min(requested, available);
+          state.variables.set(bytes[2]!, transferred);
+          state.cargoByGoodsId.set(goodsId, available - transferred);
+          state.effects.push(`unload ${transferred} lots of goods ${goodsId}`);
+        }
+      }
+      state.variableNotEqual.delete(bytes[2]!);
+    } else if (instruction.kind === "arithmetic") {
+      const destinationMode = (instruction.opcode >> 4) & 3;
+      const sourceMode = (instruction.opcode >> 2) & 3;
+      if (destinationMode === 0 && (sourceMode === 0 || sourceMode === 3)) {
+        const reference = state.references.get(bytes[1]!);
+        const left = state.variables.get(bytes[1]!);
+        const right =
+          sourceMode === 0 ? state.variables.get(bytes[2]!) : bytes[2];
+        if (
+          reference?.kind === "record" &&
+          right !== undefined &&
+          (instruction.opcode & 0x23) === 0
+        ) {
+          state.references.set(bytes[1]!, {
+            ...reference,
+            offset: reference.offset + right,
+          });
+        } else if (left === undefined || right === undefined) {
+          state.variables.delete(bytes[1]!);
+        } else {
+          let value: number | undefined;
+          switch (instruction.opcode & 0x23) {
+            case 0x00:
+              value = left + right;
+              break;
+            case 0x01:
+              value = left - right;
+              break;
+            case 0x02:
+              value = left * right;
+              break;
+            case 0x03:
+              value = right === 0 ? undefined : Math.floor(left / right);
+              break;
+            case 0x20:
+              value = left | right;
+              break;
+            case 0x21:
+              value = left & right;
+              break;
+            case 0x22:
+              value = left >>> right;
+              break;
+            case 0x23:
+              value = left << right;
+              break;
+          }
+          if (value === undefined) state.variables.delete(bytes[1]!);
+          else state.variables.set(bytes[1]!, value & 0xffff);
+        }
+        state.variableNotEqual.delete(bytes[1]!);
+      }
     } else if (instruction.kind === "assignment") {
       const destinationMode = (instruction.opcode >> 4) & 3;
       if (destinationMode === 0) {
@@ -616,7 +991,17 @@ function executeRoute(
       state.effects.push(
         `show EVENT${scenario.scenarioId}.DAT record ${bytes[5]} at (${bytes.readUInt16BE(1)}, ${bytes.readUInt16BE(3)})`,
       );
-    else if (instruction.opcode === 0xf0)
+    else if (instruction.opcode === 0xe6) {
+      const amount = state.variables.get(bytes[1]!);
+      state.effects.push(
+        amount === undefined ? "add gold" : `add ${amount} gold`,
+      );
+    } else if (instruction.opcode === 0xe7) {
+      const amount = state.variables.get(bytes[1]!);
+      state.effects.push(
+        amount === undefined ? "deduct gold" : `deduct ${amount} gold`,
+      );
+    } else if (instruction.opcode === 0xf0)
       state.effects.push("advance subsection when the interpreter returns");
     else if (instruction.opcode === 0xf1)
       state.effects.push("advance section when the interpreter returns");
@@ -642,6 +1027,18 @@ function executeRoute(
       }
       state.offset = instruction.endOffset;
       pending.push(state);
+      continue;
+    }
+    if (instruction.opcode === 0xe9) {
+      const flag = bytes[1]!;
+      const no = cloneState(state);
+      no.flags = writeFlag(no.flags, flag, 0);
+      no.effects.push(`answer No (set scenario flag ${flag} to 0)`);
+      no.offset = instruction.endOffset;
+      state.flags = writeFlag(state.flags, flag, 1);
+      state.effects.push(`answer Yes (set scenario flag ${flag} to 1)`);
+      state.offset = instruction.endOffset;
+      pending.push(no, state);
       continue;
     }
     if (instruction.opcode === 0xac || instruction.opcode === 0xad) {
@@ -754,21 +1151,119 @@ export function inspectSharedScenario(
   const cachedMissionSection = save.readUInt16LE(
     base + SHARED_VARIABLES_START + 30 * 2,
   );
-  const selectedSection = scenario.sections[section];
+  const palaceVisit =
+    action.type === "building" && action.context === BUILDING_CONTEXTS.palace;
+  const consumesCachedRoyalMission =
+    section === 0 &&
+    palaceVisit &&
+    readFlag(flags, 17) &&
+    cachedMissionSection >= 6 &&
+    cachedMissionSection <= 12;
+  const executionSection = consumesCachedRoyalMission
+    ? cachedMissionSection
+    : section;
+  // Accepting a cached Palace invitation first runs the mission section's
+  // primary initializer, which advances to subsection 1, and then immediately
+  // dispatches the Palace-audience route that presents the offer. The mission
+  // variables were populated when the invitation was armed, so the query can
+  // execute that visible second stage directly.
+  const executionSubsection = consumesCachedRoyalMission ? 1 : subsection;
+  const executionFlags = consumesCachedRoyalMission
+    ? writeFlag(writeFlag(flags, 17, 0), 18, 1)
+    : flags;
+  const selectedSection = scenario.sections[executionSection];
   const routes =
-    subsection === 0
+    executionSubsection === 0
       ? selectedSection?.routes
-      : selectedSection?.entryRouteTables[subsection - 1]?.routes;
+      : selectedSection?.entryRouteTables[executionSubsection - 1]?.routes;
+  const executionAction: ScenarioQueryAction =
+    palaceVisit && executionSection >= 6 && executionSubsection > 0
+      ? { type: "building", context: 0x15, name: "palace-audience" }
+      : action;
   const request = actionSelectorAndQualifier(
-    action,
+    executionAction,
     save[base + 0x0a]!,
     save[base + 0x1d82]!,
     130,
   );
   const route = routes ? findRoute(routes, request) : undefined;
+  const ticks = save[base + 9]!;
+  const buildingOpen =
+    action.type === "building"
+      ? isBuildingOpen(action.context, ticks)
+      : undefined;
+  const variables = new Map(
+    Array.from({ length: SCENARIO_VARIABLE_COUNT }, (_, variable) => [
+      variable,
+      save.readUInt16LE(base + SHARED_VARIABLES_START + variable * 2),
+    ]),
+  );
+  const cargo = inspectPlayerCargo(save, slot, protagonistId);
+  const execution = route
+    ? executeRoute(
+        scenario,
+        executionSection,
+        route,
+        executionFlags,
+        variables,
+        save[base + 0x0a]!,
+        ticks,
+        save[base + 8]!,
+        inspectCartographers(save, slot).map(
+          (cartographer) => cartographer.flags,
+        ),
+        inspectGold(save, slot),
+        inspectItems(save, slot),
+        protagonistId,
+        save.subarray(
+          base + 0x5b6 + protagonistId * 14,
+          base + 0x5b6 + (protagonistId + 1) * 14,
+        ),
+        save.subarray(
+          base + 0x612 + protagonistId * 42,
+          base + 0x612 + (protagonistId + 1) * 42,
+        ),
+        sharedScenarioRandomSeed(
+          save[base + 6]!,
+          save[base + 7]!,
+          save[base + 8]!,
+          save[base + 0x612 + protagonistId * 42 + 0x1c]!,
+          save.readUInt16LE(base + 0x612 + protagonistId * 42 + 0x1e),
+        ),
+        {
+          savedYear: save[base + 6]!,
+          savedMonth: save[base + 7]!,
+          nationRecords: Array.from({ length: 7 }, (_, nation) =>
+            save.subarray(
+              base + 0x04d6 + nation * 0x20,
+              base + 0x04d6 + (nation + 1) * 0x20,
+            ),
+          ),
+          playerFleetId: cargo.fleetId,
+          playerFleetRecord: cargo.fleetRecord,
+          freeCargoCapacity: cargo.freeCapacity,
+          cargoByGoodsId: cargo.cargoByGoodsId,
+        },
+      )
+    : { outcomes: [], truncated: false };
+  const outcomes =
+    buildingOpen === false
+      ? []
+      : execution.outcomes.filter(
+          (outcome) =>
+            outcome.dialogue.length > 0 || outcome.effects.length > 0,
+        );
+  const confidence: QueryConfidence =
+    outcomes.length === 0
+      ? "none"
+      : outcomes.some((outcome) => outcome.confidence === "ambiguous")
+        ? "ambiguous"
+        : "decoded";
   return {
     section,
     subsection,
+    executionSection,
+    executionSubsection,
     flagsHex: hex(flags, 8),
     eligibilityFlag: readFlag(flags, 16),
     invitationArmed: readFlag(flags, 17),
@@ -784,11 +1279,13 @@ export function inspectSharedScenario(
       ? { cachedMissionName: SHARED_MISSION_NAMES.get(cachedMissionSection)! }
       : {}),
     routeTable: routes
-      ? subsection === 0
+      ? executionSubsection === 0
         ? "primary"
-        : `subsection-${subsection}`
+        : `subsection-${executionSubsection}`
       : "unavailable",
     ...(route ? { route } : {}),
+    confidence,
+    outcomes,
   };
 }
 
@@ -854,10 +1351,26 @@ export async function queryScenario(
     action,
     selectedSharedScenario,
   );
+  const ordinaryData =
+    action.type === "building" ? await loadOrdinaryDialogueData() : undefined;
+  const inspectOrdinaryBuilding = (
+    protagonistOutcomes: readonly ScenarioQueryOutcome[],
+  ): OrdinaryBuildingEntry | undefined =>
+    action.type === "building" && ordinaryData
+      ? ordinaryBuildingEntry(
+          save,
+          slot,
+          action.context,
+          buildingOpen,
+          protagonistOutcomes.map((outcome) => outcome.effects),
+          shared.outcomes.map((outcome) => outcome.effects),
+          ordinaryData,
+        )
+      : undefined;
   const notes = [
     `Fame: trade ${fame.trade}, piracy ${fame.piracy}, adventure ${fame.adventure}.`,
-    "Shared SNR0 state and route are reported separately; its indirect message calls are not yet symbolically executed.",
-    "Ordinary building dialogue is not yet evaluated.",
+    "Shared SNR0 dialogue is reported separately from protagonist-story dialogue.",
+    "Ordinary building entry is reported separately from story dialogue.",
   ];
   if (buildingOpen === false)
     notes.push(
@@ -873,6 +1386,7 @@ export async function queryScenario(
       "The 2,000-fame event is already armed by the saved subsection; the Pub route does not recheck current fame.",
     );
   if (!route) {
+    const ordinaryBuilding = inspectOrdinaryBuilding([]);
     const joaoPubNeedsHarborVisit =
       scenarioId === 1 &&
       sectionId === 1 &&
@@ -880,7 +1394,13 @@ export async function queryScenario(
       action.type === "building" &&
       action.context === BUILDING_CONTEXTS.pub;
     return {
-      confidence: "none",
+      confidence:
+        buildingOpen === false
+          ? "none"
+          : mergeConfidence(
+              shared.confidence,
+              ordinaryBuilding?.confidence ?? "none",
+            ),
       scenarioId,
       protagonist: PROTAGONISTS[protagonistId]!,
       section: sectionId,
@@ -893,6 +1413,7 @@ export async function queryScenario(
       routeTable: subsection === 0 ? "primary" : `subsection-${subsection}`,
       outcomes: [],
       sharedScenario: shared,
+      ...(ordinaryBuilding ? { ordinaryBuilding } : {}),
       notes: [
         ...notes,
         ...(joaoPubNeedsHarborVisit
@@ -901,7 +1422,7 @@ export async function queryScenario(
               "The apparent 06:40 arrival effect came from visiting the Harbor while waiting for the Pub to open; entering the Pub directly after the 11:40 arrival left the save in subsection 0.",
             ]
           : []),
-        "No matching protagonist-scenario route was found. The game may still show its normal building dialogue.",
+        "No matching protagonist-scenario route was found.",
       ],
     };
   }
@@ -935,6 +1456,10 @@ export async function queryScenario(
       save[base + 0x612 + protagonistId * 42 + 0x1c]!,
       save.readUInt16LE(base + 0x612 + protagonistId * 42 + 0x1e),
     ),
+    {
+      savedYear: save[base + 6]!,
+      savedMonth: save[base + 7]!,
+    },
   );
   if (execution.truncated)
     notes.push("Symbolic execution reached its path or instruction limit.");
@@ -987,16 +1512,23 @@ export async function queryScenario(
       );
   }
   const availableOutcomes = buildingOpen === false ? [] : outcomesWithDialogue;
-  const confidence: QueryConfidence =
+  const storyConfidence: QueryConfidence =
     availableOutcomes.length === 0
-      ? "none"
+      ? shared.confidence
       : availableOutcomes.some((outcome) => outcome.confidence === "ambiguous")
         ? "ambiguous"
-        : availableOutcomes.every(
-              (outcome) => outcome.confidence === "confirmed",
-            )
-          ? "confirmed"
-          : "decoded";
+        : shared.confidence === "ambiguous"
+          ? "ambiguous"
+          : availableOutcomes.every(
+                (outcome) => outcome.confidence === "confirmed",
+              )
+            ? "confirmed"
+            : "decoded";
+  const ordinaryBuilding = inspectOrdinaryBuilding(execution.outcomes);
+  const confidence = mergeConfidence(
+    storyConfidence,
+    ordinaryBuilding?.confidence ?? "none",
+  );
   return {
     confidence,
     scenarioId,
@@ -1012,6 +1544,7 @@ export async function queryScenario(
     routeTable: subsection === 0 ? "primary" : `subsection-${subsection}`,
     outcomes: availableOutcomes,
     sharedScenario: shared,
+    ...(ordinaryBuilding ? { ordinaryBuilding } : {}),
     notes,
   };
 }
@@ -1040,6 +1573,12 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
     "",
     "Shared SNR0 state",
     `  Section ${shared.section}, subsection ${shared.subsection}, flags ${shared.flagsHex}`,
+    ...(shared.executionSection === shared.section &&
+    shared.executionSubsection === shared.subsection
+      ? []
+      : [
+          `  Effective Palace dispatch: section ${shared.executionSection}, subsection ${shared.executionSubsection}`,
+        ]),
     `  Rank: ${RANK_NAMES[shared.rank] ?? `unknown (${shared.rank})`}; highest Fame: ${shared.highestFameCategory} ${shared.highestFame}`,
     shared.nextTitleThreshold === undefined
       ? "  Next-title eligibility: none (Duke is the highest title)"
@@ -1050,8 +1589,45 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
     shared.route
       ? `  Matched shared route: ${shared.route.keyHex} → ${hex(shared.route.destinationOffset)}`
       : "  Matched shared route: none",
+    `  Shared confidence: ${shared.confidence}`,
     "",
   ];
+  for (const [index, outcome] of shared.outcomes.entries()) {
+    lines.push(`Shared outcome ${index + 1} [${outcome.confidence}]`);
+    if (outcome.dialogue.length === 0)
+      lines.push("  No shared-scenario dialogue.");
+    for (const line of outcome.dialogue)
+      lines.push(
+        `  ${hex(line.offset)} · message ${line.messageId}${line.presentation === "choice-prompt" ? ` · choice → flag ${line.choiceFlag}` : ""} · ${line.speakerLabel ?? (line.characterId !== undefined ? `Character ${line.characterId}` : line.characterVariable !== undefined ? `Character from variable ${line.characterVariable}` : "Narration")}: ${line.body}`,
+      );
+    for (const effect of outcome.effects) lines.push(`  Effect: ${effect}`);
+    for (const uncertainty of outcome.uncertainties)
+      lines.push(`  Unresolved: ${uncertainty}`);
+    lines.push("");
+  }
+  if (result.ordinaryBuilding) {
+    const ordinary = result.ordinaryBuilding;
+    lines.push(
+      "Ordinary building entry",
+      `  Disposition: ${ordinary.disposition}`,
+      `  Confidence: ${ordinary.confidence}`,
+    );
+    if (ordinary.dialogue.length === 0)
+      lines.push("  No ordinary greeting or access message is displayed.");
+    for (const dialogue of ordinary.dialogue)
+      lines.push(
+        `  ${dialogue.bank} raw ${dialogue.rawIndex} (entry ${dialogue.entryNumber}) · ${dialogue.speaker}: ${dialogue.text}`,
+      );
+    lines.push(
+      ordinary.menu.length > 0
+        ? `  Menu: ${ordinary.menu.join("; ")}`
+        : "  Menu: none",
+    );
+    for (const uncertainty of ordinary.uncertainties)
+      lines.push(`  Unresolved: ${uncertainty}`);
+    for (const note of ordinary.notes) lines.push(`  Note: ${note}`);
+    lines.push("");
+  }
   for (const [index, outcome] of result.outcomes.entries()) {
     const chance =
       outcome.probability < 1
@@ -1090,7 +1666,9 @@ Actions:
 The tool never modifies the save. It symbolically executes protagonist story
 routes and reports the shared SNR0 route, royal-invitation state, and cached
 mission. Ambiguous results show each possible protagonist path and the undecoded
-VM condition responsible for it. Ordinary building dialogue is not evaluated.`;
+VM condition responsible for it. Building queries also report the ordinary
+entry greeting or access response and visible main menu when story handling
+does not certainly suppress them.`;
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
