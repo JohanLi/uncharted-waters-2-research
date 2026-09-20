@@ -67,11 +67,13 @@ ship sales, and all four Remodel branches. The remaining uncertainty in these
 handlers is concentrated in dynamically assembled reports and in helper calls
 whose speaker or screen transition is not encoded in the message text.
 
-The unmapped ordinary command groups are Harbor, Lodge, Guild, House of
-Fortune, Palace, and special residences. The Palace admission and Defect paths,
-Guild Job Assignment dispatch, hostile-building precedence, collector rewards,
-and cartographer contracts/reports are already documented separately; they do
-not need to be rediscovered while the surrounding command handlers are traced.
+The remaining ordinary command groups are Harbor, Lodge, Guild, House of
+Fortune, Palace, and special residences. The House of Fortune's Love command is
+now decoded through its exact waitress-favor ranges; Life, Career, and Mates
+remain. The Palace admission and Defect paths, Guild Job Assignment dispatch,
+hostile-building precedence, collector rewards, and cartographer
+contracts/reports are already documented separately; they do not need to be
+rediscovered while the surrounding command handlers are traced.
 
 For building actions, the save-aware query now selects the decoded ordinary
 greeting or access response and lists the visible main menu. It respects
@@ -104,7 +106,7 @@ label for each file.
 ### Next work
 
 1. Resume static command tracing in increasing order of scope:
-   - House of Fortune and Lodge;
+   - the remaining House of Fortune commands and Lodge;
    - Guild;
    - Palace and special residences; then
    - Harbor, whose Sail, Supply, Moor, docked-ship, and departure paths form the
