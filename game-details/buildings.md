@@ -90,6 +90,10 @@ unambiguous.
 | Special residence, generic            |                 477 (478) |           `0x339F2` | “May I help you?”                                                                                                            |
 | Special residence, recognized visitor |                 478 (479) |           `0x339E4` | Uses the protagonist's first and last names.                                                                                 |
 
+The House of Fortune's **Career** command reports the current protagonist's
+remaining Navigation and Battle experience. Its exact threshold formula and
+the two experience systems are documented in [levels.md](levels.md).
+
 Religious rejection uses the same upper-panel helper but does not enter the
 menu. A Muslim entering a Church receives raw index 90 (entry 91), while a
 Christian entering a Mosque receives raw index 802 (entry 803). The executable

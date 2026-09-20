@@ -11,10 +11,15 @@
 | Attributes (Leadership through Luck) | +0x14..+0x1b |
 | Navigation Level                     |        +0x1c |
 | Battle Level                         |        +0x1d |
+| Navigation experience                | +0x1e..+0x1f |
+| Battle experience                    | +0x20..+0x21 |
 | Age                                  |        +0x22 |
 | Skill mask                           |        +0x28 |
 
 Skill-mask bits are `0x01` Negotiation, `0x02` Accounting, `0x04` Gunnery, `0x08` Cartography, and `0x10` Celestial Navigation. Nationality is taken from the record country/status byte.
+
+The experience thresholds, voyage and combat awards, and attribute increases
+are documented in [levels.md](levels.md).
 
 ## Main characters
 

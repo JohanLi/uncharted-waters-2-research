@@ -69,8 +69,10 @@ whose speaker or screen transition is not encoded in the message text.
 
 The remaining ordinary command groups are Harbor, Lodge, Guild, House of
 Fortune, Palace, and special residences. The House of Fortune's Love command is
-now decoded through its exact waitress-favor ranges; Life, Career, and Mates
-remain. The Palace admission and Defect paths, Guild Job Assignment dispatch,
+decoded through its exact waitress-favor ranges, and Career through the exact
+Navigation/Battle experience thresholds documented in
+[levels.md](../game-details/levels.md); Life and Mates remain. The Palace
+admission and Defect paths, Guild Job Assignment dispatch,
 hostile-building precedence, collector rewards, and cartographer
 contracts/reports are already documented separately; they do not need to be
 rediscovered while the surrounding command handlers are traced.
@@ -106,7 +108,7 @@ label for each file.
 ### Next work
 
 1. Resume static command tracing in increasing order of scope:
-   - the remaining House of Fortune commands and Lodge;
+   - the remaining House of Fortune commands (Life and Mates) and Lodge;
    - Guild;
    - Palace and special residences; then
    - Harbor, whose Sail, Supply, Moor, docked-ship, and departure paths form the
