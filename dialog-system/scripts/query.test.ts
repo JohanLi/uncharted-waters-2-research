@@ -14,6 +14,10 @@ import {
 } from "../../save-editor/format.js";
 import { repoRoot } from "../../scripts/shared.js";
 import {
+  loadOrdinaryDialogueData,
+  ordinaryBuildingEntry,
+} from "./ordinary-dialogue.js";
+import {
   inspectSharedScenario,
   isBuildingOpen,
   loadProtagonistScenario,
@@ -22,6 +26,7 @@ import {
   parseQueryAction,
   protagonistScenarioRandomSeed,
   queryScenario,
+  sharedScenarioRandomSeed,
 } from "./query.js";
 
 async function originalSave(): Promise<Buffer> {
@@ -35,6 +40,182 @@ test("reproduces protagonist scenario random draws", () => {
     state: 0x680a_b501,
     result: 2,
   });
+});
+
+test("reproduces shared scenario random seeds without time of day", () => {
+  assert.equal(sharedScenarioRandomSeed(21, 4, 17, 10, 1_224), 0x0194_f900);
+});
+
+test("executes a shared Transport Goods progress route", async () => {
+  const save = await originalSave();
+  const base = slotOffset(1);
+  save[base + 0x0a] = 0;
+  save[base + 9] = 0x0c;
+  save[base + 0xba] = 1;
+  save[base + 0xbb] = 1;
+  save.writeUInt32LE(0, base + 0xbc);
+  const sharedVariable = (index: number) => base + 0xc4 + index * 2;
+  save.writeUInt16LE(0, sharedVariable(16));
+  save.writeUInt16LE(16, sharedVariable(17));
+  save.writeUInt16LE(25, sharedVariable(18));
+  save.writeUInt16LE(90, sharedVariable(19));
+  const today = (save[base + 6]! * 12 + save[base + 7]!) * 30 + save[base + 8]!;
+  save.writeUInt16LE(today + 30, sharedVariable(24));
+
+  const result = await queryScenario(
+    save,
+    1,
+    parseQueryAction("market"),
+    await loadProtagonistScenario(1),
+    await loadSharedScenario(),
+  );
+  assert.equal(result.sharedScenario.confidence, "decoded");
+  assert.deepEqual(
+    result.sharedScenario.outcomes.map((outcome) => ({
+      messages: outcome.dialogue.map((line) => line.messageId),
+      effects: outcome.effects,
+    })),
+    [
+      {
+        messages: [28, 34],
+        effects: [
+          "answer Yes (set scenario flag 1 to 1)",
+          "advance section when the interpreter returns",
+          "suppress normal building menu and force exit",
+        ],
+      },
+      {
+        messages: [28, 34],
+        effects: [
+          "answer No (set scenario flag 1 to 0)",
+          "suppress normal building menu and force exit",
+        ],
+      },
+    ],
+  );
+});
+
+test("uses fleet free capacity in the shared Transport Goods offer", async () => {
+  const save = await originalSave();
+  const base = slotOffset(1);
+  const protagonistId = save[14]!;
+  const officer = base + 0x612 + protagonistId * 42;
+  const fleetId = save[officer + 0x24]!;
+  const shipSlot = base + 0x1de0 + fleetId * 0x85 + 0x2b;
+  save.set([88, 0, 100, 100, 80, 85, 0, 0, 0x10], shipSlot);
+  const instance = base + 0x47fc;
+  save.writeUInt16LE(800, instance + 0x16);
+  const supply = base + 0x423e;
+  save.fill(0, supply, supply + 0x1e);
+  save.writeUInt16LE(3_000, supply);
+  save.writeUInt16LE(5_000, supply + 2);
+  save.fill(0xff, supply + 0x16, supply + 0x1b);
+
+  save[base + 0x0a] = 0;
+  save[base + 9] = 0x0c;
+  save[base + 0xba] = 1;
+  save[base + 0xbb] = 0;
+  save.writeUInt32LE(1, base + 0xbc);
+  save.writeUInt16LE(0, base + 0xc4 + 16 * 2);
+  save.writeUInt16LE(16, base + 0xc4 + 17 * 2);
+  save.writeUInt16LE(0, base + 0xc4 + 23 * 2);
+
+  const result = await queryScenario(
+    save,
+    1,
+    parseQueryAction("market"),
+    await loadProtagonistScenario(1),
+    await loadSharedScenario(),
+  );
+  assert.deepEqual(
+    result.sharedScenario.outcomes.map((outcome) =>
+      outcome.dialogue.map((line) => line.messageId),
+    ),
+    [[14]],
+  );
+});
+
+test("follows the cached royal invitation into the visible Palace offer", async () => {
+  const save = await originalSave();
+  const base = slotOffset(1);
+  save[base + 0x0a] = 0;
+  save[base + 9] = 0x0c;
+  save[base + 0xba] = 0;
+  save[base + 0xbb] = 0;
+  save.writeUInt32LE(0x0003_0000, base + 0xbc);
+  save.writeUInt16LE(3, base + 0xc4 + 18 * 2);
+  save.writeUInt16LE(7, base + 0xc4 + 30 * 2);
+
+  const result = await queryScenario(
+    save,
+    1,
+    parseQueryAction("palace"),
+    await loadProtagonistScenario(1),
+    await loadSharedScenario(),
+  );
+  assert.deepEqual(
+    {
+      executionSection: result.sharedScenario.executionSection,
+      executionSubsection: result.sharedScenario.executionSubsection,
+      route: result.sharedScenario.route?.key,
+      messages: result.sharedScenario.outcomes.map((outcome) =>
+        outcome.dialogue.map((line) => line.messageId),
+      ),
+    },
+    {
+      executionSection: 7,
+      executionSubsection: 1,
+      route: 0xa315,
+      messages: [
+        [155, 156, 162, 164],
+        [155, 156, 162, 163],
+      ],
+    },
+  );
+});
+
+test("selects destination and home ruler document-mission transcripts", async () => {
+  const save = await originalSave();
+  const base = slotOffset(1);
+  const sharedVariable = (index: number) => base + 0xc4 + index * 2;
+  save[base + 9] = 0x0c;
+  save[base + 0xba] = 7;
+  save[base + 0xbb] = 2;
+  save.writeUInt16LE(29, sharedVariable(17));
+  save.writeUInt16LE(3, sharedVariable(18));
+  save.writeUInt16LE(7, sharedVariable(30));
+
+  save[base + 0x0a] = 29;
+  save.writeUInt32LE(0x0005_0001, base + 0xbc);
+  const destination = await queryScenario(
+    save,
+    1,
+    parseQueryAction("palace"),
+    await loadProtagonistScenario(1),
+    await loadSharedScenario(),
+  );
+  assert.deepEqual(
+    destination.sharedScenario.outcomes.map((outcome) =>
+      outcome.dialogue.map((line) => line.messageId),
+    ),
+    [[174]],
+  );
+
+  save[base + 0x0a] = 0;
+  save.writeUInt32LE(0x0005_0003, base + 0xbc);
+  const home = await queryScenario(
+    save,
+    1,
+    parseQueryAction("palace"),
+    await loadProtagonistScenario(1),
+    await loadSharedScenario(),
+  );
+  assert.deepEqual(
+    home.sharedScenario.outcomes.map((outcome) =>
+      outcome.dialogue.map((line) => line.messageId),
+    ),
+    [[166]],
+  );
 });
 
 test("decodes source placeholders in query dialogue", async () => {
@@ -212,6 +393,9 @@ test("distinguishes Pietro's forced Church exit from his usable Lodge", async ()
       "suppress normal building menu and force exit",
     ),
   );
+  assert.equal(church.ordinaryBuilding?.disposition, "suppressed");
+  assert.deepEqual(church.ordinaryBuilding?.dialogue, []);
+  assert.deepEqual(church.ordinaryBuilding?.menu, []);
 
   const lodge = await queryScenario(
     save,
@@ -229,6 +413,36 @@ test("distinguishes Pietro's forced Church exit from his usable Lodge", async ()
       "suppress normal building menu and force exit",
     ),
   );
+  assert.equal(lodge.ordinaryBuilding?.disposition, "shown");
+  assert.equal(lodge.ordinaryBuilding?.dialogue[0]?.rawIndex, 66);
+  assert.deepEqual(lodge.ordinaryBuilding?.menu, [
+    "Check In",
+    "Gossip",
+    "Port Info",
+  ]);
+});
+
+test("reports an ordinary religious access denial", async () => {
+  const save = await originalSave();
+  const base = slotOffset(1);
+  save[14] = 5;
+  save[base + 0x0a] = 0;
+  save[base + 9] = 0x0c;
+  save[base + 0x612 + 5 * 42 + 0x29] = 2;
+
+  const entry = ordinaryBuildingEntry(
+    save,
+    1,
+    0x0a,
+    true,
+    [],
+    [],
+    await loadOrdinaryDialogueData(),
+  );
+  assert.equal(entry.confidence, "decoded");
+  assert.equal(entry.disposition, "access-denied");
+  assert.equal(entry.dialogue[0]?.rawIndex, 90);
+  assert.deepEqual(entry.menu, []);
 });
 
 test("decodes Pietro's one-gold-ingot Pub gate independently of Adventure Fame", async () => {
@@ -257,7 +471,17 @@ test("decodes Pietro's one-gold-ingot Pub gate independently of Adventure Fame",
     scenario,
     shared,
   );
-  assert.equal(below.confidence, "none");
+  assert.equal(below.confidence, "ambiguous");
+  assert.deepEqual(below.outcomes, []);
+  assert.equal(below.ordinaryBuilding?.dialogue[0]?.rawIndex, 18);
+  assert.deepEqual(below.ordinaryBuilding?.menu, [
+    "Recruit Crew",
+    "Dismiss Crew",
+    "Treat",
+    "Meet",
+    "Waitress",
+    "Gamble",
+  ]);
   assert.ok(below.notes.some((note) => note.includes("one Gold Ingot")));
 
   const at = await queryScenario(
@@ -290,7 +514,16 @@ test("resolves Catalina's 1,500 and 2,000 Piracy Fame transitions", async () => 
     scenario,
     shared,
   );
-  assert.equal(belowRumor.confidence, "none");
+  assert.equal(belowRumor.confidence, "decoded");
+  assert.deepEqual(belowRumor.outcomes, []);
+  assert.equal(belowRumor.ordinaryBuilding?.disposition, "shown");
+  assert.equal(belowRumor.ordinaryBuilding?.dialogue[0]?.rawIndex, 0);
+  assert.deepEqual(belowRumor.ordinaryBuilding?.menu, [
+    "Buy Goods",
+    "Sell Goods",
+    "Invest",
+    "Market Rate",
+  ]);
 
   save = setFame(save, 1, 1, "piracy", 0, 1_500);
   const rumor = await queryScenario(

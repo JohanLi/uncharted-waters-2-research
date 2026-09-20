@@ -133,6 +133,14 @@ building in a qualifying port is the cleanest trigger.
 Catalina learns that Duke Franco has disowned João and that João is now sailing
 the world. This advances to the Pub-search subsection.
 
+A controlled Valencia Shipyard visit with displayed Spanish Friendship `-100`
+also establishes this route's place in building-entry precedence. The complete
+rumor played first, followed by the hostile-port warning and then the ordinary
+Shipyard greeting and menu. The story route has no `F8`, so after it advances
+the subsection the executable continues to the ordinary hostile-building
+check. The confrontation roll missed on that first visit; subsequent visits
+demonstrated both a confrontation and an ordinary-menu result.
+
 ### The 2,000-Fame Pub
 
 Enter an ordinary **Pub** with at least **2,000 Piracy Fame**.

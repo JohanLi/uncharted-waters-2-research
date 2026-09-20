@@ -204,10 +204,49 @@ was a narrow escape!" and applies no decoded penalty. If the escape check fails,
 instead seizes four fifths of the player's carried gold. The handler then sets personal Friendship with that nation to
 stored `100`, or displayed `0`. It does not restore the nation-to-nation Relation cell.
 
+The successful escape has a deliberate blackout between the protagonist's
+"I'm not about to let myself be captured by the likes of you!" and the final
+relief message. This is executable-driven presentation, not scenario event
+art. The success branch at `MAIN.EXE 0x3095C–0x309A4` dismisses the dialogue,
+calls runtime routine `0000:98B1` to transition to a zeroed 48-byte palette,
+waits with argument `20`, and calls `0000:98A7` to restore the normal palette
+from `DS:0x9052`. The delay routine multiplies its argument by six, producing
+approximately 120 refresh intervals, or two seconds at 60 Hz. Runtime capture
+shows a short fade out, a roughly two-second fully black screen, and a short
+fade in before "Whew, that was a narrow escape!"
+
+The hostile-reception roll occurs on Palace entry before the ordinary menu. A
+controlled active document mission demonstrated both branches from the same
+state: a non-triggering visit displayed the Palace greeting and menu, while a
+triggering visit ran the escape sequence, suppressed the menu, and returned
+the player outside. Because royal-mission dialogue is invoked later through
+`Meet Ruler`, the hostile entry path prevents that audience from being selected
+on the triggering visit.
+
 ### Other buildings
 
 The general port-building check applies to the Market, Pub, Shipyard, Lodge, Guild, Bank, Item Shop, and House of
 Fortune. It excludes the Harbor, Palace, special NPC residence, Church or Mosque, and ports controlled by Piracy.
+
+This check occurs after the shared and protagonist scenario entry dispatches.
+At `MAIN.EXE 0x20A1B–0x20A4C`, the building dispatcher runs both scenario
+matchers and interpreters. It then tests their caller-owned interaction-control
+values at `0x20A53–0x20A6D`; a normal nonzero result continues into the hostile
+eligibility code at `0x20A70`, while an `F8` zero result normally exits before
+it. The Lodge is an explicit exception: its branch at `0x20A61` continues into
+hostile processing even after `F8`. A controlled Trebizond visit showed an
+`F8`-ending João story route followed by the Turkish-port warning and the
+ordinary Lodge menu when the confrontation roll missed. The same story stage
+suppresses hostile processing in other eligible buildings.
+
+A controlled Valencia Shipyard sequence confirms the non-ejecting path. On the
+first visit, Catalina's section-2 rumor ran before the hostile-port warning and
+the ordinary Shipyard greeting. Her story advanced but did not use `F8`, so
+the executable continued through hostile processing; the random confrontation
+did not trigger. On later visits from the same play sequence, one hostile roll
+triggered the confrontation and ejection, while another missed and exposed the
+ordinary menu. Story dispatch therefore has earlier order, but it does not
+automatically suppress a later hostile roll.
 
 It is considered only when stored Friendship is below `80`, or displayed Friendship below `-20`. There are two random
 gates before the confrontation:

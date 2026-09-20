@@ -16,6 +16,8 @@ The command recreates the ignored `output/` directory:
 - `messages.json`: legacy flat João message export;
 - `scenarios.json`: complete structural disassembly of all seven SNR pairs;
 - `main-exe-vm.json`: executable offsets and scenario-VM dispatch evidence;
+- `general-message-call-sites.json`: direct `MAIN.EXE` references to the
+  combined `MESSAGE.DAT`/`MESSAGE2.DAT` namespace, with decoded text;
 - `readable/scenario-N.md`: generated structural transcripts;
 - `readable/dialogue-lines.csv`: one row per recognized dialog occurrence;
 - `readable/instructions.csv`: reachable sequential VM instructions;
@@ -44,7 +46,11 @@ The query never modifies the save. It symbolically executes the active
 protagonist route and also reports shared `SNR0` state: eligibility/invitation
 flags, highest-Fame tie result, next-title threshold, cached mission family,
 and the matching shared route. Decoded building hours are applied before a
-matched route is described as triggerable.
+matched route is described as triggerable. Building actions also report the
+ordinary entry greeting or access response and visible main menu when story
+handling does not certainly suppress them. Possible hostile-country
+interception remains marked as unresolved because it uses the separate general
+gameplay RNG.
 
 It also resolves the indirect active-cartographer field used by Ernst's
 Mercator routes, including automatic contract renewal when another
@@ -54,9 +60,9 @@ and sailor records are modeled for storyline affiliation and Fame gates. The
 calendar-day source used by Catalina's Lucia sequence is also resolved, so its
 same-day and after-midnight paths no longer appear as ambiguous alternatives.
 
-Ordinary executable-driven building dialog and indirect `SNR0` message calls
-are not yet evaluated. `none` therefore means no resolved protagonist story
-dialog, not that the building displays nothing.
+The query does not yet accept ordinary menu commands or nested submenu
+selections. Pub-specialty substitution and non-cartographer special-residence
+selection also remain unresolved.
 
 Run `pnpm run query-dialog -- --help` for all actions.
 

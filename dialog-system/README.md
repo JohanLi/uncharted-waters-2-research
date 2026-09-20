@@ -38,36 +38,68 @@ in a particular story state, show a named character conversation instead.
 The vendor greeting is not simply another branch in the protagonist's SNR
 program.
 
-The exact order in which all ordinary, shared-scenario, and protagonist-
-scenario checks run is not completely decoded. The following is a useful
-working model, not a claim that every step has a single linear precedence:
+Building-entry and menu-command scenario order is now decoded. Scenario
+dispatch occurs at more than one interaction layer, and building-specific
+handlers can add their own gates. The resulting model is:
 
 ```text
 player enters a building coordinate
         |
         v
-opening-hours and building/access checks in MAIN.EXE
+opening-hours and preliminary access checks in MAIN.EXE
         |
-        +--> closed, religious restriction, palace restriction,
-        |    or hostile-country encounter
-        |
-        v
-dispatch current port + building/context to scenario logic
-        |
-        +--> active protagonist SNR route and state branches
-        |
-        +--> shared SNR0 quest/royal-mission handling
+        +--> closed or access denied
         |
         v
-story dialog and side effects, if selected
+dispatch shared and protagonist scenario entry hooks
         |
-        +--> stop/eject/suppress menu, where required
+        +--> `F8` can stop the interaction and return outside
+             (Lodge entry is an explicit exception)
+        |
+        v
+ordinary-building hostile-country check, where eligible
+        |
+        +--> confrontation can suppress the menu and return outside
         |
         v
 ordinary greeting and building menu, if still allowed
+        |
+        +--> player selects a command such as Job Assignment,
+        |    Treat, or Meet Ruler
+        |
+        v
+dispatch command-specific executable and scenario hooks
+        |
+        +--> dialog, state changes, return to a menu level,
+             or forced exit
 ```
 
-The unresolved precedence and menu/ejection step is tracked in
+Controlled shared-quest captures establish three concrete placements in this
+model. Transport Goods delivery is an entry hook at the destination Market and
+runs before its ordinary menu. Guild assignment dialogue begins only after
+`Job Assignment` and a listed job have been selected. Royal-mission dialogue
+uses the Palace's `Meet Ruler` audience hook, while a random hostile Palace
+encounter is tested on entry and can suppress the menu before that command is
+available.
+
+The ordinary-building order is confirmed separately by both code and a
+Catalina Shipyard capture. `MAIN.EXE 0x20A1B–0x20A4C` dispatches the shared and
+protagonist entry routes before the hostile-building path beginning at
+`0x20A70`. Catalina's section-2 rumor therefore appeared before the hostile-
+port warning. Because that route did not request `F8`, execution continued to
+the hostile roll; it happened not to produce a confrontation on that visit.
+Thus story dispatch has earlier order, but a non-ejecting story does not itself
+suppress the hostile check.
+
+The Lodge is a caller-side exception to the usual `F8` behavior. Its branch at
+`MAIN.EXE 0x20A61` proceeds into hostile-port handling even when an entry story
+cleared an interaction-control word. In a controlled Trebizond visit, João's
+`F8`-ending search-for-Domingo route was followed by the Turkish-port warning
+and the ordinary Lodge menu after the confrontation roll missed. At the same
+story stage, ejecting routes in other eligible buildings stop before hostile
+processing.
+
+Other dialog-system gaps are tracked in
 [open-questions.md](./open-questions.md).
 
 ## Files involved
@@ -75,8 +107,8 @@ The unresolved precedence and menu/ejection step is tracked in
 | File or output                                | Role                                                                                                                                | Current status                                                   |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | `raw/MAIN.EXE`                                | Loads message banks and scenario pairs; implements ordinary building behavior and the SNR virtual machine                           | Partly decoded                                                   |
-| `raw/MESSAGE.DAT`                             | 1,000 general strings, including ordinary vendor greetings, access responses, menu interactions, rumors, and reusable gameplay text | Container decoded; call sites only partly mapped                 |
-| `raw/MESSAGE2.DAT`                            | 423 additional general strings, including UI, interaction, and character-specific text                                              | Container decoded; exact division from `MESSAGE.DAT` unknown     |
+| `raw/MESSAGE.DAT`                             | 1,000 general strings, including ordinary vendor greetings, access responses, menu interactions, rumors, and reusable gameplay text | Container and combined lookup decoded; callers partly mapped     |
+| `raw/MESSAGE2.DAT`                            | 423 additional general strings, including UI, interaction, and character-specific text                                              | Container and combined lookup decoded; callers partly mapped     |
 | `raw/SNR0.DAT` / `SNR0.MES`                   | Shared Guild jobs and royal missions                                                                                                | Structurally decoded; some message references remain unexplained |
 | `raw/SNR1` through `SNR6`                     | Protagonist-specific programs and text                                                                                              | Structurally decoded                                             |
 | `raw/KOUKAI2.DAT`                             | Save slots containing active scenario state and other inputs used by dialog conditions                                              | Relevant fields partly decoded                                   |
@@ -107,6 +139,31 @@ runtime values.
 Executable references are normally zero-based, while prose inventories often
 number entries for humans. Any citation should say whether it is a **raw
 index** or a **one-based entry number**. This avoids an easy off-by-one error.
+
+`MAIN.EXE` loads `MESSAGE.DAT` into the handle at `DS:0x05DC` and
+`MESSAGE2.DAT` into the handle at `DS:0x05DE`. The loader is at file offsets
+`0x1B170–0x1B19A`; its filename pointers are `DS:0x0B3E` and `DS:0x0B2E`.
+The offset-table readers begin at `0x3929D` and `0x392EF` respectively. Each
+multiplies a raw index by two, reads and byte-swaps the big-endian offset, then
+reads the selected null-terminated string.
+
+Callers see the pair as one continuous zero-based namespace:
+
+| Combined index | Source                     |
+| -------------: | -------------------------- |
+|        `0–999` | `MESSAGE.DAT`, same index  |
+|    `1000–1422` | `MESSAGE2.DAT`, index−1000 |
+
+The dispatcher at `0x39332` performs the `1000` comparison and subtraction.
+Consequently, an executable operand of `1047` means raw index `47` (one-based
+entry 48) in `MESSAGE2.DAT`; it is not an out-of-range `MESSAGE.DAT` index.
+
+Two recurring presentation call families use this namespace: far calls to
+`0000:8D95`, used by the ordinary upper building panel, and calls to
+`FF2D:5D46`, used broadly for general formatted messages. The extractor emits
+`general-message-call-sites.json` for direct `mov ax, id; push ax` and
+`push id` references. It currently resolves 487 direct sites; computed indices
+remain visible only in their surrounding executable routines.
 
 These files are not scenario programs: they contain strings, not the complete
 conditions that select them. Determining why a particular general message was
@@ -191,6 +248,14 @@ wildcard handler. João's opening, for example, uses one wildcard route shared
 by several building types. Route keys are therefore dispatch contexts, not a
 guarantee that every table lists all twelve building qualifiers.
 
+Only one menu action introduces a distinct scenario context. `Meet Ruler`
+dispatches shared Palace context `0x05`, then protagonist and shared audience
+context `0x15`. `Job Assignment` reuses Guild qualifier `0x06` after the
+executable records the selected job. `Treat` makes no scenario-dispatch call;
+its royal-invitation path is executable logic. The route matcher itself tries
+`0xA3` and `0xFF` fallbacks when no exact route matches, so callers do not pass
+those wildcard values.
+
 The active section and subsection determine which route table is eligible.
 After a route is chosen, its bytecode may branch on scenario flags, VM
 variables, current calendar day, port, time, fame, random values, inventory, and other
@@ -257,7 +322,7 @@ again on completion.
 
 ### Text without an explicit portrait
 
-The confirmed form is:
+One confirmed form is:
 
 ```text
 C0 00 C8 <message-index:u16be> C7
@@ -272,6 +337,19 @@ the building-supplied speaker presentation in this context, not as a
 portraitless full-screen message. Whether every non-building use has the same
 presentation still requires a caller-by-caller check.
 
+Shared Guild assignments also use a paired-message form:
+
+```text
+C0 00 C8 <speaker-label-message:u16be> C8 <body-message:u16be> C7
+```
+
+The first selected MES entry contains only the speaker's role label, such as
+`Old Guild Worker` or `Head Trader`; the second contains the displayed body.
+`E9 <flag>` can replace `C7` when the body is followed by a choice. The two
+entries therefore make one visible line, not two successive lines. Controlled
+Transport Goods captures confirm the decoded pairing throughout its offer and
+mission lifecycle.
+
 Ordinary vendor portraits are selected separately from scenario `CC`
 characters. Zero-based `GRAPH.DAT` records 6–17 map in order to building IDs
 1–12, with record 20 replacing the Church portrait in Mosque ports. Special
@@ -285,6 +363,13 @@ The extractor groups consecutive compound dialog instructions into a
 `dialogueRun`. An intervening action, branch, or unknown instruction ends a
 run. Several runs can therefore still belong to one player-visible
 conversation.
+
+It also propagates pending position, speaker, and message selections through
+control-flow branches until a later `C7` or `E9`. This accounts for every
+`SNR0.MES` entry, including branch-dependent deadline and royal-mission text.
+For these noncontiguous presentations, `presentationInstructionOffsets` lists
+the contributing instructions and `rawHex` concatenates those presentation
+instructions in execution order.
 
 An extractor run boundary is not necessarily a visual boundary. In João's
 opening Pub funding scene, the 1,000-coin grant separates two extracted runs,
@@ -472,12 +557,14 @@ Use this procedure for a particular save and building:
    changes, duels/event art, and whether exit/menu behavior is known.
 8. **Apply ordinary fallback.** If no scenario route produces an overriding
    interaction—or after a non-blocking story interaction—use the appropriate
-   `MAIN.EXE` building routine and general message bank. This final step is not
-   yet automated generally.
+   `MAIN.EXE` building routine and general message bank. The query automates
+   the ordinary entry greeting or access response and main menu; individual
+   menu commands are not yet query inputs.
 
 ### Current query support
 
-The existing tool predicts protagonist-story paths without modifying a save:
+The existing tool predicts protagonist-story and shared-scenario paths without
+modifying a save:
 
 ```sh
 pnpm run query-dialog -- save-editor/KOUKAI2-original.DAT 1 pub
@@ -485,17 +572,24 @@ pnpm run query-dialog -- save-editor/KOUKAI2-original.DAT 1 special-building
 ```
 
 It reads the selected slot's scenario state, calendar, clock, port,
-protagonist, and fame, applies the decoded building schedule, then reports outcomes as
-`confirmed`, `decoded`, `ambiguous`, or `none`. It reconstructs the
-protagonist-scenario RNG seed from the saved calendar, clock, and protagonist
-navigation fields, so explicit `EB` draws resolve to the same branch the game
-will select.
+protagonist, fame, mission variables, nation records, fleet cargo, inventory,
+and gold, applies the decoded building schedule, then reports outcomes as
+`confirmed`, `decoded`, `ambiguous`, or `none`. It reconstructs the distinct
+protagonist and shared-scenario RNG seeds, so explicit `EB` draws resolve to
+the same branch the game will select.
 
-It also reports the shared `SNR0` section, flags, highest-Fame eligibility,
-next-title threshold, cached mission family, and matching shared route. It does
-**not** yet execute indirect `SNR0` message calls or ordinary building dialog.
-“No story dialog” therefore does not mean that entering the building displays
-nothing.
+For shared `SNR0`, it reports the section, flags, highest-Fame eligibility,
+next-title threshold, cached mission family, matching route, state-specific
+dialogue, choices, and decoded effects. It follows cached royal invitations
+through the Palace initializer into the visible `Meet Ruler` offer and resolves
+dynamic home- and destination-ruler lines from the mission state. A `palace`
+query models that scenario audience after admission. For every ordinary
+building action, the query also reports the decoded entry greeting or access
+response and visible main menu after applying story suppression. It identifies
+when a hostile reception may preempt that result, but cannot select the random
+outcome until the general gameplay RNG lifecycle is known. Pub-specialty text,
+non-cartographer special residences, and command-level interactions remain
+partly or wholly unresolved.
 
 ## Worked João examples
 

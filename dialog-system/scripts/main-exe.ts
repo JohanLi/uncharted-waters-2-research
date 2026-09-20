@@ -77,6 +77,40 @@ export interface ScenarioVmExecutableAnalysis {
     readonly townClockAddOffset: number;
     readonly portArrivalIncrementOffset: number;
   };
+  readonly menuCommandScenarioDispatch: {
+    readonly jobAssignment: {
+      readonly handlerOffset: number;
+      readonly dispatchOffset: number;
+      readonly scenario: "shared";
+      readonly selectorSource: string;
+      readonly qualifier: string;
+    };
+    readonly treat: {
+      readonly commandHandlerOffset: number;
+      readonly handlerStartOffset: number;
+      readonly handlerEndOffset: number;
+      readonly scenarioDispatch: "none";
+      readonly royalInvitationFlagWriteOffset: number;
+    };
+    readonly meetRuler: {
+      readonly handlerOffset: number;
+      readonly calls: readonly {
+        readonly offset: number;
+        readonly scenario: "shared" | "protagonist";
+        readonly selectorSource: string;
+        readonly qualifier: string;
+      }[];
+    };
+  };
+  readonly buildingAccess: {
+    readonly openingHoursOffset: number;
+    readonly palaceHandlerOffset: number;
+    readonly palaceHostileReceptionEndOffset: number;
+    readonly palaceCommonerCheckOffset: number;
+    readonly palaceCommonerRejectOffset: number;
+    readonly religiousHandlerOffset: number;
+    readonly religiousAffiliationCheckOffset: number;
+  };
   readonly globals: Readonly<Record<string, string>>;
   readonly systemValues: readonly {
     readonly id: number;
@@ -203,6 +237,54 @@ export function analyzeScenarioVmExecutable(
       townClockAddOffset: 0x204a7,
       portArrivalIncrementOffset: 0x2051e,
     },
+    menuCommandScenarioDispatch: {
+      jobAssignment: {
+        handlerOffset: 0x32e70,
+        dispatchOffset: 0x32f72,
+        scenario: "shared",
+        selectorSource: "DS:0x0E32 current port",
+        qualifier: "0x06 Guild",
+      },
+      treat: {
+        commandHandlerOffset: 0x2bc8d,
+        handlerStartOffset: 0x2bafa,
+        handlerEndOffset: 0x2bc8c,
+        scenarioDispatch: "none",
+        royalInvitationFlagWriteOffset: 0x2bbcd,
+      },
+      meetRuler: {
+        handlerOffset: 0x3044a,
+        calls: [
+          {
+            offset: 0x30482,
+            scenario: "shared",
+            selectorSource: "DS:0x0E32 current port",
+            qualifier: "0x05 Palace",
+          },
+          {
+            offset: 0x3048c,
+            scenario: "protagonist",
+            selectorSource: "DS:0x0E32 current port",
+            qualifier: "0x15 Palace audience",
+          },
+          {
+            offset: 0x3049d,
+            scenario: "shared",
+            selectorSource: "DS:0x0E32 current port",
+            qualifier: "0x15 Palace audience",
+          },
+        ],
+      },
+    },
+    buildingAccess: {
+      openingHoursOffset: 0x20930,
+      palaceHandlerOffset: 0x309a5,
+      palaceHostileReceptionEndOffset: 0x30a1a,
+      palaceCommonerCheckOffset: 0x30a1b,
+      palaceCommonerRejectOffset: 0x30a5b,
+      religiousHandlerOffset: 0x32cd0,
+      religiousAffiliationCheckOffset: 0x32ce9,
+    },
     globals: {
       currentSection: "DS:0x060E",
       currentSubsection: "DS:0x060F",
@@ -216,10 +298,34 @@ export function analyzeScenarioVmExecutable(
     },
     systemValues: [
       {
+        id: 2,
+        handlerOffset: 0x38842,
+        source: "DS:0x0734",
+        meaning: "stored-year-offset-from-1501",
+      },
+      {
+        id: 3,
+        handlerOffset: 0x38847,
+        source: "DS:0x0735",
+        meaning: "current-month-zero-based",
+      },
+      {
+        id: 4,
+        handlerOffset: 0x3884c,
+        source: "DS:0x0736",
+        meaning: "current-day-zero-based",
+      },
+      {
         id: 5,
         handlerOffset: 0x38851,
         source: "DS:0x0E32",
         meaning: "current-port-id",
+      },
+      {
+        id: 6,
+        handlerOffset: 0x38856,
+        source: "DS:0xA0A4",
+        meaning: "duel-balance-meter",
       },
       {
         id: 7,

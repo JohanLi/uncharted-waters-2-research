@@ -102,12 +102,84 @@ test("MAIN.EXE exposes the scenario loader and four-family VM dispatch", async (
     townClockAddOffset: 0x204a7,
     portArrivalIncrementOffset: 0x2051e,
   });
+  assert.deepEqual(analysis.menuCommandScenarioDispatch, {
+    jobAssignment: {
+      handlerOffset: 0x32e70,
+      dispatchOffset: 0x32f72,
+      scenario: "shared",
+      selectorSource: "DS:0x0E32 current port",
+      qualifier: "0x06 Guild",
+    },
+    treat: {
+      commandHandlerOffset: 0x2bc8d,
+      handlerStartOffset: 0x2bafa,
+      handlerEndOffset: 0x2bc8c,
+      scenarioDispatch: "none",
+      royalInvitationFlagWriteOffset: 0x2bbcd,
+    },
+    meetRuler: {
+      handlerOffset: 0x3044a,
+      calls: [
+        {
+          offset: 0x30482,
+          scenario: "shared",
+          selectorSource: "DS:0x0E32 current port",
+          qualifier: "0x05 Palace",
+        },
+        {
+          offset: 0x3048c,
+          scenario: "protagonist",
+          selectorSource: "DS:0x0E32 current port",
+          qualifier: "0x15 Palace audience",
+        },
+        {
+          offset: 0x3049d,
+          scenario: "shared",
+          selectorSource: "DS:0x0E32 current port",
+          qualifier: "0x15 Palace audience",
+        },
+      ],
+    },
+  });
+  assert.deepEqual(analysis.buildingAccess, {
+    openingHoursOffset: 0x20930,
+    palaceHandlerOffset: 0x309a5,
+    palaceHostileReceptionEndOffset: 0x30a1a,
+    palaceCommonerCheckOffset: 0x30a1b,
+    palaceCommonerRejectOffset: 0x30a5b,
+    religiousHandlerOffset: 0x32cd0,
+    religiousAffiliationCheckOffset: 0x32ce9,
+  });
   assert.deepEqual(analysis.systemValues, [
+    {
+      id: 2,
+      handlerOffset: 0x38842,
+      source: "DS:0x0734",
+      meaning: "stored-year-offset-from-1501",
+    },
+    {
+      id: 3,
+      handlerOffset: 0x38847,
+      source: "DS:0x0735",
+      meaning: "current-month-zero-based",
+    },
+    {
+      id: 4,
+      handlerOffset: 0x3884c,
+      source: "DS:0x0736",
+      meaning: "current-day-zero-based",
+    },
     {
       id: 5,
       handlerOffset: 0x38851,
       source: "DS:0x0E32",
       meaning: "current-port-id",
+    },
+    {
+      id: 6,
+      handlerOffset: 0x38856,
+      source: "DS:0xA0A4",
+      meaning: "duel-balance-meter",
     },
     {
       id: 7,
@@ -373,6 +445,24 @@ test("sequential VM decoding follows table-relative control flow", async () => {
     Array.from({ length: 7 }, (_, id) => readScenario(id)),
   );
 
+  const actionMnemonic = (opcode: number) =>
+    scenarios
+      .flatMap((scenario) => scenario.sections)
+      .flatMap((section) => section.instructions)
+      .find((instruction) => instruction.opcode === opcode)?.mnemonic;
+  assert.deepEqual(
+    [0xc3, 0xd0, 0xe2, 0xe3, 0xe6, 0xe7, 0xeb].map(actionMnemonic),
+    [
+      "clear-dialogue-panels",
+      "resolve-indexed-game-field-reference",
+      "load-goods",
+      "transfer-goods",
+      "add-gold",
+      "deduct-gold",
+      "random",
+    ],
+  );
+
   for (const scenario of scenarios)
     for (const section of scenario.sections) {
       assert.equal(
@@ -445,6 +535,118 @@ test("sequential VM decoding follows table-relative control flow", async () => {
       [0x19f7, 1, undefined, 50, "c001cd32c8009ac7"],
       [0x1c49, 1, undefined, 51, "c001cd33c800adc7"],
     ],
+  );
+  const sharedGuildOffer = scenarios[0]!.sections[0]!.dialogueRuns.flatMap(
+    (run) => run.lines,
+  ).find((line) => line.messageId === 2);
+  assert.deepEqual(sharedGuildOffer, {
+    offset: 0x051c,
+    position: 0,
+    speakerMessageId: 1,
+    messageId: 2,
+    body: "I’ve got a job for you. I need you to transport some goods from the port of $r32 to $r33. Will you take on this job?",
+    speakerLabel: "Old Guild Worker",
+    presentation: "choice-prompt",
+    choiceFlag: 0,
+    rawHex: "c000c80000c80001e900",
+  });
+  const sharedNoCargoSpace = scenarios[0]!.sections[1]!.dialogueRuns.flatMap(
+    (run) => run.lines,
+  ).find((line) => line.messageId === 14);
+  assert.deepEqual(sharedNoCargoSpace, {
+    offset: 0x0a3b,
+    position: 0,
+    speakerMessageId: 13,
+    messageId: 14,
+    body: "You don’t have any room to store cargo on your ship right now. Come back once you’ve made room.",
+    speakerLabel: "Head Trader",
+    rawHex: "c000c8000cc8000dc7",
+  });
+  const sharedLines = scenarios[0]!.sections.flatMap((section) =>
+    section.dialogueRuns.flatMap((run) => run.lines),
+  );
+  const accountedSharedMessageIds = new Set<number>();
+  for (const line of sharedLines) {
+    accountedSharedMessageIds.add(line.messageId);
+    if (line.speakerMessageId !== undefined)
+      accountedSharedMessageIds.add(line.speakerMessageId);
+  }
+  assert.equal(sharedLines.length, 201);
+  assert.equal(
+    sharedLines.filter((line) => line.speakerMessageId !== undefined).length,
+    71,
+  );
+  assert.equal(
+    sharedLines.filter((line) => line.characterVariable !== undefined).length,
+    129,
+  );
+  assert.equal(accountedSharedMessageIds.size, 272);
+  assert.deepEqual(
+    Array.from({ length: 272 }, (_, index) => index + 1).filter(
+      (messageId) => !accountedSharedMessageIds.has(messageId),
+    ),
+    [],
+  );
+  assert.deepEqual(
+    sharedLines.find((line) => line.messageId === 30),
+    {
+      offset: 0x0b51,
+      position: 0,
+      speakerMessageId: 29,
+      messageId: 30,
+      body: "You’ve only got a few hours left. Maybe it’s too tough an assignment for you?",
+      speakerLabel: "Head Trader",
+      presentation: "choice-prompt",
+      choiceFlag: 1,
+      presentationInstructionOffsets: [0x0b51, 0x0b53, 0x0b56, 0x0b78],
+      rawHex: "c000c8001cc8001de901",
+    },
+  );
+  assert.deepEqual(
+    [148, 149].map((messageId) => {
+      const line = sharedLines.find(
+        (candidate) => candidate.messageId === messageId,
+      );
+      return [
+        line?.offset,
+        line?.speakerMessageId,
+        line?.characterVariable,
+        line?.presentationInstructionOffsets,
+        line?.rawHex,
+      ];
+    }),
+    [
+      [
+        0x176a,
+        undefined,
+        50,
+        [0x176a, 0x176c, 0x1773, 0x177e],
+        "c001cd32c80093c7",
+      ],
+      [
+        0x176a,
+        undefined,
+        50,
+        [0x176a, 0x176c, 0x177b, 0x177e],
+        "c001cd32c80094c7",
+      ],
+    ],
+  );
+  assert.deepEqual(
+    scenarios[0]!.sections[1]!.instructions.find(
+      (instruction) => instruction.offset === 0x0a26,
+    ),
+    {
+      offset: 0x0a26,
+      endOffset: 0x0a28,
+      opcode: 0xee,
+      opcodeHex: "0xEE",
+      kind: "action",
+      mnemonic: "read-free-cargo-capacity",
+      rawHex: "ee0a",
+      destinationBaseOffset: 0x09c2,
+      terminal: false,
+    },
   );
   assert.deepEqual(
     opening.instructions
