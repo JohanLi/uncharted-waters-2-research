@@ -86,18 +86,10 @@ the subsection. All five receive pursuit objective 7 with Catalina as their
 target, so they begin following her after being placed; they are not initially
 positioned around her current location.
 
-A controlled runtime comparison confirms that the boundary is exact. Entering
-the Harbor at 0 Piracy Fame produces no story dialogue; entering it at 1 makes
-Emilio say, “Commodore Catalina, I heard a bad rumor in the harbor.” This also
-confirms that ordinary Harbor dispatch reaches the route without imposing an
-additional practical prerequisite.
-
-The placement is confirmed both by the scenario instructions and by the saved
-fleet records immediately after departure. The route writes world coordinates
-`(142, 374)` directly to every pursuit fleet. Seville's raw port coordinate is
-`(142, 372)`, while Catalina's fleet in the observed save is already at
-`(146, 383)`. All five pursuers still share `(142, 374)` and have Catalina's
-current position as their navigation target.
+At 0 Piracy Fame the Harbor produces no story dialogue; at 1 Emilio says,
+“Commodore Catalina, I heard a bad rumor in the harbor.” The route writes world
+coordinates `(142, 374)` directly to every pursuit fleet. Seville's raw port
+coordinate is `(142, 372)`.
 
 ### Fight two pursuit encounters
 
@@ -133,13 +125,8 @@ building in a qualifying port is the cleanest trigger.
 Catalina learns that Duke Franco has disowned João and that João is now sailing
 the world. This advances to the Pub-search subsection.
 
-A controlled Valencia Shipyard visit with displayed Spanish Friendship `-100`
-also establishes this route's place in building-entry precedence. The complete
-rumor played first, followed by the hostile-port warning and then the ordinary
-Shipyard greeting and menu. The story route has no `F8`, so after it advances
-the subsection the executable continues to the ordinary hostile-building
-check. The confrontation roll missed on that first visit; subsequent visits
-demonstrated both a confrontation and an ordinary-menu result.
+The story route runs before the hostile-building check. Because it has no `F8`,
+execution continues into that check after the subsection advances.
 
 ### The 2,000-Fame Pub
 
@@ -160,7 +147,7 @@ dialogue. At 1,999 Fame, repeated Pub visits repeat the questioning instead.
 An ordinary building visit first rechecks Pirate affiliation and **2,000
 Piracy Fame**, then silently advances the subsection. This is a separate visit
 after the Pub conversation that advanced section 2. For example, when the
-2,000-Fame Pub scene occurs in Ceuta, the observed sequence is:
+2,000-Fame Pub scene occurs in Ceuta, the sequence is:
 
 1. First Pub visit: Catalina and Andreas question the bartender; section 2
    advances to section 3.
@@ -243,8 +230,8 @@ At Perot's selected port:
 1. Visit the **Pub**. Andreas questions the bartender, and the subsection
    advances.
 2. Visit a different building that reaches the wildcard route. The **Guild** is
-   confirmed to work; a Market, Harbor, Shipyard, Lodge, Bank, shop, Church, or
-   House of Fortune should use the same route. The Pub, Palace, and context
+   eligible; a Market, Harbor, Shipyard, Lodge, Bank, shop, Church, or House of
+   Fortune uses the same route. The Pub, Palace, and context
    `0x15` have explicit no-op routes at this stage. In the wildcard scene, the
    group decides to wait for João.
 3. Return to the **Pub**. The bartender admits that João was warned about
@@ -307,8 +294,7 @@ the clock advance does not change the stage.
 Crossing midnight changes the result. A Lodge visit on the following calendar
 day begins with Lucia's “You're late!!” but still lets her join and advances
 the story. A Pub visit then says that she went to the Lodge a long time ago.
-Controlled saves at 18:40, 19:40, 20:40, 22:00, 23:20, and 00:00 confirm that
-the decisive rollover is the calendar day, not an elapsed-hour threshold.
+The decisive rollover is the calendar day, not an elapsed-hour threshold.
 
 ### Deliver Lucia to Ceuta
 
@@ -344,11 +330,8 @@ spares him and orders a course for Massawa.
 The wildcard route does not compare a general victory/defeat value or require
 a particular new opponent. It checks that Antonio Khan's sailor record no
 longer has an active fleet link—normally already true after the preceding Perot
-battle. The executable only dispatches this route after victory. A controlled
-escape from the same ordinary encounter produced only the fleeing captain's
-standard one-line response: the informant did not appear, and the armed
-subsection remained active. Winning from the same baseline played the
-informant scene and advanced the subsection.
+battle. The executable only dispatches this route after victory. Escaping
+leaves the armed subsection active and does not invoke the informant.
 
 Thus the 15,000-Fame check does not immediately reveal Massawa: it first arms
 the next qualifying after-battle event.
@@ -433,15 +416,13 @@ handle the remaining forces.
 Win the corresponding naval battle. The after-battle scene destroys the
 fortress, completes Catalina's revenge, and plays the ending.
 
-## Exact Fame-boundary save landmarks
+## Exact early Fame boundaries
 
-All three early Fame boundaries and their dispatch routes are runtime-confirmed.
-
-| Pair          | Correct active state                                                                                      | Save immediately before…                                | Expected differentiator                                                                                                                                           |
-| ------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 / 1         | Section 1, subsection 0; mutiny and voyage-day-1 transition complete; Pirate affiliation; outside Seville | Entering the same eligible ordinary building            | **Confirmed:** 0 has no story dialogue; at 1 Emilio gives the harbor warning, five Spanish pursuit fleets are placed outside Seville, and the subsection advances |
-| 1,499 / 1,500 | Section 2, subsection 0; Andreas recruited; port ID below 42                                              | Entering the same non-Pub, non-Palace ordinary building | **Confirmed:** 1,499 has no story event; at 1,500 the João rumor plays and the Pub-search subsection begins                                                       |
-| 1,999 / 2,000 | Section 2, subsection 1; the 1,500-Fame rumor already complete                                            | Entering the same ordinary Pub                          | **Confirmed:** both play questioning dialogue; 1,999 repeats it on later visits, while 2,000 advances to section 3                                                |
+| Threshold | Active state                                                                                              | Result                                                                                                                                 |
+| --------: | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+|         1 | Section 1, subsection 0; mutiny and voyage-day-1 transition complete; Pirate affiliation; outside Seville | Emilio gives the harbor warning, five Spanish pursuit fleets are placed outside Seville, and the subsection advances.                  |
+|     1,500 | Section 2, subsection 0; Andreas recruited; port ID below 42                                              | An eligible non-Pub, non-Palace ordinary building reports that João is at sea and begins the Pub search.                               |
+|     2,000 | Section 2, subsection 1; the 1,500-Fame rumor already complete                                            | The Pub questioning dialogue still plays, but the route advances to section 3 instead of repeating on every subsequent eligible visit. |
 
 The 2,000 transition is visible through the following visits: after the first
 questioning scene, the next eligible building visit is silent and advances the
@@ -457,7 +438,7 @@ that Joao kid” reminder.
 | Early Fame gates   | Section 2 compares Piracy Fame with literals 1,500 and 2,000                                                                                         |
 | European search    | Port IDs 2–41; the Shipyard clue requires encoded time 04:20–17:00                                                                                   |
 | Perot destination  | `EB 10 00 14` followed by +3 selects port IDs 3–22                                                                                                   |
-| Perot waiting step | After the first destination-Pub visit, an `0xA3FF` building route—not the Pub route—plays the waiting scene; the Guild is runtime-confirmed          |
+| Perot waiting step | After the first destination-Pub visit, an `0xA3FF` building route—not the Pub route—plays the waiting scene at the next eligible ordinary building   |
 | Town search        | `EB 00 00 04` gives a one-in-four successful building search                                                                                         |
 | Massawa gate       | Piracy Fame ≥15,000 arms a wildcard informant route dispatched after the next naval victory; escape does not trigger it                              |
 | Final gate         | Voyage-day-5 route checks Piracy Fame ≥30,000                                                                                                        |

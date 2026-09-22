@@ -9,16 +9,16 @@ Resolved investigations belong in the [dialog-system guide](./README.md), the
 [reverse-engineering notes](./scripts/REVERSE_ENGINEERING.md), and the relevant
 game-detail page rather than remaining as full sections here.
 
-Literal threshold comparisons no longer need routine boundary testing.
-Repeated controlled tests have confirmed the decoded inclusive lower bounds.
-New runtime evidence is most useful for field lifecycle, presentation, or
+Literal threshold comparisons no longer need routine boundary testing; their
+inclusive lower bounds are decoded. New runtime evidence is most useful for
+field lifecycle, presentation, or
 executable behavior that cannot be settled from code and data.
 
 ## Current priorities
 
-1. **Complete ordinary executable dialogue.** Finish the remaining building
-   command handlers, then add command and submenu selections to the save-aware
-   query.
+1. **Audit command-level save queries.** Every ordinary building group now has
+   a resolver; remaining gaps are interactive controls, transient process
+   state, computed presentation, and random outcomes.
 2. **Complete reachable VM state and effect coverage.** Name the remaining
    action opcodes and game-record groups that can alter a selected route's
    result.
@@ -26,11 +26,25 @@ executable behavior that cannot be settled from code and data.
    save/load persistence, and intervening draws so executable-side random
    results can be predicted from a save when possible.
 
-The first item remains the largest gap between the save-aware query and the
-complete interaction the player sees. Ordinary entry greetings, access
-responses, and menus are now integrated. The recommended next research task is
-the House of Fortune and Lodge command handlers. This phase is static and does
-not require new saves or recordings.
+The first item is now a refinement phase. Entry greetings and menus,
+every regular-Harbor, Bank, Church/Mosque, and House of Fortune command, and
+Lodge Check In and Port Info are queryable. Supply-port Rename Port now accepts
+and validates a proposed name, and Item Shop Buy/Sell resolves local stock,
+inventory, prices, equipment, and the probabilistic counteroffer. The
+Guild now resolves prepared assignment rows and Country Info, and selecting a
+job executes its shared SNR0 offer. Collector, cartographer, and skill-teacher
+commands are also queryable. Palace queries now cover the ordinary ruler
+submenu, Defect availability, national documents, and royal Gold and Ship aid.
+Lodge Gossip and Pub Meet reconstruct the local sailor list and their shared
+Treat, Gossip, Hire, and Duel paths. The remaining Pub commands are also
+queryable: crew recruitment, Treat, waitress actions, and gambling resolve
+through their deterministic dialogue and stop explicitly at interactive
+crew-assignment, investigation, or minigame handoffs. Market queries now
+resolve local stock, prices, cargo limits, deterministic purchases and sales,
+price tables, and commercial investment. Shipyard queries resolve available
+new models and materials, repairs, ship-sale guards, Remodel routing and
+renaming, and industrial investment. Used-ship stock, price negotiations, and
+interactive ship-design or remodeling controls stop at explicit handoffs.
 
 ## 1. Ordinary `MESSAGE.DAT` and `MESSAGE2.DAT` dialogue
 
@@ -59,23 +73,25 @@ The Palace alone acknowledges its initial greeting before showing its menu.
 Church/Mosque and Market greetings demonstrate that some handlers compute the
 message index instead of embedding a literal operand.
 
-The Item Shop, Bank, Church/Mosque, Market, Pub, and Shipyard command handlers
-are mapped through their nested prompts and return behavior. This includes
-goods and ship trading, both investment paths, Pub crew and character
-interactions, waitress and gambling submenus, construction delivery, repairs,
-ship sales, and all four Remodel branches. The remaining uncertainty in these
-handlers is concentrated in dynamically assembled reports and in helper calls
-whose speaker or screen transition is not encoded in the message text.
+The Item Shop, Bank, Church/Mosque, Market, Pub, Shipyard, House of Fortune,
+Lodge, and Guild command handlers are mapped through their nested prompts and
+return behavior. This includes goods and ship trading, both investment paths,
+Pub crew and character interactions, waitress and gambling submenus,
+construction delivery, repairs, ship sales, all four Remodel branches, every
+fortune reading, Lodge rest and sailor interactions, the Lodge's
+national-Support display, Guild assignment selection, and the complete
+Country Info report. The remaining uncertainty in these handlers is
+concentrated in dynamically assembled reports and in helper calls whose
+speaker or screen transition is not encoded in the message text.
 
-The remaining ordinary command groups are Harbor, Lodge, Guild, House of
-Fortune, Palace, and special residences. The House of Fortune's Love command is
-decoded through its exact waitress-favor ranges, and Career through the exact
-Navigation/Battle experience thresholds documented in
-[levels.md](../game-details/levels.md); Life and Mates remain. The Palace
-admission and Defect paths, Guild Job Assignment dispatch,
-hostile-building precedence, collector rewards, and cartographer
-contracts/reports are already documented separately; they do not need to be
-rediscovered while the surrounding command handlers are traced.
+The Palace and special-residence command handlers are mapped. This covers
+the ordinary ruler audience and its Sphere of Influence, Letter of Marque, and
+Tax Free Permit submenu; Defect; royal Gold and Ship aid; collector contracts,
+discoveries, and rumors; all four cartographer commands; both skill teachers;
+and locked story residences. The Harbor is now mapped as well: Sail's fleet
+checks and departure transition, Supply's load/dump grid and price formulas,
+Moor's Store/Commission/Exchange record movement, local dock capacity, and the
+separate supply-port Rename Port path are decoded.
 
 For building actions, the save-aware query now selects the decoded ordinary
 greeting or access response and lists the visible main menu. It respects
@@ -84,46 +100,59 @@ routes that certainly suppress ordinary entry, and the Lodge's caller-side
 `F8` exception. It also reports hostile-country interception as unresolved
 when the continuously advancing general RNG prevents an exact result.
 
-### Unknown
+The query now accepts colon-separated command paths. It predicts Harbor Sail
+through its Yes/No departure choice; resolves Supply load/dump limits and
+quantities; follows Moor Store, Commission, and Exchange selections; selects
+and validates supply-port names; executes Item Shop purchases and deterministic
+sales; executes every Bank transaction and House of Fortune reading; executes
+Lodge Check In and Port Info; and resolves Church/Mosque Pray and Donate
+amounts. It reports the Item Shop counteroffer as probabilistic because the
+general gameplay RNG state is not saved. Unsupported commands are identified
+explicitly in the result. The query remains read-only: reported effects
+describe what the game would do and do not modify the supplied save.
 
-- The query interaction model names a building but not an ordinary menu command
-  or nested submenu selection. Command-level prediction will eventually need
-  those optional inputs.
-- The port-specialty substitution in the ordinary Pub greeting is not yet
-  resolved by the query.
-- Special residences are selected exactly for cartographers, but collector,
-  teacher, and story-residence occupants and menus still require executable
-  dispatch mapping.
-- Which arguments supply names, ports, goods, nations, prices, and other text
-  substitutions in the still-unmapped building handlers and composite reports.
-- How each caller selects an ordinary vendor, ruler, patron, guard, or other
-  executable-side speaker outside the mapped handlers.
-- Which messages in the remaining handlers return to a menu level, suppress a
-  menu, or end the interaction.
+Guild queries reconstruct the three persistent assignment rows, including
+duplicates, and route a selected row through the corresponding SNR0 offer
+table. Country Info renders the cached Profit, Friendship, Relations,
+alliance/blockade markers, target, and merchant-fleet destination. Special
+residence queries cover collector contracts, discovery turn-ins and Rumor;
+cartographer contracts, lessons, reports and treasure-map analysis; and both
+skill teachers. Collector Rumor remains probabilistic because it uses the
+general gameplay RNG.
 
-The semantic distinction between the two banks may not be one clean content
-category. The useful result is therefore a caller-level mapping, not merely a
-label for each file.
+### Remaining query coverage
+
+All ordinary building command groups now have save-aware resolvers. The
+remaining gaps are narrower interactive or process-state boundaries:
+
+- arguments for names, ports, goods, nations, prices, and other computed text;
+- executable-side speaker selection for rulers, patrons, guards, sailors, and
+  residence occupants where the caller, rather than the message, chooses it;
+- panel placement and menu continuation for helper-rendered screens; and
+- the random branches that use the unsaved or not-yet-located general RNG.
+
+The cartographer Locate result includes an executable-assembled location
+phrase after its ordinary messages. The query identifies the selected map,
+payment, and persistence effect, but does not yet reproduce that rendered
+phrase.
+
+Food, Lumber, and Shot prices at supply ports are a special process-state
+limitation. These ports reuse the last regular-port metadata pointer retained
+by the running executable. That previous pointer is not in the save; Water and
+every Dump operation remain exactly predictable.
 
 ### Next work
 
-1. Resume static command tracing in increasing order of scope:
-   - the remaining House of Fortune commands (Life and Mates) and Lodge;
-   - Guild;
-   - Palace and special residences; then
-   - Harbor, whose Sail, Supply, Moor, docked-ship, and departure paths form the
-     largest remaining building handler.
-2. Classify computed message indices, substitutions, speaker selection, and
-   continuation behavior as each handler is traced rather than as a separate
-   bank-wide pass.
-3. Resolve the Pub-specialty and non-cartographer residence selectors needed
-   to remove the remaining uncertainty from ordinary entry.
-4. Once those handlers are mapped, extend the query request with optional
-   command and submenu selections.
+1. Audit computed substitutions, speakers, panel placement, and menu
+   continuation across the completed command resolvers.
+2. Trace the general gameplay RNG and transient executable state needed for
+   used-ship stock, negotiations, rumors, and other probabilistic paths.
+3. Extend the query past interactive handoffs only where the following screen
+   is deterministic from explicit user inputs.
 
-House of Fortune and Lodge are the next recommended research phase. Runtime
-captures should be requested only when static tracing leaves speaker placement,
-menu continuation, or a conditional branch ambiguous.
+This phase is primarily static. Runtime captures are useful only when speaker
+placement, menu continuation, or a conditional branch remains ambiguous after
+tracing. Save pairs are not needed merely to revalidate decoded thresholds.
 
 ## 2. Remaining scenario-VM state and effects
 
@@ -141,8 +170,14 @@ particular:
 - `E6` adds gold;
 - `E7` deducts gold;
 - `EA` reads displayed gold ingots;
-- `EB` performs a bounded scenario-RNG draw; and
+- `EB` performs a bounded scenario-RNG draw;
+- `EC` restores the scenario RNG state from a scenario-variable checkpoint;
+  and
 - `EE` reads fleet free-cargo capacity.
+
+`EC <variable>` reads that 16-bit scenario variable, shifts it left by eight,
+and writes the resulting 32-bit value to the scenario RNG state. All six
+reachable occurrences are `EC 08` in shared Guild-assignment setup routes.
 
 The system-value selector range used by reachable scripts is now complete:
 
@@ -161,7 +196,7 @@ terminal outcomes.
 
 ### Unknown
 
-Eleven reachable action opcodes still lack gameplay names:
+Ten reachable action opcodes still lack gameplay names:
 
 | Opcode | Reachable occurrences | Initial lead                                 |
 | -----: | --------------------: | -------------------------------------------- |
@@ -170,7 +205,6 @@ Eleven reachable action opcodes still lack gameplay names:
 |   `D4` |                    18 | persistent state mutation                    |
 |   `D9` |                    16 | shared-mission/national state                |
 |   `E4` |                     2 | item or contract operation                   |
-|   `EC` |                     6 | shared Guild-assignment setup                |
 |   `ED` |                     5 | shared eligibility or title state            |
 |   `F4` |                     6 | one protagonist-specific use per scenario    |
 |   `F9` |                     7 | paired story-entity setup                    |
@@ -246,8 +280,8 @@ This runtime test is not yet needed; loader tracing should come first.
 The following no longer need entries in this tracker:
 
 - general-message bank loading, combined indices, and direct-call inventory;
-- entry greetings and command dialogue for Bank, Item Shop, Church/Mosque,
-  Market, Pub, and Shipyard;
+- static entry greetings and command-dialogue maps for all twelve building
+  types, including regular- and supply-port Harbor variants;
 - building-entry precedence, the Lodge `F8` exception, and access gates;
 - menu-command selectors for `Job Assignment`, `Treat`, and `Meet Ruler`;
 - ordinary building, voyage-day, battle, and Palace-audience route contexts;

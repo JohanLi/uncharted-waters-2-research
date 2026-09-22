@@ -31,7 +31,7 @@ SNR strings and generated files use the game's `$n` and `$s` placeholders.
 ## Query a save
 
 ```sh
-pnpm run query-dialog -- FILE SLOT ACTION
+pnpm run query-dialog -- FILE SLOT ACTION[:COMMAND[:SELECTION]]
 ```
 
 Examples:
@@ -40,6 +40,12 @@ Examples:
 pnpm run query-dialog -- raw/KOUKAI2.DAT 1 pub
 pnpm run query-dialog -- raw/KOUKAI2.DAT 1 special-building
 pnpm run query-dialog -- raw/KOUKAI2.DAT 1 at-sea
+pnpm run query-dialog -- raw/KOUKAI2.DAT 1 harbor:sail:yes
+pnpm run query-dialog -- raw/KOUKAI2.DAT 1 harbor:supply:load:1:food:20
+pnpm run query-dialog -- raw/KOUKAI2.DAT 1 harbor:moor:exchange:1:1:yes
+pnpm run query-dialog -- raw/KOUKAI2.DAT 1 bank:deposit:5000
+pnpm run query-dialog -- raw/KOUKAI2.DAT 1 church:donate:500
+pnpm run query-dialog -- raw/KOUKAI2.DAT 1 house-of-fortune:mates:yes:1
 ```
 
 The query never modifies the save. It symbolically executes the active
@@ -60,9 +66,37 @@ and sailor records are modeled for storyline affiliation and Fame gates. The
 calendar-day source used by Catalina's Lucia sequence is also resolved, so its
 same-day and after-midnight paths no longer appear as ambiguous alternatives.
 
-The query does not yet accept ordinary menu commands or nested submenu
-selections. Pub-specialty substitution and non-cartographer special-residence
-selection also remain unresolved.
+Building actions can include colon-separated ordinary command selections. The
+save-aware resolvers cover all Harbor and Bank commands, supply-port Rename
+Port, Lodge Check In and Port Info, Church/Mosque Pray and Donate amounts, and
+all four House of Fortune readings. Guild, Palace, collector, cartographer,
+and skill-teacher commands are also resolved. Supply paths use
+`supply:load|dump:SHIP:RESOURCE[:QUANTITY]`; Moor paths use
+`moor:store|commission:SHIP[:yes|no]` or
+`moor:exchange:ACTIVE_SHIP:DOCKED_SHIP[:yes|no]`. Ship numbers are one-based
+positions in the displayed list. Bank commands accept an optional amount.
+Fortune readings use `life|career|love:yes|no`; Mates additionally accepts a
+one-based employed-mate selector. Palace paths include
+`meet-ruler:sphere-of-influence`, `meet-ruler:letter-of-marque`,
+`meet-ruler:tax-free-permit:yes[:yes|no]`, `defect:yes|no`, `gold`, and
+`ship:NAME`. Pub and Lodge sailor paths use
+`meet|gossip:SAILOR:treat|gossip|hire|duel[:yes|no]`. Pub also supports
+`recruit-crew[:yes]:AMOUNT`, `dismiss-crew`, `treat:BOTTLES`,
+`waitress[:COMMAND[:SELECTION]]`, and `gamble:black-jack|dice`. Market paths use
+`buy-goods:GOODS:SHIP:LOTS:yes`, `sell-goods:SHIP:GOODS:LOTS`,
+`invest:AMOUNT`, or `market-rate`. Shipyard paths use
+`new-ship[:MODEL[:MATERIAL]]`, `used-ship`, `repair:SHIP:yes|no`,
+`sell:SHIP`, `remodel:SUBCOMMAND[:SHIP[:VALUE]]`, or `invest:AMOUNT`.
+Ship numbers and model or goods numbers are one-based positions in their
+displayed lists; names can be used instead.
+
+At supply ports, priced loading cannot be reconstructed from a save alone:
+the executable reuses a regular-port metadata pointer retained in process
+memory. Water loading and every dump operation remain exactly resolvable.
+
+Pub greetings and Treat commands resolve the port's stored specialty and
+price. Collector, cartographer, skill-teacher, and locked story residences are selected by port, including
+their persistent contract-dependent greetings.
 
 Run `pnpm run query-dialog -- --help` for all actions.
 

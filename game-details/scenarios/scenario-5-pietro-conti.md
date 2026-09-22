@@ -33,12 +33,8 @@ The seller initially asks 2,000 gold. Refusing produces a 1,000-gold
 counteroffer, so 2,000 is neither an activation threshold nor necessarily the
 final price. Harbor possession checks later advance the section.
 
-Controlled 9,999/10,000-gold captures isolate this boundary with zero Adventure
-Fame. Both are in Madeira at 13:40, in section 1/subsection 0, with two occupied
-item slots and eighteen empty slots. The save-aware executor rejects 9,999 and
-reaches message 109, “Ye’re $n, the adventurer, right?”, at 10,000. Runtime
-testing confirms the same split: 9,999 leaves the Pub behaving normally, while
-10,000 triggers the Golden Medallion dialogue.
+At 9,999 gold the Pub behaves normally; at 10,000 it reaches message 109,
+“Ye’re $n, the adventurer, right?”, and begins the Golden Medallion dialogue.
 
 ### 2: Poseidon's Staff
 

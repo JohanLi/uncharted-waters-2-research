@@ -10,6 +10,10 @@ Each waitress has her own favor value. All 29 values start at **0**, are stored
 independently, and are capped at **100**. Raising one waitress's favor does not
 affect another.
 
+The saved table begins at slot-relative `0x1BB2` and contains 29 records of 16
+bytes. Each record stores the waitress's null-terminated name at `+0x00`, port
+ID at `+0x0B`, favor at `+0x0C`, and preference/eligibility flags at `+0x0F`.
+
 |  ID | Name      | Port           | Preference  | Investigation threshold | House of Fortune |
 | --: | --------- | -------------- | ----------- | ----------------------: | :--------------: |
 | 100 | Lucia     | Lisbon         | Everything  |                      40 |        No        |

@@ -33,8 +33,8 @@ has already been armed.
 ### 3: optional gold frigate
 
 At 20,000 Piracy Fame, Pietro can describe a Spanish frigate carrying gold out
-of Veracruz. Runtime observation confirms that this scene is fully optional,
-skippable, and easy to miss. It is not a prerequisite for the Armada campaign.
+of Veracruz. This scene is fully optional, skippable, and easy to miss. It is
+not a prerequisite for the Armada campaign.
 
 ### 4: Armada campaign
 

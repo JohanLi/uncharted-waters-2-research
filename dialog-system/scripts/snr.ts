@@ -609,6 +609,7 @@ const ACTION_MNEMONICS = new Map<number, string>([
   [0xe9, "prompt-choice"],
   [0xea, "read-gold-ingots"],
   [0xeb, "random"],
+  [0xec, "restore-random-state"],
   [0xee, "read-free-cargo-capacity"],
   [0xf0, "advance-subsection-on-return"],
   [0xf1, "advance-section-on-return"],

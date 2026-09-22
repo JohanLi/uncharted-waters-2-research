@@ -192,7 +192,8 @@ The port ID is an implicit record index. The first record is port `0`, and
 each subsequent record increments the ID by one. The display records begin at
 `DATA1.015` offset `0x4F3E` and are 20 bytes each. The regular-port metadata
 records begin at offset `0x5966` and are 37 bytes each; there are 100 of these
-records.
+records. Each save slot also contains its mutable copy of the 37-byte table at
+slot-relative `0x5966`; investment and other economic changes persist there.
 
 ### 20-byte port display record
 
@@ -204,17 +205,26 @@ Offsets are relative to the start of a port's 20-byte record:
 | `+0x04`        |  2 bytes | Latitude / Y  | little-endian `u16`                                                    |
 | `+0x06..+0x13` | 14 bytes | Port name     | null-terminated string                                                 |
 
-### 37-byte regular-port metadata record
+### Saved 37-byte regular-port metadata record
 
 Offsets are relative to the start of a regular port's 37-byte metadata record:
 
-| Offset         |    Size | Field                       | Encoding                                                                        |
-| -------------- | ------: | --------------------------- | ------------------------------------------------------------------------------- |
-| `+0x02`        | 2 bytes | Economy                     | little-endian `u16`                                                             |
-| `+0x06`        | 2 bytes | Industry                    | little-endian `u16`                                                             |
-| `+0x0A..+0x0F` | 6 bytes | Allegiance / support values | one byte per nation, in order: Portugal, Spain, Turkey, Italy, England, Holland |
-| `+0x1E`        |  1 byte | Region ID                   | stored zero-based; displayed as `byte + 1`                                      |
-| `+0x1F..+0x21` | 3 bytes | Regular shop items          | item IDs; stored zero-based, with `0xFF` meaning unused                         |
-| `+0x22`        |  1 byte | Secret shop item            | item ID; stored zero-based, with `0xFF` meaning unused                          |
-| `+0x23`        |  1 byte | Market ID                   | stored zero-based; displayed as `byte + 1`                                      |
-| `+0x24`        |  1 byte | Industry ID                 | stored zero-based; displayed as `byte + 1`                                      |
+| Offset         |     Size | Field                        | Encoding                                                                        |
+| -------------- | -------: | ---------------------------- | ------------------------------------------------------------------------------- |
+| `+0x02`        |  2 bytes | Economy                      | little-endian `u16`                                                             |
+| `+0x06`        |  2 bytes | Industry                     | little-endian `u16`                                                             |
+| `+0x0A..+0x0F` |  6 bytes | Allegiance / support values  | one byte per nation, in order: Portugal, Spain, Turkey, Italy, England, Holland |
+| `+0x10..+0x19` | 10 bytes | Market category rates        | the displayed price index is the stored byte plus 50                            |
+| `+0x10`        |   1 byte | Food and Shot price modifier | also reused by the Harbor Supply formulas                                       |
+| `+0x17`        |   1 byte | Lumber price modifier        | also reused by the Harbor Supply formula                                        |
+| `+0x1A`        |  2 bytes | Specialty base price         | little-endian `u16`                                                             |
+| `+0x1C`        |   1 byte | Specialty goods ID           | zero-based; `0xFF` means none                                                   |
+| `+0x1D`        |   1 byte | Specialty Economy threshold  | stored in units of 10 Economy                                                   |
+| `+0x1E`        |   1 byte | Region ID                    | stored zero-based; displayed as `byte + 1`                                      |
+| `+0x1F..+0x21` |  3 bytes | Regular shop items           | item IDs; stored zero-based, with `0xFF` meaning unused                         |
+| `+0x22`        |   1 byte | Secret shop item             | item ID; stored zero-based, with `0xFF` meaning unused                          |
+| `+0x23`        |   1 byte | Market ID                    | stored zero-based; displayed as `byte + 1`                                      |
+| `+0x24`        |   1 byte | Industry ID                  | stored zero-based; displayed as `byte + 1`                                      |
+
+The price modifiers and their exact use are documented under
+[Supply](buildings.md#supply).

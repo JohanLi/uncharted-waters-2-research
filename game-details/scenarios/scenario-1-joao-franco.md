@@ -82,10 +82,6 @@ points toward the intended sequence.
    Rocco discovers the stowaway who calls himself Domingo; the scene advances
    the scenario to section 1.
 
-A minimal live run confirmed that João can depart with the Item Shop's rapier
-unclaimed, the tiara still unsold, and Enrico's bookkeeping offer declined;
-Domingo still appears normally on voyage day 3.
-
 ### Lisbon building behavior during preparation
 
 | Building                                 | Story behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -117,7 +113,7 @@ timestamps.
 
 | Stage             | Required action                                                                                   | What changes                                                                                                                                                      |
 | ----------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Arm the event     | With at least 2,000 Adventure Fame, visit any regular port's **Harbor**.                          | **Confirmed:** subsection 0 advances silently. Fame is latched; lowering it afterward does not cancel the event.                                                  |
+| Arm the event     | With at least 2,000 Adventure Fame, visit any regular port's **Harbor**.                          | Subsection 0 advances silently. Fame is latched; lowering it afterward does not cancel the event.                                                                 |
 | Hear the rumor    | Enter a **Pub** from 08:00 through 17:00 in a port other than Lisbon, Seville, or Istanbul.       | Rocco reports Prince Alberto's disappearance, notices Domingo is missing, and suggests the Lodge. Flag 0 is set.                                                  |
 | Look for Domingo  | Optionally visit the **Lodge**, then visit the **Shipyard** in the same or another eligible port. | The Lodge clue sets flag 8 but is not required. The Shipyard confrontation, duel, and Catalina's intervention set flag 1 and clear flag 0.                        |
 | Learn the truth   | Visit the **Harbor**.                                                                             | Rocco identifies Catalina; Domingo reveals that he is Prince Alberto and explains the plot against Duke Franco. The story advances to the Lisbon-return substage. |
@@ -154,9 +150,8 @@ trigger.
 ### Catalina's pursuit
 
 1. With at least 8,000 Adventure Fame, enter an ordinary building in any
-   regular port. **Confirmed:** this silently advances subsection 0 to 1. If
-   the triggering building is a Pub, another Pub visit is needed for the next
-   scene.
+   regular port. This silently advances subsection 0 to 1. If the triggering
+   building is a Pub, another Pub visit is needed for the next scene.
 2. Enter any **Pub**. A patron warns João that Catalina is searching for him,
    and the scenario remembers that Pub's port.
 3. Enter another eligible building. The warning differs depending on whether
@@ -248,8 +243,7 @@ search. They do not replace the Basra and Istanbul interactions.
 
 ## Section 3: Massawa and Poseidon's Staff (16,000 Fame)
 
-This is the longest section in the scenario. Its main path is **decoded**, and
-the calendar delay has been tested across a normal month boundary.
+This is the longest section in the scenario. Its main path is **decoded**.
 
 ### From Ali's clue to Pietro's search
 
@@ -285,13 +279,10 @@ true:
   the **11th or later**.
 
 The earliest possible progression is therefore the **11th of the following
-calendar month**. This is not a wait of one month plus ten days. For example, a
-timer initialized on January 10 still rejected the special-building visit on
-February 10, then advanced subsection 6 to subsection 7 on February 11. The
-before/after saves retained the same target-month value throughout this test.
-The combined year/month calculation also handles a December-to-January rollover
-without a special case: December's saved target and the following January both
-evaluate to `(year + 1) * 12`.
+calendar month**. This is not a wait of one month plus ten days. The combined
+year/month calculation also handles a December-to-January rollover without a
+special case: December's saved target and the following January both evaluate
+to `(year + 1) * 12`.
 
 When that calendar gate has passed, the remaining route is:
 
@@ -328,13 +319,7 @@ special `0x40` state). The four Turkish Merchant Fleets, IDs `21`–`24`, are no
 included.
 
 The setup does **not** rebuild ship slots or restore their current durability.
-This was tested with all five military fleets destroyed before the scene: the
-script still reactivated and positioned all five fleet sprites, and they could
-still pursue and catch João, but they moved extremely slowly. Their fleet-info
-screens reported an anomalous speed of **124 knots**, despite the normal
-20-knot cap; their actual map movement did not match that displayed value. A
-battle against one of these empty fleets ended immediately after João performed
-any action. Thus prior destruction does not prevent the invasion routes from
+Prior destruction therefore does not prevent the invasion routes from
 appearing, but it produces active empty fleets rather than regenerated Turkish
 ships.
 
@@ -358,9 +343,7 @@ encounters can supply the two successive battles.
 After the second qualifying battle, `0x2879–0x28B9` loops over the same five
 fleets and writes objective `0`, argument `2`, and flags `0x01`: all five remain
 active but are released from special pursuit and sent toward their Turkish home
-port. In the supplied post-departure save, all five had objective `7`, targeted
-João, and were clustered around his fleet, while the merchant fleets retained
-their ordinary assignments.
+port.
 
 Pietro's handoff scans João's twenty inventory slots in order. An unused slot
 contains `0xFF`; when the scan finds one, it writes raw item ID `0x62`
@@ -369,11 +352,7 @@ runs off the end with the twentieth slot's former item ID still selected. The
 game uses that ID for `$r03` in “the Staff for the ...” dialogue and overwrites
 the **twentieth inventory slot** with `0x62`.
 
-Controlled saves confirmed both paths. With only slot 20 empty, it changed from
-`0xFF` to `0x62`. With a full ascending test inventory, slot 20's Chain Mail was
-named and replaced; reversing the same items caused slot 20's Dagger to be named
-and replaced instead. Equipped items are not protected: an equipped Dagger in
-slot 20 was also exchanged for the Staff. No choice prompt, item-value test, or
+Equipped items are not protected. No choice prompt, item-value test, or
 special-item protection is involved.
 
 ## Section 4: taking Enrico to Nagasaki (30,000 Fame)
@@ -406,8 +385,7 @@ request.
     João cannot leave Lisbon without Enrico, however, and Enrico's Section-0
     recruitment route at `SNR1.DAT 0x05A7–0x05C3` reads field `+0x13` through
     VM table `0x0C`, ORs it with `0x20`, and writes it back for both ports:
-    `0x06 | 0x20 = 0x26`. All supplied pre-30,000 João saves contain `0x26` for
-    Sakai and Nagasaki. Thus, in an ordinary playthrough, both are unavailable
+    `0x06 | 0x20 = 0x26`. Thus, in an ordinary playthrough, both are unavailable
     for the whole period in which João is first able to sail.
 
     The 30,000-Fame Pub scene reverses this at `SNR1.DAT 0x2D36–0x2D52`. For
@@ -528,12 +506,11 @@ made to target João. The scenario places all nine regular pirate fleets, IDs
 therefore does not spawn alone: he is the first fleet in a ten-fleet pirate
 block concentrated at one point.[^finale-fleet-code]
 
-Save comparison confirms the transition: before the Ezequiel encounter, the
-five Spanish fleets have objective `7`; afterward, they remain close to João
-with objective `10`. Rudolph and fleet IDs `61–69` then occupy the same fixed
+After the Ezequiel encounter, the five Spanish fleets change from objective
+`7` to objective `10`. Rudolph and fleet IDs `61–69` occupy the same fixed
 position near Neo-Atlantis with objective `7`, target sailor `0`, and active
 flags. Their cached navigation target is João's position when the
-post-Ezequiel reconfiguration ran.
+post-Ezequiel reconfiguration runs.
 
 This is the same broad mechanism as the Turkish pursuit at Massawa: the
 scenario repurposes existing fleet records and changes their position,
