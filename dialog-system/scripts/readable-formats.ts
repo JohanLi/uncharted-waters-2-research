@@ -178,11 +178,16 @@ function renderSectionMarkdown(section: ScenarioSection): string[] {
 
   if (section.duelStartCandidates.length > 0) {
     lines.push(
-      "### Duel-start candidates",
+      "### Duel starts",
       "",
+      "| Offset | Opponent sailor ID | Bytes |",
+      "| ---: | ---: | --- |",
       section.duelStartCandidates
-        .map((candidate) => hex(candidate.offset))
-        .join(", "),
+        .map(
+          (candidate) =>
+            `| ${hex(candidate.offset)} | ${candidate.opponentSailorId} | \`${candidate.rawHex.toUpperCase()}\` |`,
+        )
+        .join("\n"),
       "",
     );
   }

@@ -166,6 +166,7 @@ export interface ScenarioSection {
   }[];
   readonly duelStartCandidates: readonly {
     offset: number;
+    opponentSailorId: number;
     rawHex: string;
   }[];
   readonly eventArtCandidates: readonly {
@@ -1107,12 +1108,12 @@ export function disassembleScenario(
       if (instruction.opcode === 0xc4)
         sceneBreakCandidates.push({ offset: cursor, rawHex: "c4" });
 
-      if (
-        cursor + 1 < endOffset &&
-        instruction.opcode === 0xe8 &&
-        dat[cursor + 1] === 0x3c
-      )
-        duelStartCandidates.push({ offset: cursor, rawHex: "e83c" });
+      if (cursor + 1 < endOffset && instruction.opcode === 0xe8)
+        duelStartCandidates.push({
+          offset: cursor,
+          opponentSailorId: dat[cursor + 1]!,
+          rawHex: dat.subarray(cursor, cursor + 2).toString("hex"),
+        });
 
       if (
         cursor + 7 < endOffset &&
