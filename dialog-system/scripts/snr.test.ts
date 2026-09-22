@@ -336,8 +336,22 @@ test("disassembles João's building dialogue and one-shot state writes", async (
     ],
   );
   assert.deepEqual(
-    princeKidnapping.duelStartCandidates.map((candidate) => candidate.offset),
-    [0x0ca6, 0x0fff],
+    princeKidnapping.duelStartCandidates.map(
+      ({ offset, opponentSailorId, rawHex }) => [
+        offset,
+        opponentSailorId,
+        rawHex,
+      ],
+    ),
+    [
+      [0x0ca6, 60, "e83c"],
+      [0x0fff, 60, "e83c"],
+    ],
+  );
+  const otto = await readScenario(3);
+  assert.deepEqual(
+    otto.sections.flatMap((section) => section.duelStartCandidates),
+    [{ offset: 0x0284, opponentSailorId: 75, rawHex: "e84b" }],
   );
   assert.deepEqual(
     princeKidnapping.eventArtCandidates.find(

@@ -834,11 +834,26 @@ the timed all-black interval.
 
 ## Duel and event-art evidence
 
-The sequence `E8 3C` occurs at `0x0CA6` immediately after the shipyard
-confrontation and before the win/loss branches. It occurs again at `0x0FFF`
-immediately before the second duel in João's home, plus two other scenario
-locations. It is therefore emitted as a `duelStartCandidate`; its operands and
-the following result-branch instructions remain unresolved.
+`E8 <sailor ID>` starts a duel against the specified sailor. The VM handler at
+`MAIN.EXE 0x38E66` reads the operand and passes it to the duel setup routine.
+Five reachable protagonist-scenario instructions use it:
+
+| Scenario | Duel                            |              Instruction |
+| -------- | ------------------------------- | -----------------------: |
+| João     | Shipyard confrontation          | `SNR1.DAT 0x0CA6: E8 3C` |
+| João     | Franco-home confrontation       | `SNR1.DAT 0x0FFF: E8 3C` |
+| João     | South American Pub rescue       | `SNR1.DAT 0x32F4: E8 3C` |
+| Catalina | South American Pub rescue       | `SNR2.DAT 0x2965: E8 3C` |
+| Otto     | London Pub meeting with Matthew | `SNR3.DAT 0x0284: E8 4B` |
+
+The four `3C` operands select sailor 60, Antonio Khan's record; João's later
+Pub scene presents that same record as Pirate Rudolph. `4B` selects sailor 75,
+Matthew Loy. After `E8` returns, the scripts read system-value selector 6,
+the duel balance at `DS:0xA0A4`, and compare it with thresholds to choose
+subsequent dialogue. The balance starts at 100, remains in the range 0–200,
+and ends the duel at either endpoint. The extractor records all five calls as
+`duelStartCandidates`. Combat rules and the circumstances of each encounter
+are documented in [Dueling](../../game-details/dueling.md).
 
 Immediately before message 293, the scenario executes:
 

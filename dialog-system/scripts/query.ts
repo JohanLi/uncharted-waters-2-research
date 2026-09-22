@@ -990,7 +990,7 @@ function executeRoute(
       state.effects.push(`play music track ${bytes[1]}`);
     else if (instruction.opcode === 0xc4) state.effects.push("scene break");
     else if (instruction.opcode === 0xe8)
-      state.effects.push(`start duel (operand ${hex(bytes[1]!, 2)})`);
+      state.effects.push(`start duel against sailor ${bytes[1]}`);
     else if (instruction.opcode === 0xcb)
       state.effects.push(
         `show EVENT${scenario.scenarioId}.DAT record ${bytes[5]} at (${bytes.readUInt16BE(1)}, ${bytes.readUInt16BE(3)})`,

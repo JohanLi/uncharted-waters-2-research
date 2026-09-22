@@ -379,21 +379,21 @@ For example, João's message 310 uses `E9 10` and records the answer in flag 16.
 
 The following operations matter when describing what the player experiences:
 
-| Form                          | Status              | Effect                                                             |
-| ----------------------------- | ------------------- | ------------------------------------------------------------------ |
-| `C4`                          | **Confirmed**       | Clear both scenario dialogue panels with a horizontal closing wipe |
-| `CA <track>`                  | **Confirmed**       | Select background-music track                                      |
-| `CB <x:u16> <y:u16> <index>`  | **Decoded**         | Draw a zero-based record from the protagonist's `EVENTn.DAT` file  |
-| `E8 <operand>`                | **Likely/observed** | Start a duel; operand meaning is not fully decoded                 |
-| `E9 <flag>`                   | **Confirmed**       | Present a choice and store its result in a scenario flag           |
-| `EB <variable> <bound:u16be>` | **Decoded**         | Store a random value from zero through `bound - 1`                 |
-| `2C <flag> <value>`           | **Confirmed**       | Write a persistent scenario flag                                   |
-| `AC` / `AD`                   | **Decoded**         | Branch according to whether a scenario flag is set/clear           |
-| `FE <destination>`            | **Decoded**         | Unconditional jump                                                 |
-| `F0`                          | **Decoded**         | Advance subsection after the interpreter returns                   |
-| `F1`                          | **Decoded**         | Advance section, reset subsection, and clear scenario flags        |
-| `F2`                          | **Decoded**         | Stop scenario interpretation                                       |
-| `F8`                          | **Confirmed**       | Suppress the normal building menu and force the player outside     |
+| Form                          | Status        | Effect                                                             |
+| ----------------------------- | ------------- | ------------------------------------------------------------------ |
+| `C4`                          | **Confirmed** | Clear both scenario dialogue panels with a horizontal closing wipe |
+| `CA <track>`                  | **Confirmed** | Select background-music track                                      |
+| `CB <x:u16> <y:u16> <index>`  | **Decoded**   | Draw a zero-based record from the protagonist's `EVENTn.DAT` file  |
+| `E8 <sailor ID>`              | **Decoded**   | Start a duel against the specified sailor                          |
+| `E9 <flag>`                   | **Confirmed** | Present a choice and store its result in a scenario flag           |
+| `EB <variable> <bound:u16be>` | **Decoded**   | Store a random value from zero through `bound - 1`                 |
+| `2C <flag> <value>`           | **Confirmed** | Write a persistent scenario flag                                   |
+| `AC` / `AD`                   | **Decoded**   | Branch according to whether a scenario flag is set/clear           |
+| `FE <destination>`            | **Decoded**   | Unconditional jump                                                 |
+| `F0`                          | **Decoded**   | Advance subsection after the interpreter returns                   |
+| `F1`                          | **Decoded**   | Advance section, reset subsection, and clear scenario flags        |
+| `F2`                          | **Decoded**   | Stop scenario interpretation                                       |
+| `F8`                          | **Confirmed** | Suppress the normal building menu and force the player outside     |
 
 ### Music and clearing example
 
