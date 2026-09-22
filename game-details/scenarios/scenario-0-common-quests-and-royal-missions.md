@@ -28,11 +28,23 @@ affect:
 - [Trade Fame](../fame/trade-fame.md#guild-assignments)
 - [Piracy Fame](../fame/piracy-fame.md#guild-assignments)
 
+## Guild job list
+
+When the shared scenario is idle, a European Guild at port ID 0–41 prepares
+three assignment rows with three independent `random(5)` draws. Values 0–4
+select Transport Goods, Buy Goods, Deliver Letter, Defeat Pirates, and Collect
+Debt respectively. Duplicate rows are therefore possible. At port IDs 42 and
+above, all three rows are Deliver Letter.
+
+Choosing one row maps its selector to shared section 1–5 and invokes the offer
+through Guild context `0x06`. Rejecting returns to the same list; accepting
+returns to the Guild's main menu with that section active. The executable
+command flow and active-assignment reminders are documented in
+[buildings.md](../buildings.md#guild-command-dialogue).
+
 ## Transport Goods
 
-Transport Goods is section 1 of the shared scenario. The complete low-rank
-runtime sequence is now confirmed, and its calculations are decoded from the
-bytecode.
+Transport Goods is section 1 of the shared scenario.
 
 ### Offer and activation
 
@@ -60,9 +72,9 @@ by 8, divides by 10 with integer truncation, and caps the offer at that value:
 offered lots = min(base quantity, floor(free cargo capacity × 8 / 10))
 ```
 
-This leaves some capacity for provisions. In the controlled near-full case,
-two internal cargo units free become an offer of one lot. If the capped result
-is zero, the trader says there is no room and does not offer the contract.
+This leaves some capacity for provisions. Two internal cargo units free become
+an offer of one lot. If the capped result is zero, the trader says there is no
+room and does not offer the contract.
 
 Rank controls the deadline, payment, and Trade Fame award:
 
@@ -98,8 +110,8 @@ Trade Fame, and resets the shared scenario to section/subsection `0/0`.
 ### Building exit behavior
 
 The bytecode explicitly uses `F8` after accepting or rejecting the cargo offer,
-after the active progress/give-up paths, and after a partial delivery, matching
-the observed return to the street. The zero-capacity response, successful
+after the active progress/give-up paths, and after a partial delivery, returning
+the player to the street. The zero-capacity response, successful
 destination delivery, and final payment paths do not contain that `F8`. This
 distinction is useful for separating scenario-requested ejection from any
 additional menu behavior in the surrounding Market code.
@@ -141,24 +153,20 @@ For a character whose current stored rank is `r`, this is equivalently
 | Marquis       |            8 | Duke       |                40,500 |
 
 The executable also contains a `40,000` value in its title table, but that value
-does not govern royal-mission eligibility. Live testing confirms the square
-formula used by Scenario 0: at Marquis rank, neither Harbor nor Treat announces
-the ruler's invitation at 40,000 highest Fame, while both do at **40,500**.
-Therefore 40,500 is the effective requirement for promotion to Duke.
+does not govern royal-mission eligibility. The Scenario 0 square formula makes
+**40,500** the effective requirement for promotion from Marquis to Duke.
 
 The decoded gate also rejects stored rank 9, so Duke is the highest title and
 there is no further promotion. It rejects the pirate nation/group (`6`) as
-well. Live testing confirms that a protagonist belonging to the Pirates never
-receives the ruler-is-looking-for-you message. Pirates therefore cannot become
-eligible for a royal mission, regardless of Fame.
+well, so Pirates cannot become eligible for a royal mission regardless of
+Fame.
 
 ### Ties between Fame types
 
 The maximum-finding loop replaces the current winner when the next Fame value
 is equal, not only when it is greater. Because it scans Trade, then Piracy,
 then Adventure, the priority is **Adventure, then Piracy, then Trade**. This is
-both decoded and confirmed in live play: equal values in all three Fame fields
-produce the Adventure mission family.
+fully determined by the decoded scan order.
 
 Examples:
 
@@ -197,8 +205,8 @@ with dialogue such as:
 
 > Wow, you, [name], will buy me the pub's specialty? I'm delighted!
 
-The patron then reports that the ruler "is looking for you." Runtime testing
-confirms that this sequence arms the royal mission just like a Harbor visit.
+The patron then reports that the ruler "is looking for you." This sequence
+arms the royal mission just like a Harbor visit.
 
 #### Behind the scenes: Treat arming
 
@@ -254,42 +262,11 @@ currently decoded SNR0 flag writes.
 Only Amsterdam, Genoa, Istanbul, Lisbon, London, and Seville contain a Palace.
 See [buildings](../buildings.md#port-availability).
 
-### Controlled save-state evidence
-
-A controlled comparison captured Otto in London immediately before and after
-visiting the Harbor:
-
-| Field                |           Before Harbor |            After Harbor |
-| -------------------- | ----------------------: | ----------------------: |
-| Trade Fame           |                   8,000 |                   8,000 |
-| Piracy Fame          |                       0 |                       0 |
-| Adventure Fame       |                       0 |                       0 |
-| Character scenario   | section 0, subsection 1 | section 0, subsection 1 |
-| Shared SNR0 scenario | section 0, subsection 0 | section 0, subsection 0 |
-| Shared SNR0 flags    |            `0x00010000` |            `0x00030000` |
-
-The shared scenario state starts at slot-relative offset `0x00BA`; its flags
-are the little-endian 32-bit value at `0x00BC`. Therefore:
-
-- the pre-Harbor state has flag 16 set and flag 17 clear;
-- the post-Harbor state retains flag 16 and adds flag 17; and
-- none of Otto's Fame values changes.
-
-The protagonist-specific scenario state at `0x0030` is byte-for-byte unchanged.
-Two shared VM work variables also change as the Harbor handler runs. The
-remaining differences are the expected clock, town-position, and moving
-fleet/NPC changes caused by forty minutes of play. The persistent SNR0 control
-change is the addition of shared flag 17; neither scenario's section or
-subsection advances yet.
-
-A second controlled comparison around Pub Treat produced the identical shared
-flag transition, `0x00010000 → 0x00030000`. Otto's Fame and both scenario
-section/subsection pairs remained unchanged. This confirms that completing
-Treat adds flag 17 just as visiting the Harbor does.
-
 Every royal mission section (6–12) begins with the same Palace gate: it checks
 flag 17, clears it, sets flag 18, and advances to the mission-offer subsection.
-That repeated check connects the save change directly to royal-mission arming.
+Harbor and Pub Treat arming set flag 17 without changing Fame or advancing a
+scenario section. The shared scenario state begins at slot-relative `0x00BA`,
+and its little-endian flags word begins at `0x00BC`.
 
 ## How the mission family is chosen
 
@@ -403,7 +380,7 @@ changes the next refreshed result; changing navigation level or experience can
 change it too. Merely visiting the Palace at a different time on the same day
 does not refresh or alter the cached candidate.
 
-A controlled Adventure-tie sequence illustrates the calculation:
+An Adventure-tie example illustrates the calculation:
 
 | Date         |         Seed |                       Random value(s) | Resulting section              |
 | ------------ | -----------: | ------------------------------------: | ------------------------------ |
@@ -422,16 +399,15 @@ Every royal mission promises a new title. The success paths invoke the same
 title-award operation and the dialogue announces the new title. The supported
 player-facing rule is therefore:
 
-- **Confirmed/decoded:** completing a royal mission raises the stored rank by
-  one title.
+- **Decoded:** completing a royal mission raises the stored rank by one title.
 - **Decoded:** royal missions do not award ordinary Fame; their principal
   reward is the promotion. Diplomatic missions can separately change national
   Relations.
-- **Confirmed/decoded:** rejecting an offered mission, or later telling the
+- **Decoded:** rejecting an offered mission, or later telling the
   ruler that you are giving up, divides each of Trade, Piracy, and Adventure
   Fame by two. This is a much more serious consequence than simply losing the
   invitation.
-- **Confirmed/decoded:** losing one's title through the same-nation naval
+- **Decoded:** losing one's title through the same-nation naval
   **shame** or **exile** branch also cancels an active royal mission, resets the
   shared scenario to section/subsection `0/0`, and clears shared flags 16–18.
   This automatic cancellation does **not** use the refusal/give-up penalty and
@@ -477,6 +453,3 @@ discards any remainder. Fame therefore rounds down for positive odd values:
 - `MESSAGE.DAT` message 932: the generic "[ruler] is looking for you" report.
 - `MESSAGE.DAT` message 576: commoner Palace admission for a royal audience.
 - `DATA1.016` and `DATA1.017`: the nine displayed title names.
-- Controlled Harbor and Pub Treat save comparisons: both change the shared
-  flags from `0x00010000` to `0x00030000` without changing Fame or scenario
-  progression.

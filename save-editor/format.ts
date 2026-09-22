@@ -53,6 +53,10 @@ export const GOLD_MAX = 0xffffff;
 export const CARTOGRAPHER_TABLE = 0x1a3a;
 export const CARTOGRAPHER_RECORD_SIZE = 24;
 export const CARTOGRAPHER_COUNT = 5;
+export const COLLECTOR_TABLE =
+  CARTOGRAPHER_TABLE - CARTOGRAPHER_RECORD_SIZE * CARTOGRAPHER_COUNT;
+export const COLLECTOR_RECORD_SIZE = CARTOGRAPHER_RECORD_SIZE;
+export const COLLECTOR_COUNT = 5;
 const CARTOGRAPHER_NAME_SIZE = 19;
 const CARTOGRAPHER_CONTRACT_FLAGS = 0x16;
 const CARTOGRAPHER_PORT = 0x17;
@@ -288,6 +292,22 @@ export function inspectCartographers(data: Buffer, slot: number) {
       activeContract: (flags & ACTIVE_CARTOGRAPHER_CONTRACT) !== 0,
       rewardModifier,
       goldPerChartCell: 20 * (5 - rewardModifier),
+    };
+  });
+}
+
+export function inspectCollectors(data: Buffer, slot: number) {
+  validate(data);
+  const start = slotOffset(slot) + COLLECTOR_TABLE;
+  return Array.from({ length: COLLECTOR_COUNT }, (_, index) => {
+    const offset = start + index * COLLECTOR_RECORD_SIZE;
+    const flags = data[offset + CARTOGRAPHER_CONTRACT_FLAGS]!;
+    return {
+      index,
+      name: cstring(data.subarray(offset, offset + CARTOGRAPHER_NAME_SIZE)),
+      portId: data[offset + CARTOGRAPHER_PORT]!,
+      flags,
+      activeContract: (flags & ACTIVE_CARTOGRAPHER_CONTRACT) !== 0,
     };
   });
 }

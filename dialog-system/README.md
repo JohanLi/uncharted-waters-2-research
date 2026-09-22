@@ -74,30 +74,22 @@ dispatch command-specific executable and scenario hooks
              or forced exit
 ```
 
-Controlled shared-quest captures establish three concrete placements in this
-model. Transport Goods delivery is an entry hook at the destination Market and
+Transport Goods delivery is an entry hook at the destination Market and
 runs before its ordinary menu. Guild assignment dialogue begins only after
 `Job Assignment` and a listed job have been selected. Royal-mission dialogue
 uses the Palace's `Meet Ruler` audience hook, while a random hostile Palace
 encounter is tested on entry and can suppress the menu before that command is
 available.
 
-The ordinary-building order is confirmed separately by both code and a
-Catalina Shipyard capture. `MAIN.EXE 0x20A1B–0x20A4C` dispatches the shared and
-protagonist entry routes before the hostile-building path beginning at
-`0x20A70`. Catalina's section-2 rumor therefore appeared before the hostile-
-port warning. Because that route did not request `F8`, execution continued to
-the hostile roll; it happened not to produce a confrontation on that visit.
-Thus story dispatch has earlier order, but a non-ejecting story does not itself
-suppress the hostile check.
+`MAIN.EXE 0x20A1B–0x20A4C` dispatches the shared and protagonist entry routes
+before the hostile-building path beginning at `0x20A70`. Story dispatch
+therefore has earlier order, but a non-ejecting story continues into the
+hostile check.
 
 The Lodge is a caller-side exception to the usual `F8` behavior. Its branch at
 `MAIN.EXE 0x20A61` proceeds into hostile-port handling even when an entry story
-cleared an interaction-control word. In a controlled Trebizond visit, João's
-`F8`-ending search-for-Domingo route was followed by the Turkish-port warning
-and the ordinary Lodge menu after the confrontation roll missed. At the same
-story stage, ejecting routes in other eligible buildings stop before hostile
-processing.
+cleared an interaction-control word. Ejecting routes in other eligible
+buildings stop before hostile processing.
 
 Other dialog-system gaps are tracked in
 [open-questions.md](./open-questions.md).
@@ -315,10 +307,9 @@ allegiance, while variable 51 selects the ruler of the diplomatic mission's
 stored destination nation. This is separate from ordinary Palace dialogue,
 whose ruler follows the capital being visited.
 
-The mapping covers all six nations. Runtime validation confirms the general
-upper-panel sequence: the current-allegiance ruler at the offer, the
-destination ruler at delivery or negotiation, and the current-allegiance ruler
-again on completion.
+The mapping covers all six nations. The upper-panel sequence uses the
+current-allegiance ruler at the offer, the destination ruler at delivery or
+negotiation, and the current-allegiance ruler again on completion.
 
 ### Text without an explicit portrait
 
@@ -346,9 +337,7 @@ C0 00 C8 <speaker-label-message:u16be> C8 <body-message:u16be> C7
 The first selected MES entry contains only the speaker's role label, such as
 `Old Guild Worker` or `Head Trader`; the second contains the displayed body.
 `E9 <flag>` can replace `C7` when the body is followed by a choice. The two
-entries therefore make one visible line, not two successive lines. Controlled
-Transport Goods captures confirm the decoded pairing throughout its offer and
-mission lifecycle.
+entries therefore make one visible line, not two successive lines.
 
 Ordinary vendor portraits are selected separately from scenario `CC`
 characters. Zero-based `GRAPH.DAT` records 6–17 map in order to building IDs
@@ -417,15 +406,14 @@ CA 04
 message 67
 ```
 
-Runtime observation confirms a brief screen clear after message 66, followed
-by João's theme when message 67 appears. Elsewhere, raw `CA 10` selects the
+A brief screen clear follows message 66, and João's theme begins with message 67. Elsewhere, raw `CA 10` selects the
 battle theme, `CA 05` selects Catalina's theme, `CA 06` selects Otto's theme,
 and `CA 13` selects the Pub theme (“Fiddler's Green”). Track operands in
 byte dumps are hexadecimal; generated JSON writes their numeric value in
 decimal.
 
-Controlled auditions establish the exhaustive PC range as `CA 00` through
-`CA 15`. The endpoints and early IDs are Opening (`00`), Ending A / Duke
+The exhaustive PC range is `CA 00` through `CA 15`. The endpoints and early
+IDs are Opening (`00`), Ending A / Duke
 promotion (`01`), Ending B (`02`), Initial Setup (`03`), and naval-victory
 Fanfare (`15`). The decoder's `KNOWN_MUSIC_TRACKS` table names the complete
 range.
@@ -440,7 +428,6 @@ revealing the ordinary Pub vendor presentation underneath. Lucia's subsequent
 both scenario-panel states; it does not merely insert a timing pause or clear
 the text in the currently active panel.
 
-All supplied scenario transition captures have a matching adjacent `CA`.
 Ordinary music outside scenario bytecode is selected by the executable: port
 entry chooses a regional track, while building entry overrides it only for a
 Pub (`0x13`) or Palace (`0x12`). Other building types retain the regional port
@@ -471,13 +458,6 @@ following lower panel while that part of the scene runs. It is not attached to
 an individual MES entry. Repeated calls can intentionally reuse one image;
 Ali's four payment variants all select `EVENT6.DAT` record 1.
 
-The supplied runtime captures match the static selections exactly: Catalina's
-fire-ship scene uses `EVENT2` record 4 and her Franco scene record 0; Pietro's
-harbor decision uses `EVENT5` record 0 and his meeting record 2; Ali's payment
-scene uses `EVENT6` record 1 and his palace scene record 3. The smaller x
-coordinate visible in some screenshots is due to cropping the full game
-screen; the encoded destination remains `(112, 24)`.
-
 Not every extracted record has a reachable scenario-VM reference. `EVENT0`
 has no `CB` caller in `SNR0`; records 2, 3, 0, 2, 5, and 0 are likewise absent
 from the reachable `CB` calls for `EVENT1` through `EVENT6`, respectively.
@@ -486,18 +466,12 @@ or be unused content; the `CB` inventory alone cannot distinguish those cases.
 
 ### Leaving or being ejected from a building
 
-Runtime tests confirm both kinds of story interruption:
-
-- some warning conversations end and force the player outside before the
-  normal building menu can be used;
-- other reminders play but leave the player inside and allow the menu.
-
 Action `F8` supplies the scenario's forced-exit result. Its executable handler
-clears a caller-provided interaction-control word. Runtime-controlled Pietro
-routes provide a direct comparison: the Genoa Church line “Ah! I just
-remembered an important engagement. Sorry, got to run.” ends in `F8 F2` and
-ejects Pietro, while the nearby Lodge line “Don't worry, sonny, you're safe
-here. Just rest here quietly.” ends in `F2` without `F8` and leaves the Lodge
+clears a caller-provided interaction-control word. Routes ending in `F8 F2`
+force the player outside before the normal building menu can be used. Routes
+ending in `F2` without `F8` leave the player inside and allow the menu. Pietro's
+Genoa Church warning uses the former, while his nearby Lodge reminder uses the
+latter.
 usable. Other confirmed ejecting debt conversations use the same `F8 F2`
 ending.
 
@@ -559,7 +533,7 @@ Use this procedure for a particular save and building:
    interaction—or after a non-blocking story interaction—use the appropriate
    `MAIN.EXE` building routine and general message bank. The query automates
    the ordinary entry greeting or access response and main menu; individual
-   menu commands are not yet query inputs.
+   menu commands are available where listed below.
 
 ### Current query support
 
@@ -569,6 +543,7 @@ modifying a save:
 ```sh
 pnpm run query-dialog -- save-editor/KOUKAI2-original.DAT 1 pub
 pnpm run query-dialog -- save-editor/KOUKAI2-original.DAT 1 special-building
+pnpm run query-dialog -- save-editor/KOUKAI2-original.DAT 1 item-shop:buy:1:yes
 ```
 
 It reads the selected slot's scenario state, calendar, clock, port,
@@ -587,9 +562,30 @@ query models that scenario audience after admission. For every ordinary
 building action, the query also reports the decoded entry greeting or access
 response and visible main menu after applying story suppression. It identifies
 when a hostile reception may preempt that result, but cannot select the random
-outcome until the general gameplay RNG lifecycle is known. Pub-specialty text,
-non-cartographer special residences, and command-level interactions remain
-partly or wholly unresolved.
+outcome until the general gameplay RNG lifecycle is known.
+
+Colon-separated paths currently execute every Harbor command, including
+Supply and Moor submenus and supply-port Rename Port; Item Shop Buy/Sell; all
+four Bank commands; Lodge Check In and Port Info; Church/Mosque Pray and
+Donate; all four House of Fortune readings; both Guild commands; and collector,
+cartographer, and skill-teacher interactions. Palace paths cover Sphere of
+Influence, Letter of Marque, Tax Free Permit, Defect, Gold aid, and Ship aid,
+including their availability checks and nested confirmations. Selecting a
+Guild assignment row also executes the corresponding shared SNR0 offer
+transcript. Pub queries resolve its port specialty, crew recruitment limits,
+Treat, local patrons, waitress interactions, and gambling handoff; Pub Meet
+and Lodge Gossip reconstruct local sailors and resolve their shared Gossip,
+Hire, and Duel paths. Interactive crew distribution, investigations, and the
+gambling engines are identified at their handoff rather than simulated.
+Market paths reconstruct local goods, rates, prices, fleet cargo limits,
+purchases, sales, and commercial investment. Shipyard paths reconstruct new
+model and material availability, repairs, sale guards, Remodel routing and
+renaming, and industrial investment. Used-ship inventory, negotiation results,
+and interactive ship design or remodeling stop at explicit process-state or
+input handoffs. The tool validates selections and reports effects without
+changing the save. Item Shop counteroffers, sailor rumors and hiring,
+collector Rumor, and other branches driven by the unsaved general RNG remain
+probabilistic.
 
 ## Worked João examples
 

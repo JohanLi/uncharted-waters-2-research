@@ -162,11 +162,11 @@ Piracy Fame gates these decoded protagonist events:
 | Catalina    | 1; 1,500; 2,000; 8,000; 15,000; 30,000 |
 | Otto        |         5,000; optional 20,000; 30,000 |
 
-Catalina's early boundaries are runtime-confirmed. The Harbor produces no story
-dialogue at 0 Fame, while at 1 Emilio reports the harbor rumor that opens the
-pursuit sequence. At 1,499 the later ordinary-building route does nothing,
-while at 1,500 it reports that João is at sea. The Pub questioning repeats at
-1,999; at 2,000 the same dialogue is followed by a section advance.
+Catalina's Harbor produces no story dialogue at 0 Fame, while at 1 Emilio
+reports the harbor rumor that opens the pursuit sequence. At 1,499 the later
+ordinary-building route does nothing, while at 1,500 it reports that João is
+at sea. The Pub questioning repeats at 1,999; at 2,000 the same dialogue is
+followed by a section advance.
 
 ## Code evidence
 

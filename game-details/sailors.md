@@ -14,12 +14,99 @@
 | Navigation experience                | +0x1e..+0x1f |
 | Battle experience                    | +0x20..+0x21 |
 | Age                                  |        +0x22 |
+| Loyalty                              |        +0x23 |
 | Skill mask                           |        +0x28 |
 
 Skill-mask bits are `0x01` Negotiation, `0x02` Accounting, `0x04` Gunnery, `0x08` Cartography, and `0x10` Celestial Navigation. Nationality is taken from the record country/status byte.
 
 The experience thresholds, voyage and combat awards, and attribute increases
 are documented in [levels.md](levels.md).
+
+## Mate loyalty
+
+Loyalty is an unsigned value from **0 through 100**. It belongs to the sailor,
+not to a particular ship or job. The House of Fortune's **Mates** reading
+exposes it in five bands:
+
+| Loyalty | Reading                                          |
+| ------: | ------------------------------------------------ |
+|    0–24 | “He'll leave you soon if you're not careful.”    |
+|   25–49 | “He doesn't have very good feelings toward you.” |
+|   50–74 | “He is beginning to trust you.”                  |
+|   75–99 | “He is beginning to feel loyal to you.”          |
+|     100 | “He's very loyal to you.”                        |
+
+Ordinary unemployed sailors generally begin at 0, whereas the protagonists
+and most story recruits begin at 100.
+
+Hiring a sailor adds **10 Loyalty**, capped at 100. Loyalty is then
+recalculated during monthly payroll. Let `W` be the mate's monthly wage in
+tens of gold pieces, `A` the highest of that mate's eight attributes, and `L`
+the Commodore's Leadership:
+
+```text
+monthly change = 2 × W − A + L
+new Loyalty    = clamp(old Loyalty + monthly change, 0, 100)
+```
+
+A mate already at 100 bypasses this update and remains at 100. The payroll
+routine also records whether wages could actually be paid, but its Loyalty
+calculation uses the stored wage in either case.
+
+The initial hiring test and requested-wage formula are documented under
+[Pub command dialogue](buildings.md#pub-command-dialogue). Pub hiring uniquely
+requires the unemployed sailor's Loyalty to be above 30; Lodge hiring uses the
+same experience and wage calculation without that Loyalty restriction.
+
+Loyalty has two independently decoded low-value consequences:
+
+- At the start of a naval battle, a mate with Loyalty below **40** who
+  captains one of the player's secondary ships withdraws from the battle and
+  permanently leaves the player's service. This check itself is
+  deterministic; the exact farewell line is selected from four variants by
+  the mate's personality bits.
+- A separate [Harbor-entry event](buildings.md#mate-departure-on-harbor-entry)
+  can make a mate with Loyalty below **30** ask to leave the fleet. Persuading
+  the mate to remain requires accepting a raise and sets Loyalty to 30.
+
+The House reading therefore does not expose the action thresholds exactly:
+its 25-point bands straddle the battle threshold of 40 and the Harbor
+threshold of 30.
+
+The four battle-withdrawal lines are:
+
+| Personality selector | Dialogue                                                                        |
+| -------------------: | ------------------------------------------------------------------------------- |
+|                    0 | “Hey, Commodore, buy me some time to escape, will you!!”                        |
+|                    1 | “Commodore, I must save myself first, so I'm fleeing! I hope to see you again.” |
+|                    2 | “Sorry, it's not my duty to accompany you in such danger. Good luck!”           |
+|                    3 | “Commodore, you've gotten yourself into a bad spot. I can't help you any more.” |
+
+A later battle-start report can consequently say, “Commodore, I don't see
+[mate]'s ship anywhere.” This is a resignation, not merely a refusal to join
+that battle. During battle setup the game:
+
+- removes the mate from the employed-mate roster;
+- sets their fleet assignment to `0xFF` and clears their duty;
+- assigns them to port `random(54) + 3`, or a random port ID from 3 through 56;
+- removes their commanded ship from the battle; and
+- permanently empties that ship's fleet slot and ship-instance record.
+
+These changes occur before the battle result, so subsequently winning or
+escaping does not reverse them. The ship consequently disappears from the
+player's fleet together with its stored cargo. Rehiring the sailor later does
+not reconstruct or return it. The vacated roster slot's paired wage byte is
+left unchanged, but it is ignored while the roster entry is `0xFF`.
+
+This differs from the Harbor resignation only in its trigger, destination,
+and cleanup details. A Harbor refusal reaches the dismissal routine at
+`MAIN.EXE 0x2E3C3`, which also clears the paired wage and stores the current
+port instead of choosing a random one.
+
+The Loyalty field is read at `MAIN.EXE 0x334A8–0x3351A`; hiring updates it at
+`0x2C40E–0x2C4ED`, monthly payroll at `0x1DFF6–0x1E15B`, and the battle-start
+withdrawal begins at `0x14C3E`. Its persistent dismissal helper is
+`0000:E8E5`, located at file offset `0x13EE5`.
 
 ## Main characters
 

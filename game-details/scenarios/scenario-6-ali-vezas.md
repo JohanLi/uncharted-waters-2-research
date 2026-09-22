@@ -139,12 +139,6 @@ advance the section.
 Begin a voyage. On voyage day 1, that flag is cleared and the scenario advances
 to the next subsection.
 
-This boundary is runtime-confirmed. With 99 ingots, the voyage-day-1 event
-does not advance the story, and the Istanbul Harbor continues using its
-post-Palace dialogue about the Sultan preparing for war. With 100 ingots, the
-same sequence advances the story and the next Harbor visit uses the João/Ladia
-story dialogue.
-
 ### João's decoy sail
 
 Back in Istanbul, most buildings report that João and Ladia have been injured.

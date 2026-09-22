@@ -50,6 +50,7 @@ export type ScenarioQueryAction =
       readonly type: "building";
       readonly context: number;
       readonly name: string;
+      readonly commandPath?: readonly string[];
     }
   | { readonly type: "at-sea" }
   | {
@@ -287,11 +288,14 @@ function integer(text: string, label: string): number {
 
 export function parseQueryAction(value: string): ScenarioQueryAction {
   const normalized = value.toLowerCase();
-  if (Object.hasOwn(BUILDING_CONTEXTS, normalized))
+  const [buildingName = "", ...commandPath] = normalized.split(":");
+  if (Object.hasOwn(BUILDING_CONTEXTS, buildingName))
     return {
       type: "building",
-      context: BUILDING_CONTEXTS[normalized as keyof typeof BUILDING_CONTEXTS],
-      name: normalized,
+      context:
+        BUILDING_CONTEXTS[buildingName as keyof typeof BUILDING_CONTEXTS],
+      name: buildingName,
+      ...(commandPath.length === 0 ? {} : { commandPath }),
     };
   if (normalized === "at-sea") return { type: "at-sea" };
   const context = /^context:(.+)$/.exec(normalized);
@@ -1029,6 +1033,20 @@ function executeRoute(
       pending.push(state);
       continue;
     }
+    if (instruction.opcode === 0xec) {
+      const variable = bytes[1]!;
+      const checkpoint = state.variables.get(variable);
+      if (checkpoint === undefined) {
+        state.uncertainties.push(
+          `scenario RNG checkpoint variable ${variable} is unknown`,
+        );
+      } else {
+        state.randomState = (checkpoint << 8) >>> 0;
+      }
+      state.offset = instruction.endOffset;
+      pending.push(state);
+      continue;
+    }
     if (instruction.opcode === 0xe9) {
       const flag = bytes[1]!;
       const no = cloneState(state);
@@ -1153,6 +1171,23 @@ export function inspectSharedScenario(
   );
   const palaceVisit =
     action.type === "building" && action.context === BUILDING_CONTEXTS.palace;
+  const guildJobRow =
+    section === 0 &&
+    action.type === "building" &&
+    action.context === BUILDING_CONTEXTS.guild &&
+    action.commandPath?.[0]?.toLowerCase().replace(/[^a-z0-9]/g, "") ===
+      "jobassignment"
+      ? /^(?:job-?)?(\d+)$/i.exec(action.commandPath[1] ?? "")
+      : undefined;
+  const guildRowNumber = guildJobRow ? Number(guildJobRow[1]) : undefined;
+  const guildAssignmentSelector =
+    guildRowNumber !== undefined && guildRowNumber >= 1 && guildRowNumber <= 3
+      ? save[base + 0x0a]! >= 42
+        ? 2
+        : save.readUInt16LE(
+            base + SHARED_VARIABLES_START + (guildRowNumber - 1) * 2,
+          )
+      : undefined;
   const consumesCachedRoyalMission =
     section === 0 &&
     palaceVisit &&
@@ -1167,7 +1202,13 @@ export function inspectSharedScenario(
   // dispatches the Palace-audience route that presents the offer. The mission
   // variables were populated when the invitation was armed, so the query can
   // execute that visible second stage directly.
-  const executionSubsection = consumesCachedRoyalMission ? 1 : subsection;
+  const executionSubsection = consumesCachedRoyalMission
+    ? 1
+    : guildAssignmentSelector !== undefined &&
+        guildAssignmentSelector >= 0 &&
+        guildAssignmentSelector <= 4
+      ? guildAssignmentSelector + 1
+      : subsection;
   const executionFlags = consumesCachedRoyalMission
     ? writeFlag(writeFlag(flags, 17, 0), 18, 1)
     : flags;
@@ -1365,6 +1406,7 @@ export async function queryScenario(
           protagonistOutcomes.map((outcome) => outcome.effects),
           shared.outcomes.map((outcome) => outcome.effects),
           ordinaryData,
+          action.commandPath,
         )
       : undefined;
   const notes = [
@@ -1400,6 +1442,7 @@ export async function queryScenario(
           : mergeConfidence(
               shared.confidence,
               ordinaryBuilding?.confidence ?? "none",
+              ordinaryBuilding?.command?.confidence ?? "none",
             ),
       scenarioId,
       protagonist: PROTAGONISTS[protagonistId]!,
@@ -1528,6 +1571,7 @@ export async function queryScenario(
   const confidence = mergeConfidence(
     storyConfidence,
     ordinaryBuilding?.confidence ?? "none",
+    ordinaryBuilding?.command?.confidence ?? "none",
   );
   return {
     confidence,
@@ -1551,7 +1595,7 @@ export async function queryScenario(
 
 function formatAction(action: ScenarioQueryAction): string {
   if (action.type === "building")
-    return `${action.name} (context ${hex(action.context, 2)})`;
+    return `${action.name}${action.commandPath ? `:${action.commandPath.join(":")}` : ""} (context ${hex(action.context, 2)})`;
   if (action.type === "at-sea") return "at-sea day event";
   return `${action.type}, opposing captain ${action.opposingCaptainId}`;
 }
@@ -1627,6 +1671,31 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
       lines.push(`  Unresolved: ${uncertainty}`);
     for (const note of ordinary.notes) lines.push(`  Note: ${note}`);
     lines.push("");
+    if (ordinary.command) {
+      const command = ordinary.command;
+      lines.push(
+        "Selected ordinary command",
+        `  Path: ${command.path.join(" → ")}`,
+        `  Disposition: ${command.disposition}`,
+        `  Confidence: ${command.confidence}`,
+      );
+      if (command.dialogue.length === 0)
+        lines.push("  No fixed command dialogue is displayed.");
+      for (const dialogue of command.dialogue)
+        lines.push(
+          `  ${dialogue.bank} raw ${dialogue.rawIndex} (entry ${dialogue.entryNumber}) · ${dialogue.speaker}: ${dialogue.text}`,
+        );
+      lines.push(
+        command.menu.length > 0
+          ? `  Next selection: ${command.menu.join("; ")}`
+          : "  Next selection: none",
+      );
+      for (const effect of command.effects) lines.push(`  Effect: ${effect}`);
+      for (const uncertainty of command.uncertainties)
+        lines.push(`  Unresolved: ${uncertainty}`);
+      for (const note of command.notes) lines.push(`  Note: ${note}`);
+      lines.push("");
+    }
   }
   for (const [index, outcome] of result.outcomes.entries()) {
     const chance =
@@ -1653,7 +1722,7 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
 
 const help = `Query story dialogue and shared scenario state from a UW2 DOS save
 
-pnpm run query-dialog -- FILE SLOT ACTION
+pnpm run query-dialog -- FILE SLOT ACTION[:COMMAND[:SELECTION]]
 
 Actions:
   market, pub, shipyard, harbor, arrival, lodge, palace, guild, special-building,
@@ -1663,12 +1732,62 @@ Actions:
   before-battle:CAPTAIN_ID   scenario hook before naval combat
   after-battle:CAPTAIN_ID    scenario hook after naval combat
 
+Ordinary command examples:
+  market:buy-goods:1:1:20:yes
+  market:sell-goods:1:1:20
+  market:invest:10000
+  market:market-rate
+  shipyard:new-ship:1:Beech
+  shipyard:used-ship
+  shipyard:repair:1:yes
+  shipyard:sell:2
+  shipyard:remodel:rename:1:Dauntless
+  shipyard:invest:10000
+  harbor:sail
+  harbor:sail:yes
+  harbor:supply:load:1:food:20
+  harbor:supply:dump:1:water:50
+  harbor:moor:store:1:yes
+  harbor:moor:commission:1:yes
+  harbor:moor:exchange:1:1:yes
+  harbor:rename-port:Newhaven
+  item-shop:buy:1:yes
+  item-shop:sell:1:yes
+  item-shop:sell:1:no
+  pub:recruit-crew:yes:20
+  pub:treat:10
+  pub:meet:1:treat
+  pub:waitress:tell-stories:1
+  pub:waitress:give-gift:1
+  pub:gamble:black-jack
+  guild:job-assignment:1
+  guild:country-info:Portugal:yes
+  special-building:contract:yes
+  special-building:discovery:1
+  special-building:learn-skills:yes
+  special-building:report
+  special-building:locate:1
+  special-building:learn-skill:yes
+  bank:deposit:5000
+  bank:withdraw:1000
+  bank:borrow:10000
+  bank:repay:1000
+  lodge:check-in
+  lodge:port-info
+  church:pray
+  church:donate:500
+  house-of-fortune:life:yes
+  house-of-fortune:career:yes
+  house-of-fortune:love:yes
+  house-of-fortune:mates:yes:1
+
 The tool never modifies the save. It symbolically executes protagonist story
 routes and reports the shared SNR0 route, royal-invitation state, and cached
 mission. Ambiguous results show each possible protagonist path and the undecoded
 VM condition responsible for it. Building queries also report the ordinary
 entry greeting or access response and visible main menu when story handling
-does not certainly suppress them.`;
+does not certainly suppress them. A command path additionally predicts the
+next ordinary command dialogue without modifying the save.`;
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);

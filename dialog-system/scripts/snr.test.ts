@@ -451,7 +451,7 @@ test("sequential VM decoding follows table-relative control flow", async () => {
       .flatMap((section) => section.instructions)
       .find((instruction) => instruction.opcode === opcode)?.mnemonic;
   assert.deepEqual(
-    [0xc3, 0xd0, 0xe2, 0xe3, 0xe6, 0xe7, 0xeb].map(actionMnemonic),
+    [0xc3, 0xd0, 0xe2, 0xe3, 0xe6, 0xe7, 0xeb, 0xec].map(actionMnemonic),
     [
       "clear-dialogue-panels",
       "resolve-indexed-game-field-reference",
@@ -460,6 +460,7 @@ test("sequential VM decoding follows table-relative control flow", async () => {
       "add-gold",
       "deduct-gold",
       "random",
+      "restore-random-state",
     ],
   );
 

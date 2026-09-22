@@ -83,16 +83,13 @@ unambiguous.
 | Guild                                 |                   85 (86) |           `0x332FC` | Fixed.                                                                                                                       |
 | Bank, Amsterdam                       |                   97 (98) |           `0x2F166` | Selected when current port ID is 13.                                                                                         |
 | Bank, regional branch                 |                   98 (99) |           `0x2F17D` | Selected at every other Bank.                                                                                                |
-| Item Shop                             |                 235 (236) |           `0x2FCC6` | Fixed on every reachable open-hours entry.                                                                                   |
+| Item Shop, daytime                    |                 235 (236) |           `0x2FCC6` | Used during the 8:00 AM–8:00 PM opening.                                                                                     |
+| Item Shop, secret hour                |                 764 (765) |           `0x2FCB9` | Used during the 2:00–3:00 AM opening: “For a limited time only...”                                                           |
 | Church                                |                   91 (92) |           `0x32C67` | Computed as `91 + 712 × mosque`; Church uses zero.                                                                           |
 | Mosque                                |                 803 (804) |           `0x32C67` | The same computation uses one for a Mosque.                                                                                  |
 | House of Fortune                      |                 298 (299) |           `0x33534` | Fixed.                                                                                                                       |
 | Special residence, generic            |                 477 (478) |           `0x339F2` | “May I help you?”                                                                                                            |
 | Special residence, recognized visitor |                 478 (479) |           `0x339E4` | Uses the protagonist's first and last names.                                                                                 |
-
-The House of Fortune's **Career** command reports the current protagonist's
-remaining Navigation and Battle experience. Its exact threshold formula and
-the two experience systems are documented in [levels.md](levels.md).
 
 Religious rejection uses the same upper-panel helper but does not enter the
 menu. A Muslim entering a Church receives raw index 90 (entry 91), while a
@@ -101,6 +98,268 @@ computes the normal Church/Mosque greeting dynamically, which is why neither
 greeting appears as a literal direct-reference row in the generated call-site
 inventory.
 
+### House of Fortune command dialogue
+
+The House of Fortune handler begins at `MAIN.EXE 0x3351B`. **Life**,
+**Career**, **Love**, and **Mates** all use the same payment sequence. The
+fortune teller asks for 50 gold pieces with raw index 299 (entry 300). Refusing
+returns to the main menu. If the player cannot pay, raw index 300 says, “You
+don't seem to have enough,” and the visit ends. Otherwise the game deducts 50
+gold, displays raw index 301, “Very well. Take a seat,” and performs the
+selected reading before returning to the main menu.
+
+**Life** reads the protagonist's Luck and selects `raw index = 302 +
+floor(Luck / 25)`:
+
+|  Luck | Reading                                                                                      |
+| ----: | -------------------------------------------------------------------------------------------- |
+|  0–24 | “Ohh, I see an ominous shadow across your face. You may be doomed to have a difficult life.” |
+| 25–49 | “Your future doesn't look very bright. Be careful, and watch out for accidents.”             |
+| 50–74 | “You have an average fortune. But remember, you are the one who carves out your destiny.”    |
+| 75–99 | “You have a good fortune. Have more self-confidence.”                                        |
+|   100 | “What a strong fortune! You have nothing to fear in this life.”                              |
+
+**Career** reports how much Navigation and Battle experience the current
+protagonist still needs for the next level. The exact formula is documented in
+[levels.md](levels.md). It then takes the greatest of the protagonist's three
+Fame values and compares it with the next title's requirement. If more Fame is
+needed, raw index 547 reports the difference. If the requirement is already
+met, raw index 754 says that a noble person is searching for the protagonist.
+The title portion is omitted for a Pirate. This reading uses the executable's
+nine-value title table, whose Marquis-to-Duke entry is 40,000; it does not use
+the royal-mission eligibility formula's 40,500 boundary.
+
+**Love** reads the local waitress's favor, when an eligible one exists. Its
+exact eligibility test and favor ranges are documented in
+[waitresses.md](waitresses.md#house-of-fortune-love-reading).
+
+**Mates** first asks whose fortune to tell and lets the player select an
+employed mate. It gives two readings. The first uses the mate's Luck:
+
+|  Luck | Reading                                                                |
+| ----: | ---------------------------------------------------------------------- |
+|  0–24 | “It seems that your mate is destined to have a series of misfortunes.” |
+| 25–49 | “Your mate doesn't have very good luck.”                               |
+| 50–74 | “Let's just say that your mate's luck is pretty mediocre.”             |
+| 75–99 | “Your mate is one lucky sea dog!”                                      |
+|   100 | “What good fortune... His luck will help you as well.”                 |
+
+The second uses the mate's Loyalty:
+
+| Loyalty | Reading                                          |
+| ------: | ------------------------------------------------ |
+|    0–24 | “He'll leave you soon if you're not careful.”    |
+|   25–49 | “He doesn't have very good feelings toward you.” |
+|   50–74 | “He is beginning to trust you.”                  |
+|   75–99 | “He is beginning to feel loyal to you.”          |
+|     100 | “He's very loyal to you.”                        |
+
+Both tables use unsigned division by 25, with a distinct fifth entry for the
+maximum value 100. Loyalty itself and the consequences of low Loyalty are
+documented in [sailors.md](sailors.md#mate-loyalty). The four reading routines
+occupy `MAIN.EXE 0x33354–0x3351A`.
+
+### Lodge command dialogue
+
+The Lodge handler begins at `MAIN.EXE 0x2EB43` and opens **Check In**,
+**Gossip**, and **Port Info**.
+
+**Check In** is free and has no confirmation prompt. It starts the overnight
+rest transition and resumes play at 8:00 AM the next day. Internally, the
+command marks an overnight rest, moves the clock to the end of the current
+day, and schedules another 24 20-minute ticks, or eight hours.
+
+**Gossip** is the Lodge's sailor-interaction command. It builds a list of the
+sailors currently available there and lets the player choose one. When no
+useful navigator is present, raw index 67 says, “I don't see anyone who would
+be much help”; another empty-result branch uses raw index 68, “I heard that a
+good navigator was at the pub.”
+
+Sailor-record status bit `0x20` marks records eligible for these ordinary
+encounters. Bit `0x40` divides them between the two buildings: set records
+belong to the Pub list and clear records to the Lodge list. The executable
+then includes the protagonist's employed mates, unemployed sailors whose
+saved port is the current port, and active captains whose fleet is presently
+at that port. The protagonist is excluded.
+
+Selecting one of the player's own mates produces one of three ordinary lines
+about returning to dry land, going to bed, or leaving port. Other sailors
+introduce themselves as a Commodore, ship's officer, or vagabond and expose
+the shared **Hire** and **Duel** interactions also used by the Pub's **Meet**
+command. Hostile fleet captains instead use one of two threats. Cancelling the
+sailor selection returns to the Lodge menu.
+
+**Port Info** draws the current port's six national Support values and marks
+the nation that presently controls it. These are the same Support fields used
+to determine [sphere of influence](sphere-of-influence.md); it is a generated
+status display rather than a fixed `MESSAGE.DAT` transcript.
+
+The command routines occupy `MAIN.EXE 0x2E846–0x2EB42`.
+
+### Mate departure on Harbor entry
+
+The conversation in which an unhappy mate asks to remain in town belongs to
+ordinary **Harbor entry**, not to the Lodge. It is checked before the Harbor's
+normal greeting and menu, and only when all of these conditions hold:
+
+- the current port is a regular port rather than a supply port;
+- it is no later than 6:00 AM or at least 6:00 PM;
+- an initial one-in-three random gate succeeds;
+- a nation, rather than Piracy, controls the port;
+- that nation is blockading the protagonist's current nation; and
+- an employed mate has Loyalty below 30 and a current monthly wage below 190
+  gold, so it can still be raised by one stored wage step.
+
+Each eligible mate then has a personality-dependent chance to trigger. Using
+the mate's low two personality bits `P`, the game requires `random(4 − P) =
+0`, giving probabilities of 1/4, 1/3, 1/2, or 1.
+
+The mate says, “Commodore, I'm not very happy working for you. I think I'll
+stay in this town.” Declining to intervene, or refusing the requested raise,
+removes that mate from the fleet and leaves them in the current port. If the
+player agrees to intervene and accepts the raise, the monthly wage rises by
+10 gold and Loyalty is set to exactly 30.
+
+The regular Harbor handler begins at `MAIN.EXE 0x2E55F`; its entry
+preprocessing occupies `0x2E55F–0x2E766`, before the menu loop at
+`0x2E767–0x2E844`. The blockade bit is documented with the nation-to-nation
+status matrix in [friendship.md](friendship.md#nation-to-nation-relations).
+
+### Harbor command dialogue
+
+At a regular port, the Harbor opens **Sail**, **Supply**, and **Moor**. The
+three command handlers begin at `MAIN.EXE 0x2D7FD`, `0x2DC3F`, and `0x2E2E6`.
+Cancelling Supply or Moor returns to the Harbor menu and restores its ordinary
+greeting. Sail returns there only when departure is declined or refused; a
+confirmed departure changes the player to the at-sea state.
+
+#### Sail
+
+Sail first rebuilds the active-fleet list and displays every ship's crew
+assignments and provisions. For each ship, the number of sailors assigned to
+navigation is:
+
+```text
+navigation crew = floor(current crew × navigation allocation / 100)
+```
+
+If this is zero on any ship, raw index 57 (entry 58) refuses departure:
+“Some ships have no crew assigned for navigation. We won't get anywhere.”
+Otherwise the projected endurance is calculated across the fleet:
+
+```text
+voyage days = floor(min(total stored water, total stored food) / total crew)
+```
+
+Water and food are stored in tenths of a barrel, so this division directly
+produces days at the game's crew-consumption rate. The result selects one of
+four messages:
+
+| Condition                 | Raw index (entry) | Result                                                                 |
+| ------------------------- | ----------------: | ---------------------------------------------------------------------- |
+| Projected days are zero   |           59 (60) | Refuses departure with the “no provisions” response.                   |
+| Projected days are 1–9    |           60 (61) | Warns that the fleet cannot sail for long and asks for confirmation.   |
+| Projected days are 10–180 |           61 (62) | Displays the exact number of days and asks for confirmation.           |
+| Projected days exceed 180 |           58 (59) | Says the fleet can sail for more than six months and asks to cast off. |
+
+Accepting a permitted departure resets the current-voyage midnight counter
+to zero, changes the protagonist's fleet state to at sea, initializes the
+departure position, and returns success to the town loop. As described under
+[Visit duration](#visit-duration), Sail itself adds no clock tick; the pending
+40-, 60-, or 80-minute Harbor-visit duration is still applied afterward.
+
+#### Supply
+
+Supply presents a fleet-wide grid with one row per active ship and columns for
+Water, Food, Lumber, and Shot. A control at the end of the grid switches
+between loading and dumping. Cancelling the grid returns to the Harbor menu.
+
+For one ship, occupied cargo space is:
+
+```text
+water / 10 + food / 10 + lumber + shot + all five carried-goods quantities
+```
+
+The maximum load offered is the lesser of the ship's remaining cargo capacity
+and, for a priced resource, the quantity affordable with the protagonist's
+on-hand gold. Water is free. At a regular port, the other per-unit prices are
+integer formulas using two bytes in the port's saved 37-byte metadata record:
+
+```text
+food price   = floor( 20 × (port byte +0x10 + 50) / 100)
+lumber price = floor( 90 × (port byte +0x17 + 50) / 100)
+shot price   = floor(120 × (port byte +0x10 + 50) / 100)
+```
+
+The corresponding prompts are raw indices 62–65 (entries 63–66). If not even
+one unit is affordable, raw index 28 says, “Commodore, we have no gold!” A
+positive purchase immediately adds the selected resource and deducts its
+price; water and food quantities are multiplied by ten when stored. Dumping
+uses `MESSAGE2.DAT` raw index 392 (combined index 1,392), asks for a quantity
+from zero through the amount aboard, and removes it without payment.
+
+Supply ports have no 37-byte regular-port metadata record. Town setup refreshes
+the executable's metadata pointer only when the current port ID is below 100,
+so priced supplies at a supply port use the pointer retained from the last
+regular port processed by that running game. This history is not stored in the
+save. Water loading and every Dump operation remain independent of that
+pointer.
+
+#### Moor and docked ships
+
+Moor opens **Store**, **Commission**, and **Exchange**. It first reports the
+number of ships currently kept at this port and the capacity available there.
+The displayed maximum is:
+
+```text
+min(5, ships already docked here + unused reserve ship records)
+```
+
+The reserve pool consists of the 30 non-fleet ship records. Consequently a
+port normally holds up to five ships, but its displayed capacity can be lower
+when ships stored at other ports consume those shared records. Only ships
+whose stored location matches the current port appear in this Moor screen.
+
+**Store** (`0x2DF09`) excludes the protagonist's flagship. If no secondary
+ship can be selected, raw index 279 says that only the flagship remains. A
+full local dock uses raw index 288. Otherwise the player selects a ship and,
+if it has crew, confirms that all of them will be dismissed. The ship is moved
+to a reserve record at the current port, its captain becomes an unassigned
+mate, and raw index 282 confirms that the dock will watch it. Provisions and
+cargo remain attached to the stored ship; its crew does not.
+
+**Commission** (`0x2E048`) refuses with raw index 283 when no ship is stored at
+this port. It also refuses with raw index 285 when every employed sailor who
+can command a ship is already doing so, up to the ten-ship active-fleet limit.
+After the player selects and confirms a stored ship, the game moves it into
+the first free active-fleet slot and assigns the first available mate in
+roster order as captain. The ship returns with its stored provisions and
+cargo but no crew. Raw index 286 confirms completion.
+
+**Exchange** (`0x2E18A`) replaces a selected non-flagship active ship with a
+selected ship stored at this port. The active captain and crew transfer to the
+commissioned ship. If that crew exceeds the commissioned ship's configured
+maximum, raw index 281 asks permission to dismiss the excess; otherwise the
+generic ship confirmation at raw index 201 is used. The outgoing hull becomes
+the locally stored ship, and each physical ship retains its own provisions
+and cargo. Raw index 287 confirms the exchange.
+
+All three commands return to the Moor submenu. Leaving that submenu returns to
+the Harbor menu. Its list construction and dispatch loop occupy
+`MAIN.EXE 0x2DE10–0x2E3C2`.
+
+#### Supply-port Harbor
+
+Supply ports use the separate handler at `MAIN.EXE 0x2E4E8`. Their three
+commands are **Sail**, **Supply**, and **Rename Port**: they reuse the ordinary
+Sail and Supply handlers but do not offer Moor.
+
+Rename Port begins at `0x2E411` and accepts at most eight characters.
+Cancelling restores the previous name. A proposed name is compared with all
+other 129 port names; raw index 927 rejects a duplicate, while raw index 928
+confirms a unique name and includes it in the response. Selecting the existing
+name is allowed because the current port is excluded from the duplicate scan.
+
 ### Item Shop command dialogue
 
 The Item Shop handler begins at `MAIN.EXE 0x2FC9A`. **Buy** dispatches to
@@ -108,6 +367,11 @@ The Item Shop handler begins at `MAIN.EXE 0x2FC9A`. **Buy** dispatches to
 internal item-selection loop. Cancelling that loop returns to the Item Shop's
 two-command menu; leaving the main menu returns outside without an additional
 farewell.
+
+During the daytime opening, the Buy list comes from the three regular item IDs
+at saved port-metadata offsets `+0x1F..+0x21`. During the 2:00–3:00 AM opening,
+it contains only the secret item at `+0x22`; `0xFF` means that no item occupies
+that position. Item IDs are zero-based.
 
 **Buy** uses these `MESSAGE.DAT` raw indices:
 
@@ -130,7 +394,7 @@ farewell.
 | First item selection          |         244 (245) | “What would you like to sell?”                                                                                             |
 | Later item selections         |         248 (249) | “What else can you sell me?”                                                                                               |
 | Item is currently equipped    |         333 (334) | It cannot be sold.                                                                                                         |
-| Item is not accepted by shops |         929 (930) | “Sorry, but I can't buy this item.”                                                                                        |
+| Item is not accepted by shops |         929 (930) | “Sorry, but I can't buy this item.” Its stored appeal rating is zero.                                                      |
 | Initial offer                 |         245 (246) | Supplies the item name and the base sale price. Accepting sells immediately.                                               |
 | Successful counteroffer       |         246 (247) | Rejecting the initial offer performs a Luck-based roll. Success produces a higher offer; failure returns to the item list. |
 
@@ -138,6 +402,24 @@ Raw index 247 (“I'll take it for %ld gold pieces.”) is adjacent to the sale
 messages but is not referenced by this Item Shop sell routine. A confirmed
 sale adds the agreed price, subject to the on-hand-gold cap, removes the item,
 and repeats the selection loop.
+
+The 22-byte saved item definition supplies all of these values: its name is at
+`+0x00..+0x10`, the listed-price unit is a little-endian `u16` at `+0x12`,
+the appeal rating is at `+0x14`, and the type/equipped flags are at `+0x15`.
+The listed price is `100 × price unit`. The initial sale offer is
+`100 × floor(price unit / 2)`, so odd hundreds are rounded down rather than
+divided exactly in half.
+
+Rejecting that offer draws `random(100)`. The counteroffer succeeds when the
+protagonist's Luck is greater than or equal to the result, giving a success
+probability of `(min(Luck, 99) + 1) / 100`. Its price is:
+
+```text
+initial offer + floor(initial offer × Charm / 200)
+```
+
+The general gameplay RNG state is not stored in the save, so the exact result
+of that roll cannot be predicted from a save alone.
 
 ### Bank command dialogue
 
@@ -150,6 +432,22 @@ outside.
 
 The account is treated as one signed balance: positive values are savings,
 zero is an empty account, and negative values are debt.
+
+The save stores that balance at slot-relative `0x060E` as a signed 16-bit
+count of hundreds, followed by an unsigned remainder byte at `0x0610`:
+
+```text
+account balance = signed_word(0x060E) × 100 + byte(0x0610)
+```
+
+The maximum savings balance is 1,000,000 gold. A loan's available credit is:
+
+```text
+credit line = 10,000 × rank² + signed account balance + 1,000
+```
+
+A nonpositive result fails the credit test. The loan is recorded by subtracting
+the borrowed amount from the signed balance.
 
 | Command  | Branch or stage                         |        Raw index (entry) | Substitution or continuation                                             |
 | -------- | --------------------------------------- | -----------------------: | ------------------------------------------------------------------------ |
@@ -230,14 +528,41 @@ then follows this dialogue:
 
 The negotiation is part of the same commodity-selection loop. A completed
 purchase deducts the total price, adds the lots to the selected fleet's cargo,
-updates the port's remaining stock, and returns to the goods list.
+raises the selected category rate and the smaller market-wide rate adjustment,
+and returns to the goods list.
+
+The 13 regional Market definitions begin at `DATA1.015 0x67DB`, in `0x80`-byte
+records. Each contains 46 big-endian base-price words, nine goods IDs, and nine
+minimum-Economy bytes. A listed good becomes available when
+`minimum Economy × 10 <= port Economy`. The port's separately stored specialty
+at metadata `+0x1C` uses the little-endian base-price word at `+0x1A` and the
+minimum-Economy byte at `+0x1D`; it appears in the Buy list only while its saved
+rate is below 90. The 46 goods are divided among ten saved price-index
+categories at metadata `+0x10..+0x19`. For base price `B` and the saved category
+byte `R`, the ordinary per-lot value is:
+
+```text
+ordinary price = floor((R + 50) × B / 100)
+```
+
+The Market's sale price is that ordinary value. Selling a port its own
+specialty yields half that value, rounded down. The purchase price is 120% of
+the ordinary value, rounded down, unless the inventory contains the Tax Free
+Permit for the nation controlling the port; the permit removes that markup.
+
+For transaction value `V` and port Economy `E`, buying first raises the
+selected category by `min(10, floor(V / (E + 500)))`, then raises all ten
+categories by `min(3, floor(V / 1000))`; every byte is capped at 100. Selling
+performs the same two calculations as decreases, flooring each category at 0.
+The selected category therefore receives both adjustments.
 
 **Sell Goods** first compacts the fleet's cargo list and displays raw indices
 407 and 408 (entries 408–409) as its `Goods / Load / Rate` table and row
 format. If no saleable goods remain, raw index 21 (entry 22) ends the command.
 Otherwise, the selected quantity is removed, its proceeds are added to
-on-hand gold, the port's stock and rate are updated, and the revised list is
-shown again. Cancelling the cargo list returns to the Market menu.
+on-hand gold, the selected category rate and the smaller market-wide adjustment
+are lowered, and the revised list is shown again. Cancelling the cargo list
+returns to the Market menu.
 
 **Invest** distinguishes the Market's commercial power from the Shipyard's
 industrial power, but shares the same dialogue and reward thresholds with the
@@ -273,8 +598,8 @@ The Pub main handler begins at `MAIN.EXE 0x2D410`. Its six commands are
 before displaying the menu, so several commands operate on a port-dependent
 character list rather than on fixed text alone.
 
-**Recruit Crew** begins at `0x2B68A` and delegates its prompts and random
-recruitment result to `0x2B16D`. It refuses when the fleet already has enough
+**Recruit Crew** begins at `0x2B68A` and delegates its checks and prompts to
+`0x2B16D–0x2B3C5`. It refuses when the fleet already has enough
 sailors (raw index 29, entry 30) or when fewer than 10 gold pieces are available
 (raw index 30, entry 31). Otherwise it may warn that drinks are needed to
 attract recruits (raw 31), ask whether to recruit (raw 32), and call for sailors
@@ -285,8 +610,21 @@ attract recruits (raw 31), ask whether to recruit (raw 32), and call for sailors
 - raw index 123 (entry 124), when nobody comes forward.
 
 The amount and cost prompts use raw indices 124 and 125 (entries 125–126).
-The number who respond is calculated from the port and protagonist state; it
-is not a fixed textual choice.
+Let `E` be the visit's current Pub enthusiasm, initialized to one third of the
+port's stored appeal byte; `P` the port recruitment-base word; and `R` the
+protagonist's rank number. The available pool is:
+
+```text
+available = min(floor(E × P / 500), (R + 1) × E)
+price per sailor = floor(P / 20) + 5
+maximum purchase = min(available, fleet free-crew capacity,
+                       floor(on-hand gold / price per sailor))
+```
+
+Buying Treat during the same visit can raise `E` before Recruit Crew is
+selected. The three response strings distinguish a pool of at least 20,
+1–19, or zero; they are not a random success/failure roll. After the amount is
+chosen, crew is distributed through the fleet-wide assignment screen.
 
 **Dismiss Crew** begins at `0x2B739` and delegates assignment to `0x2B50E`. It
 enumerates the fleet's ships and captains, using `MESSAGE2.DAT` raw indices
@@ -302,6 +640,31 @@ rather than leaving the Pub.
 side effect are described under the shared scenario and royal mission
 mechanics. This command has no scenario-dispatch call: the invitation test is
 executable code, and the command returns to the Pub menu afterward.
+
+The port metadata's Industry ID selects one of 14 specialties and its price:
+
+| Specialty | Price | Specialty   | Price |
+| --------- | ----: | ----------- | ----: |
+| Rum       |     3 | Tequila     |     2 |
+| Wine      |     4 | Mango juice |     1 |
+| Whiskey   |     5 | Palm wine   |     1 |
+| Brandy    |     6 | Mint tea    |     3 |
+| Gin       |     3 | Fenny       |     2 |
+| Beer      |     3 | Plum wine   |     3 |
+| Vodka     |     2 | Sake        |     2 |
+
+The player may buy up to 50 bottles, further limited by available gold. The
+cost is simply bottle count times the listed price. If `B` bottles are bought,
+the visit's enthusiasm changes by:
+
+```text
+treat strength = floor(B × 200 / P)
+enthusiasm gain = floor(treat strength × protagonist Charm / 10)
+new enthusiasm = min(100, old enthusiasm + enthusiasm gain)
+```
+
+Here `P` is the same port recruitment-base word used by Recruit Crew. The new
+enthusiasm feeds Recruit Crew if it is selected later during the same visit.
 
 **Meet** uses the patron-selection loop rooted at `0x2C6E2`. Selecting a
 patron opens the character menu `Treat / Gossip / Hire / Duel`. Its dialogue
@@ -321,6 +684,49 @@ navigator, or an ordinary sailor.
 
 The same patron can therefore expose different dialogue and submenu commands;
 `Meet` is not merely a random-greeting command.
+
+The Pub and Lodge share the same hiring core. Let `A` be the candidate's
+highest ability from Leadership through Charm, excluding Luck, and let `i` be
+that ability's index:
+
+```text
+candidate score = (candidate Navigation Level + candidate Battle Level) × A
+player score    = (player Navigation Level + player Battle Level)
+                  × player ability i
+margin          = floor(player score × rank / 10)
+```
+
+The offer is reached when `random(20) < margin`, so the exact probability is
+`min(20, margin) / 20`. Failure uses raw index 145. The candidate score does
+not affect that probability after the comparison simplifies, but it determines
+the requested wage:
+
+```text
+monthly wage = 10 × min(20, floor(candidate score / 400) + random(3) + 1)
+```
+
+Thus the wage is selected from up to three adjacent multiples of 10 and is
+capped at 200 gold per month. Before either random draw, hiring refuses a
+sailor with a nonzero duty field and refuses when all 30 mate slots are full.
+The Pub has one additional restriction: an unemployed sailor with Loyalty 30
+or below says, “Your ship? No thanks.” The Lodge does not make that Loyalty
+check.
+
+Accepting the quoted wage puts the sailor in the first empty mate slot, stores
+the wage in tens of gold, clears the sailor's port, assigns the protagonist's
+fleet and duty 6, and adds 10 Loyalty capped at 100. Refusing returns to the
+selected sailor's submenu. **Gossip** chooses its reported port and navigator
+with the general gameplay RNG. **Duel** transfers directly into the duel
+engine; its result is not decided by the building handler.
+
+The selected patron's **Treat** command buys one bottle of the same local
+specialty. A Pub patron has the interaction's doubled-location factor, so
+Loyalty rises by **12** when the patron and protagonist have different
+personality types or by **36** when their low two personality bits match,
+capped at 100. The matching branch uses raw index 44 and the other branch raw 45. If the resulting Loyalty is above 30 and the patron's greatest ability
+from Leadership through Courage is above 75, raw indices 46 and 139 also name
+that specialty. This “specialty” means the patron's strongest ability and is
+unrelated to the Pub's drink specialty.
 
 **Waitress** begins at `0x2D102`. Raw index 146 (entry 147) names the port's
 waitress and requests a 10-gold tip; raw index 147 refuses the interaction if
@@ -356,7 +762,7 @@ index 249 (entry 250) and eject the protagonist. The six ordinary commands are
 **New Ship** begins at `0x31D15`; its design-and-order routine begins at
 `0x31A70`. The preliminary path may refuse because this port builds no new
 ships (raw index 251, entry 252) or the protagonist already has the maximum
-number of owned ships (raw 377). Raw index 252 opens the eligible ordering
+ten ships in the active fleet (raw 377). Raw index 252 opens the eligible ordering
 path. Its construction sequence is:
 
 | Stage                          | Raw index (entry) | Continuation                           |
@@ -389,6 +795,18 @@ already needs no work. Otherwise raw index 205 supplies the repair cost and
 asks for confirmation; raw 206 follows a refusal, and raw 207 reports
 insufficient gold. Completion uses `MESSAGE2.DAT` raw index 47 (combined index
 1047), “This ship is in tiptop shape.”
+
+Let `Dmax` and `Dcur` be the ship's maximum and current durability, `Tcur` and
+`Pcur` its current tacking and power, and `Tbase` and `Pbase` the model-table
+values. The exact quote is:
+
+```text
+repair units = Dmax - Dcur - Tcur - Pcur + Tbase + Pbase
+repair cost  = 20 × repair units
+```
+
+Completion restores durability to `Dmax` and tacking and power to their model
+values.
 
 **Sell** begins at `0x31FF1` and uses this guarded sequence:
 
@@ -423,13 +841,231 @@ thresholds as Market Invest, but tests and changes the port's industrial power.
 Its internal recalculation helpers begin at `0x3269F` and `0x327C3`; those are
 not separately selectable commands.
 
+### Guild command dialogue
+
+The Guild main handler begins at `MAIN.EXE 0x332E4`. It displays raw index 85
+(entry 86), “What do you want?”, and opens **Job Assignment** and **Country
+Info**. Both commands return to this menu; leaving the menu returns outside
+without a farewell.
+
+**Job Assignment** begins at `0x32E70`. When the shared scenario is idle, its
+ordinary Guild-entry route prepares three selectable rows. Each row contains
+one of the five common assignment families:
+
+| Stored selector | Menu label      | Shared section |
+| --------------: | --------------- | -------------: |
+|               0 | Transport Goods |              1 |
+|               1 | Buy Goods       |              2 |
+|               2 | Deliver Letter  |              3 |
+|               3 | Defeat Pirates  |              4 |
+|               4 | Collect Debt    |              5 |
+
+At ports 0–41, the idle shared route independently applies `random(5)` to
+each row. Duplicate labels are therefore valid. At ports 42 and above, all
+three rows are **Deliver Letter**. The route also prepares the corresponding
+destination and offer state before the executable displays the list.
+
+Selecting a row stores `selector + 1` as the prospective shared section and
+dispatches SNR0 with the current port and Guild qualifier `0x06`. The Old
+Guild Worker then makes the mission-specific offer. Rejecting it leaves the
+shared scenario idle and returns to the same three-row list. Accepting changes
+the shared section and returns to the Guild's main menu. Cancelling the list
+also returns to the main menu.
+
+If a common assignment is already active, **Job Assignment** does not open a
+new list. At its origin Guild, raw index 931 says, “Did you forget that you're
+on a mission for someone in this port?” Elsewhere, raw index 338 names the
+origin port: “Aren't you supposed to be on a mission for someone in %s?”
+Royal-mission search states can instead enter the separate Guild-clue handler
+at `0x32D25–0x32E68`.
+
+The assignment families, deadlines, rewards, progress interactions, and
+failure effects are documented in
+[the shared-scenario overview](scenarios/scenario-0-common-quests-and-royal-missions.md).
+
+**Country Info** begins at `0x331DE`. It asks which country to inspect with
+raw index 162 and offers Portugal, Spain, Turkey, England, Italy, and Holland;
+Piracy is not selectable. After a country is selected, raw index 86 asks for
+100 gold. Refusing produces raw index 87, “Huh, you'll regret it later.” If
+the player has fewer than 100 gold, raw index 163 says, “Sorry, no gold, no
+information!” Otherwise exactly 100 gold is deducted.
+
+The status screen rendered by `0x32F9A–0x331DB` contains:
+
+- the selected nation's cached **Profit**, from nation-record word `+0x00`;
+- the protagonist's displayed Friendship with that nation, stored value minus
+  100;
+- that nation's directed Relations with the other five selectable nations,
+  each stored value minus 30; and
+- alliance and blockade markers from the corresponding status bytes.
+
+After the screen, the Guild describes the nation's cached target:
+
+| Target field | Message                                                     |
+| -----------: | ----------------------------------------------------------- |
+|          0–5 | “It seems [selected nation] is out to get [target nation].” |
+|            6 | “It seems [selected nation] is cracking down on pirates.”   |
+|         7–FF | “Watch out for [selected nation]. They're out to get you.”  |
+
+It then resolves nation-record byte `+0x04` as a port and says, “A merchant
+fleet is going to [port].” Profit, the target, and the merchant-fleet
+destination are cached national state. Their monthly refresh is documented in
+[sphere-of-influence.md](sphere-of-influence.md#monthly-guild-refresh) and
+[friendship.md](friendship.md#guild-intelligence); buying the report does not
+recalculate them.
+
+### Palace command dialogue
+
+The Palace handler begins at `MAIN.EXE 0x309A5`. After the admission greeting
+has been acknowledged, it opens **Meet Ruler**, **Defect**, **Gold**, and
+**Ship**. A fifth stored label, **Secret Call**, is event-only rather than an
+ordinary selectable command. The ruler is selected from the nation controlling
+the capital being visited; this ordinary location-based selection is separate
+from the ruler variables used by diplomatic-mission dialogue.
+
+**Meet Ruler** begins at `0x3044A`. It first gives shared and protagonist story
+routes an opportunity to handle the audience. If neither route consumes the
+interaction, the ruler opens a second menu:
+
+- **Sphere of Influence** totals the visited nation's allied ports by region,
+  then displays their Industry, Economy, and economic-power rating. A capital
+  is included in the nation's worldwide count even when no overseas allied
+  port exists. The underlying economic-power calculation is documented in
+  [sphere-of-influence.md](sphere-of-influence.md).
+- **Letter of Marque** is refused if the protagonist already carries that
+  nation's letter. Otherwise it requires at least 1,000 Piracy Fame and Piracy
+  Fame no lower than either Trade or Adventure Fame. Accepting the request
+  grants the nation-specific letter-of-marque item.
+- **Tax Free Permit** is refused if the protagonist already carries that
+  nation's permit. The ruler explains that permits renew in April and October,
+  warns when the current six-month period is nearly over, and asks for
+  confirmation. Its price is `10,000 × permit units`. In the protagonist's
+  own nation, ranks 6 and 7 pay nothing; ranks 0–5 pay `7 − rank` units. At a
+  foreign Palace the unit count is `11 − rank`. A successful purchase grants
+  the nation-specific permit item for the current half-year period.
+
+The two document requests scan the twenty item slots first. An existing
+nation-specific item takes precedence over an empty slot; with neither an
+existing item nor an empty slot, the request cannot proceed.
+
+**Defect** begins at `0x3051D`. It asks for confirmation, changes affiliation,
+updates personal Friendship, and clears the old national fleet state used by
+the protagonist. Its menu predicate and exact Friendship changes are covered
+under [Defection](friendship.md#defection).
+
+**Gold** begins at `0x3063A`. It is royal aid, not a contribution. The current
+nation record holds an aid amount in thousands of gold pieces. A zero amount
+produces, “His Majesty thinks you can make it on your own this time.” Otherwise
+the ruler awards `1,000 × aid amount` and clears the stored amount so it cannot
+be collected twice. If that award would take on-hand gold above 600,000,000,
+the command refuses it instead.
+
+**Ship** begins at `0x306C3` and likewise consumes a ship type cached in the
+current nation record. It refuses when no ship aid is pending or when the fleet
+and ship-instance lists cannot accept another vessel, and also requires an
+eligible mate to captain it. On success it creates the specified ship, lets the
+player name it, assigns it to the fleet, decrements the cached aid count, and
+directs the player to the Shipyard. Repeating the command can therefore collect
+only as many ships as the nation record contains.
+
+Gold and Ship are disabled at a foreign Palace. They are benefits of the
+protagonist's current nation, whereas Defect is available only at a qualifying
+foreign Palace. Royal-invitation and active-royal-mission state can further
+disable Defect. Although **Secret Call** is the fifth label stored in the menu
+record, the ordinary Palace loop supplies only four selectable entries and its
+dispatch table contains only the first four command handlers. The apparent
+fifth command is therefore not an ordinary repeatable service. A separate
+post-command hook invokes a special event when the protagonist is a Duke and
+the corresponding global event bit is armed.
+
+### Collector and cartographer dialogue
+
+The special-residence dispatcher at `0x342C7` resolves the current port's
+ordinary occupant before calling a collector, cartographer, or skill-teacher
+handler. Story occupants are supplied by earlier scenario routes. All of them
+share the same residence portrait, but their commands and state are separate.
+
+A collector opens **Contract**, **Discovery**, and **Rumor** through the main
+handler at `0x339AA`:
+
+- **Contract** (`0x335FC`) asks the player to sell discoveries exclusively to
+  that collector. Accepting clears the active bit on every other collector
+  contract and activates the current one.
+- **Discovery** (`0x3365A`) lists discoveries that have been found but not
+  previously reported or given to a ruler. Selecting one pays gold, awards
+  Adventure Fame, and marks it consumed. The exact difficulty formula and the
+  five collectors' payment percentages are documented in
+  [adventure-fame.md](fame/adventure-fame.md#collectors-and-gold-percentages).
+  If no eligible discovery exists, the collector says so and returns to the
+  residence menu.
+- **Rumor** (`0x3384A`) either reports that there is nothing new or gives an
+  approximate latitude and longitude for an undiscovered village. The result
+  is generated from the discovery state, protagonist Luck, and the general
+  gameplay RNG; it does not reveal or consume the discovery.
+
+The mutable discovery table begins at save-slot-relative `0x6E74` and contains
+100 seven-byte records. The ordinary Discovery list accepts a record only when
+flag bit `0x80` is clear, `0x20` is set, and consumed bit `0x10` is clear.
+Completing the sale sets `0x10`. The collector's reaction is selected by
+`486 + floor(difficulty / 25)`, capped at raw index 490; difficulty 100 also
+uses its separate 1,500-Fame and 100,000-base-gold reward. Rumor instead takes
+the first record with both `0x80` and `0x40` clear. The selected record is
+therefore deterministic; Luck and the general RNG blur the coordinates that
+are reported for it.
+
+A cartographer opens **Contract**, **Learn Skills**, **Report**, and **Locate**
+through the main handler at `0x33F17`:
+
+- **Contract** (`0x33A70`) requires Cartography. Accepting clears the active
+  bit on the other cartographer records, activates the current cartographer,
+  and resets the unreported-chart-cell counter.
+- **Learn Skills** (`0x33B02`) teaches Cartography only when all three required
+  abilities—Seamanship, Knowledge, and Intuition—are at least 75. The lesson
+  price is
+  `min(60,000, 100 × (floor(5,000 / (floor(Charm / 5) + 1)) + 200))` gold.
+  Payment sets Cartography skill bit `0x08`.
+- **Report** (`0x33BFA`) refuses when there are no newly charted cells.
+  Otherwise it pays for every unreported cell, awards Adventure Fame, resets
+  that counter, and uses a special completion response once 3,300 total cells
+  are known. All five cartographers pay 80 gold and 5 Fame per cell.
+- **Locate** (`0x33D59`) examines carried treasure-map items 80–88. It requires
+  more than 20,000 gold and deducts 20,000, lets the player choose when more
+  than one qualifying map is carried, and describes its approximate location.
+  Analysis does not consume the map.
+
+Contract state controls the personalized greeting and command mask. An active
+contract changes “May I help you?” to a greeting using the protagonist's name;
+commands that require the current occupant's contract remain unavailable until
+that contract is active.
+
+Professor Juliano's Naples residence (`0x34030`) offers Celestial Navigation,
+and Dr. Wolf's Hamburg residence (`0x3418C`) offers Gunnery. Both handlers:
+
+1. ask whether the protagonist wants the lesson;
+2. refuse if the skill is already known;
+3. test three skill-specific ability thresholds;
+4. quote the same Charm-dependent lesson-price formula used for Cartography;
+   and
+5. deduct the price and set the corresponding skill bit when accepted.
+
+Their exact ability requirements are:
+
+| Teacher           | Skill taught         | Required abilities                        |
+| ----------------- | -------------------- | ----------------------------------------- |
+| Professor Juliano | Celestial Navigation | Seamanship 80, Knowledge 70, Intuition 70 |
+| Dr. Wolf          | Gunnery              | Leadership 75, Knowledge 65, Courage 80   |
+
+The other ID 8 locations are story residences. They do not expose a standing
+business menu: an applicable scenario route supplies the named occupant's
+conversation, while the ordinary fallback says, “Commodore, this building is
+locked.”
+
 Some commands lead to another menu. `Moor`, for example, opens `Store`,
 `Commission`, and `Exchange`; `Remodel` opens `Figurehead`, `Guns`,
 `Load Capacity`, and `Rename`. The Pub's `Meet` and `Waitress` commands likewise
 open character-specific submenus.
 
-Building entry and menu commands are separate dispatch points. Controlled
-shared-quest captures establish the following examples:
+Building entry and menu commands are separate dispatch points:
 
 - Transport Goods delivery runs as the destination Market is entered, before
   the ordinary menu. Complete delivery then exposes the menu; partial delivery
@@ -457,11 +1093,7 @@ continue. An `F8` result therefore normally prevents the later hostile check.
 A non-ejecting story route does not: it can be followed by either a hostile
 confrontation or the ordinary greeting and menu, depending on the random
 gates. The Lodge is an explicit exception: its branch at `0x20A61` continues
-into hostile processing even after `F8`. A controlled Trebizond visit therefore
-showed João's `F8`-ending story conversation, the hostile-port warning, and the
-ordinary Lodge menu in sequence after the confrontation roll missed. At the
-same story stage, ejecting routes in other eligible buildings stop before the
-hostile check.
+into hostile processing even after `F8`.
 
 The Palace's **Defect** entry is enabled only at a foreign capital and only
 when no royal invitation, offer, or accepted royal mission is active. Its
@@ -608,7 +1240,9 @@ This branch reads only the building index and time. It does not inspect the
 port's item records, so the extra opening is not conditional on a Secret Shop
 Item. Secret inventory is stored separately in the regular-port metadata in
 `DATA1.015`: the byte at record offset `+0x22` is the zero-based secret item
-ID, with `0xFF` meaning that the port has none.
+ID, with `0xFF` meaning that the port has none. At those hours the shop uses
+raw message 764 instead of its daytime greeting, and Buy offers that secret
+item instead of the three regular items.
 
 ### Churches and mosques
 
@@ -636,16 +1270,16 @@ ID 8 is not one uniform business. The same coordinate slot represents a
 collector, a cartographer, a skill teacher, or a story residence according to
 the port.
 
-| Kind                  | Port and occupant                                                                                                      |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Cartographer          | Amsterdam - Mercator; Antwerp - Gerard de Jode; Barcelona - Diogo Ribeiro; Palma - Olives; Venice - Giovanni Verrazano |
-| Collector             | Alexandria; Bordeaux; Copenhagen; Lisbon; Pisa                                                                         |
-| Skill teacher         | Hamburg - Dr. Wolf teaches Gunnery; Naples - Professor Juliano teaches Celestial Navigation                            |
-| Other story residence | Cairo; Calicut; Changan; Goa; Istanbul; Massawa; Mecca; Nagasaki; Sakai; Seville; Timbuktu                             |
+| Kind                  | Port and occupant                                                                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Cartographer          | Amsterdam - Mercator; Antwerp - Gerard de Jode; Barcelona - Diogo Ribeiro; Palma - Olives; Venice - Giovanni Verrazano     |
+| Collector             | Alexandria - Ranajame; Bordeaux - Professor Mordes; Copenhagen - Count Morie; Lisbon - Butler Marco; Pisa - Duke of Modena |
+| Skill teacher         | Hamburg - Dr. Wolf teaches Gunnery; Naples - Professor Juliano teaches Celestial Navigation                                |
+| Other story residence | Cairo; Calicut; Changan; Goa; Istanbul; Massawa; Mecca; Nagasaki; Sakai; Seville; Timbuktu                                 |
 
 Thus Amsterdam has a cartographer, while Naples has the astronomer Professor
-Juliano rather than a cartographer. The screenshots show the shared residence
-interior, which is why these otherwise different places look alike.
+Juliano rather than a cartographer. All of these occupants use the shared
+special-residence interior and vendor portrait.
 
 ## Port availability
 

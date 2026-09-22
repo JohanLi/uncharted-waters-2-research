@@ -5,10 +5,13 @@ import test from "node:test";
 import {
   CARTOGRAPHER_RECORD_SIZE,
   CARTOGRAPHER_TABLE,
+  COLLECTOR_RECORD_SIZE,
+  COLLECTOR_TABLE,
   CURRENT_PORT,
   FILE_SIZE,
   ITEM_INVENTORY,
   inspectCartographers,
+  inspectCollectors,
   inspectFame,
   inspectGold,
   inspectItems,
@@ -120,6 +123,53 @@ test("inspects cartographer contracts and chart-report rewards", () => {
     inspectCartographers(withMercatorContract, 1)[4]!.activeContract,
     true,
   );
+});
+
+test("inspects collector contracts", () => {
+  const save = saveInLisbon();
+  assert.deepEqual(inspectCollectors(save, 1), [
+    {
+      index: 0,
+      name: "Butler Marco",
+      portId: 0,
+      flags: 0x08,
+      activeContract: false,
+    },
+    {
+      index: 1,
+      name: "Count Morie",
+      portId: 34,
+      flags: 0x09,
+      activeContract: false,
+    },
+    {
+      index: 2,
+      name: "Ranajame",
+      portId: 18,
+      flags: 0x09,
+      activeContract: false,
+    },
+    {
+      index: 3,
+      name: "Duke of Modena",
+      portId: 9,
+      flags: 0x0a,
+      activeContract: false,
+    },
+    {
+      index: 4,
+      name: "Professor Mordes",
+      portId: 27,
+      flags: 0x08,
+      activeContract: false,
+    },
+  ]);
+
+  const contracted = Buffer.from(save);
+  const flags =
+    slotOffset(1) + COLLECTOR_TABLE + 4 * COLLECTOR_RECORD_SIZE + 0x16;
+  contracted[flags] = contracted[flags]! | 0x10;
+  assert.equal(inspectCollectors(contracted, 1)[4]!.activeContract, true);
 });
 
 test("changes rank while checking the expected current rank", () => {

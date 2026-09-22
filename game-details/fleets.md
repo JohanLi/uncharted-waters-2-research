@@ -23,12 +23,14 @@ display_ship_id = ship_type_id + 1
 
 The player's active fleet must be located from the current save; its fleet ID
 is not necessarily `0x00`. For the active protagonist record, use the slot's
-relative offsets:
+relative offsets. The first-slot absolute offsets shown in the preceding
+section include the file's `0x97`-byte header, so subtract that header when
+working relative to a slot:
 
 ```text
 protagonist = slot base + 0x0612 + protagonist index × 0x2A
 fleet_id    = protagonist[0x24]
-fleet       = 0x1E77 + fleet_id × 0x85
+fleet       = slot base + 0x1DE0 + fleet_id × 0x85
 ```
 
 The protagonist index is the record selected for the current player's
@@ -39,7 +41,7 @@ reference is at slot byte `+0x07`:
 
 ```text
 ship_instance_id = slot[0x07]
-ship_instance    = 0x4893 + ship_instance_id × 0x18
+ship_instance    = slot base + 0x47FC + ship_instance_id × 0x18
 ship_type_id     = ship_instance[0x11]
 display_ship_id  = ship_type_id + 1
 ```
@@ -55,6 +57,30 @@ Thus player and NPC fleets use the same chain:
 ```text
 captain → fleet ID → fleet record → ship slots → ship instances
 ```
+
+### Player provisions and docked ships
+
+The active player's per-ship provision/cargo table begins at slot-relative
+`0x423E`. It has 40 records of `0x1E` bytes. Records 0–9 accompany the active
+fleet slots; records 10–39 accompany the Harbor's reserve slots. Water, Food,
+Lumber, and Shot are the four `u16` values at `+0x00`, `+0x02`, `+0x04`, and
+`+0x06`. Water and Food are stored in tenths. Five goods quantities begin at
+`+0x0C`, their goods IDs begin at `+0x16`, and byte `+0x1B` identifies an
+active captain or stores `port ID | 0x80` for a docked ship.
+
+The 30 nine-byte reserve slots begin at slot-relative `0x46EE`. Their layout
+matches an active fleet ship slot, including the ship-instance ID at `+0x07`
+and status bits at `+0x08`. Status `0x10` plus a matching port marker in the
+parallel provision record identifies a ship docked at the current port.
+Reserve slots with status other than `0x10` or `0x20` are available. The Moor
+capacity displayed at one port is therefore:
+
+```text
+min(5, ships docked at this port + unused reserve slots)
+```
+
+Ships docked elsewhere consume the same reserve pool and can reduce that
+capacity, but do not appear in the current port's ship list.
 
 ## NPC captain fleets
 
