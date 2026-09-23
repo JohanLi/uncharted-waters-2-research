@@ -295,11 +295,15 @@ The following ordinary-building command groups are now traced:
   preprocessing at `0x2E55F–0x2E766`, before the Harbor menu loop at
   `0x2E767–0x2E844`.
 - The regular Harbor menu dispatches Sail at `0x2D7FD`, Supply at `0x2DC3F`,
-  and Moor at `0x2E2E6`. Sail rejects a ship with zero navigation crew and
-  otherwise classifies projected fleet endurance at 0, 1–9, 10–180, and more
-  than 180 days before changing to the at-sea state. Supply loads or dumps four
-  provision types subject to cargo space, gold, and port price modifiers. Moor
-  dispatches Store, Commission, and Exchange at `0x2DF09`, `0x2E048`, and
+  and Moor at `0x2E2E6`. Its entry preprocessing calls the shared national-
+  capital helper (`0x0FC4:B44C`, file offset `0x2068C–0x206BF`) at
+  `0x2E7E2–0x2E7EF`; when the current regular port is not any of the six
+  nation-record capital IDs, it sets the third-entry disabled bit, leaving
+  Moor visible but grayed out. Sail rejects a ship with zero navigation crew
+  and otherwise classifies projected fleet endurance at 0, 1–9, 10–180, and
+  more than 180 days before changing to the at-sea state. Supply loads or dumps
+  four provision types subject to cargo space, gold, and port price modifiers.
+  Moor dispatches Store, Commission, and Exchange at `0x2DF09`, `0x2E048`, and
   `0x2E18A`; stored ships occupy a shared reserve-record pool and remain local
   to their port. Supply ports instead use `0x2E4E8` and replace Moor with the
   Rename Port handler at `0x2E411`.

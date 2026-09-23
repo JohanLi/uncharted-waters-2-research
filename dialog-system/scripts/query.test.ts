@@ -54,6 +54,12 @@ test("parses nested ordinary command paths", () => {
     name: "harbor",
     commandPath: ["sail", "yes"],
   });
+  assert.deepEqual(parseQueryAction("shipyard:used-ship:2:yes:yes:Victoria"), {
+    type: "building",
+    context: 2,
+    name: "shipyard",
+    commandPath: ["used-ship", "2", "yes", "yes", "Victoria"],
+  });
   assert.deepEqual(parseQueryAction("church:donate:500"), {
     type: "building",
     context: 10,
@@ -1318,19 +1324,23 @@ test("resolves Shipyard model lists, repairs, remodeling, and investment", async
   const base = slotOffset(1);
   const protagonistId = save[14]!;
   const officer = base + 0x612 + protagonistId * 42;
+  save[officer + 0x1a] = 95;
   const fleetId = save[officer + 0x24]!;
   const fleetShip = base + 0x1de0 + fleetId * 0x85 + 0x2b;
   const instance = base + 0x47fc;
   const supply = base + 0x423e;
   const metadata = base + 0x5966;
   save[base + 0x0a] = 0;
-  save.writeUInt16LE(50_000, metadata + 6);
+  save.writeUInt16LE(1_000, metadata + 6);
   save[metadata + 0x24] = 0;
+  save[metadata + 0x25] = 0xff;
+  save.fill(50, metadata + 0x10, metadata + 0x1a);
   save.set([20, 0, 70, 100, 40, 40, 0, 0, 0x10], fleetShip);
   save.fill(0, instance, instance + 0x18);
   save.write("Mercury", instance, "latin1");
   save[instance + 0x11] = 0;
-  save.writeUInt16LE(200, instance + 0x16);
+  save.writeUInt16LE(10, instance + 0x14);
+  save.writeUInt16LE(30, instance + 0x16);
   save.fill(0, supply, supply + 0x1e);
   save.fill(0xff, supply + 0x16, supply + 0x1b);
   save[supply + 0x1b] = protagonistId;
@@ -1340,6 +1350,7 @@ test("resolves Shipyard model lists, repairs, remodeling, and investment", async
   const models = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
     "new-ship",
   ]);
+  assert.equal(models.disposition, "shown");
   assert.equal(models.command?.disposition, "shown");
   assert.ok((models.command?.menu.length ?? 0) > 0);
   const design = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
@@ -1347,14 +1358,401 @@ test("resolves Shipyard model lists, repairs, remodeling, and investment", async
     "1",
     "Beech",
   ]);
-  assert.equal(design.command?.disposition, "completed");
-  assert.match(design.command?.effects[0] ?? "", /design controls/);
+  assert.equal(design.command?.disposition, "shown");
+  assert.deepEqual(design.command?.menu, ["Yes", "No"]);
+  assert.ok(design.command?.notes.some((note) => /24 days/.test(note)));
+  assert.ok(design.command?.notes.some((note) => /1,?200 gold/.test(note)));
+  assert.ok(
+    design.command?.notes.some((note) =>
+      /minimum acceptable.*972 gold/i.test(note),
+    ),
+  );
 
+  const quote = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
+    "new-ship",
+    "1",
+    "Beech",
+    "yes",
+  ]);
+  assert.equal(quote.command?.dialogue.at(-1)?.rawIndex, 256);
+  assert.match(quote.command?.dialogue.at(-1)?.text ?? "", /1200/);
+  const ordered = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
+    "new-ship",
+    "1",
+    "Beech",
+    "yes",
+    "yes",
+    "10",
+    "5",
+    "yes",
+  ]);
+  assert.equal(ordered.command?.disposition, "completed");
+  assert.equal(ordered.command?.dialogue.at(-1)?.rawIndex, 262);
+  assert.match(ordered.command?.effects[0] ?? "", /1200 gold/);
+  assert.match(ordered.command?.effects[2] ?? "", /35 cargo spaces/);
+  const negotiated = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
+    "new-ship",
+    "1",
+    "Beech",
+    "yes",
+    "no",
+    "972",
+    "10",
+    "5",
+    "yes",
+  ]);
+  assert.equal(negotiated.command?.disposition, "completed");
+  assert.ok(
+    negotiated.command?.dialogue.some((entry) => entry.rawIndex === 863),
+  );
+  assert.match(negotiated.command?.effects[0] ?? "", /972 gold/);
+  const rejectedOffer = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["new-ship", "1", "Beech", "yes", "no", "971"],
+  );
+  assert.equal(rejectedOffer.command?.disposition, "blocked");
+  assert.equal(rejectedOffer.command?.confidence, "ambiguous");
+  assert.match(
+    rejectedOffer.command?.uncertainties.at(-1) ?? "",
+    /random\(5\)/,
+  );
+  const bookkeeperSave = Buffer.from(save);
+  const bookkeeper = base + 0x612 + 70 * 42;
+  bookkeeperSave[base + 0x1d85] = 70;
+  bookkeeperSave[bookkeeper + 0x26] = 4;
+  bookkeeperSave[bookkeeper + 0x28] = 0x02;
+  const exactAdvice = ordinaryBuildingEntry(
+    bookkeeperSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["new-ship", "1", "Beech", "yes", "no"],
+  );
+  assert.match(
+    exactAdvice.command?.dialogue.find((entry) => entry.rawIndex === 196)
+      ?.text ?? "",
+    /972/,
+  );
+  bookkeeperSave[bookkeeper + 0x28] = 0;
+  const randomAdvice = ordinaryBuildingEntry(
+    bookkeeperSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["new-ship", "1", "Beech", "yes", "no"],
+  );
+  assert.equal(randomAdvice.command?.confidence, "ambiguous");
+  assert.match(randomAdvice.command?.uncertainties[0] ?? "", /gameplay RNG/);
+  const cancelledCapacity = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["new-ship", "1", "Beech", "yes", "yes", "cancel"],
+  );
+  assert.equal(cancelledCapacity.command?.disposition, "completed");
+  assert.match(
+    cancelledCapacity.command?.effects[2] ?? "",
+    /default allocation/,
+  );
+  const unaffordableOrder = ordinaryBuildingEntry(
+    setGold(save, 1, 500),
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["new-ship", "1", "Beech", "yes", "yes"],
+  );
+  assert.equal(unaffordableOrder.command?.dialogue.at(-1)?.rawIndex, 239);
+  const pendingSave = Buffer.from(save);
+  pendingSave[metadata + 0x25] = 3;
+  const pendingOrder = ordinaryBuildingEntry(
+    pendingSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["new-ship"],
+  );
+  assert.equal(pendingOrder.command?.disposition, "blocked");
+  assert.equal(pendingOrder.command?.dialogue[0]?.rawIndex, 261);
+  const fullReserveSave = Buffer.from(save);
+  for (let index = 0; index < 30; index++)
+    fullReserveSave[base + 0x46ee + index * 9 + 8] = 0x10;
+  const fullReserve = ordinaryBuildingEntry(
+    fullReserveSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["new-ship"],
+  );
+  assert.equal(fullReserve.command?.dialogue[0]?.rawIndex, 377);
+  for (let index = 0; index < 10; index++)
+    fullReserveSave[fleetShip + index * 9 + 8] = 0x10;
+  const exchangeRequired = ordinaryBuildingEntry(
+    fullReserveSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["new-ship"],
+  );
+  assert.equal(exchangeRequired.command?.dialogue[0]?.rawIndex, 167);
+
+  const lowIndexSave = Buffer.from(save);
+  lowIndexSave.fill(0, metadata + 0x10, metadata + 0x1a);
+  const lowIndexDesign = ordinaryBuildingEntry(
+    lowIndexSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["new-ship", "1", "Beech"],
+  );
+  assert.ok(
+    lowIndexDesign.command?.notes.some((note) =>
+      /Price Index 50%; quoted price 600 gold/.test(note),
+    ),
+  );
+  const highIndexSave = Buffer.from(save);
+  highIndexSave.fill(100, metadata + 0x10, metadata + 0x1a);
+  const highIndexDesign = ordinaryBuildingEntry(
+    highIndexSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["new-ship", "1", "Beech"],
+  );
+  assert.ok(
+    highIndexDesign.command?.notes.some((note) =>
+      /Price Index 150%; quoted price 1800 gold/.test(note),
+    ),
+  );
+
+  for (const [industry, materials] of [
+    [500, ["Teak", "Cedar", "Beech"]],
+    [700, ["Teak", "Cedar", "Beech", "Oak"]],
+    [900, ["Teak", "Cedar", "Beech", "Oak", "Copper"]],
+  ] as const) {
+    save.writeUInt16LE(industry, metadata + 6);
+    const hulls = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
+      "new-ship",
+      "1",
+    ]);
+    assert.deepEqual(hulls.command?.menu, materials);
+  }
+  save.writeUInt16LE(1_000, metadata + 6);
+
+  const usedStock = base + 0x6e5c;
+  save[base + 0x1d85] = 1;
+  save[base + 0x612 + 1 * 42 + 0x26] = 3;
+  save.set([5, 1, 8, 20, 20, save[base + 0x0a]!, 0xff, 0xff], usedStock);
   const used = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
     "used-ship",
   ]);
-  assert.equal(used.command?.confidence, "ambiguous");
-  assert.match(used.command?.uncertainties[0] ?? "", /not stored in the save/);
+  assert.equal(used.command?.confidence, "decoded");
+  assert.deepEqual(used.command?.menu, [
+    "1: Caravela Latina",
+    "2: Hansa Cog",
+    "3: Nao",
+    "4: Venetian Galeass",
+    "5: Venetian Galeass",
+  ]);
+  const depletedStock = Buffer.from(save);
+  depletedStock[usedStock + 1] = 0xff;
+  const depletedList = ordinaryBuildingEntry(
+    depletedStock,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["used-ship"],
+  );
+  assert.deepEqual(depletedList.command?.menu, [
+    "1: Caravela Latina",
+    "3: Nao",
+    "4: Venetian Galeass",
+    "5: Venetian Galeass",
+  ]);
+  const depletedSelection = ordinaryBuildingEntry(
+    depletedStock,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["used-ship", "3"],
+  );
+  assert.match(depletedSelection.command?.notes[0] ?? "", /Selected Nao/);
+  const emptySelection = ordinaryBuildingEntry(
+    depletedStock,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["used-ship", "2"],
+  );
+  assert.equal(emptySelection.command?.disposition, "unavailable");
+  const selectedUsed = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["used-ship", "5"],
+  );
+  assert.equal(selectedUsed.command?.dialogue[0]?.rawIndex, 193);
+  assert.match(selectedUsed.command?.notes[0] ?? "", /Venetian Galeass/);
+  const usedQuote = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
+    "used-ship",
+    "5",
+    "yes",
+  ]);
+  assert.equal(usedQuote.command?.dialogue.at(-1)?.rawIndex, 194);
+  assert.deepEqual(usedQuote.command?.menu, ["Yes", "No"]);
+  const usedOffer = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
+    "used-ship",
+    "5",
+    "yes",
+    "no",
+  ]);
+  assert.equal(usedOffer.command?.dialogue.at(-1)?.rawIndex, 195);
+  assert.match(usedOffer.command?.menu[0] ?? "", /0 to 64000 gold/);
+  const accountingSave = Buffer.from(save);
+  accountingSave[base + 0x612 + 1 * 42 + 0x26] = 4;
+  accountingSave[base + 0x612 + 1 * 42 + 0x28] =
+    accountingSave[base + 0x612 + 1 * 42 + 0x28]! | 0x02;
+  const advisedUsed = ordinaryBuildingEntry(
+    accountingSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["used-ship", "5", "yes", "no"],
+  );
+  assert.equal(advisedUsed.command?.dialogue.at(-2)?.rawIndex, 196);
+  assert.match(advisedUsed.command?.dialogue.at(-2)?.text ?? "", /51840/);
+  const rejectedUsed = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["used-ship", "5", "yes", "no", "51839"],
+  );
+  assert.equal(rejectedUsed.command?.disposition, "blocked");
+  assert.match(rejectedUsed.command?.uncertainties[0] ?? "", /random\(5\)/);
+  const namedUsed = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
+    "used-ship",
+    "5",
+    "yes",
+    "no",
+    "51840",
+    "Galeass",
+  ]);
+  assert.equal(namedUsed.command?.disposition, "completed");
+  assert.equal(namedUsed.command?.dialogue.at(-1)?.rawIndex, 199);
+  assert.match(namedUsed.command?.effects[0] ?? "", /51840 gold/);
+  assert.match(namedUsed.command?.effects[1] ?? "", /durability 76/);
+  assert.match(
+    namedUsed.command?.effects[2] ?? "",
+    /320 crew bunks, 50 gun spaces, and 580 cargo spaces/,
+  );
+  assert.match(namedUsed.command?.effects.at(-1) ?? "", /stock slot empty/);
+  const directUsed = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
+    "used-ship",
+    "2",
+    "yes",
+    "yes",
+  ]);
+  assert.equal(directUsed.command?.disposition, "shown");
+  assert.deepEqual(directUsed.command?.menu, [
+    "Enter a ship name of at most 8 characters",
+  ]);
+  const canceledName = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["used-ship", "2", "yes", "yes", "cancel"],
+  );
+  assert.equal(canceledName.command?.disposition, "shown");
+  assert.match(canceledName.command?.notes.at(-1) ?? "", /not canceled/);
+
+  const noCaptainSave = Buffer.from(save);
+  noCaptainSave[base + 0x1d85] = 0xff;
+  const exchange = ordinaryBuildingEntry(
+    noCaptainSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["used-ship"],
+  );
+  assert.deepEqual(
+    exchange.command?.dialogue.map((entry) => entry.rawIndex),
+    [166, 167, 200],
+  );
+
+  const ejectedSave = Buffer.from(save);
+  ejectedSave[base + 0x0c] = ejectedSave[base + 0x0c]! | 0x02;
+  const ejected = ordinaryBuildingEntry(
+    ejectedSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+  );
+  assert.equal(ejected.disposition, "access-denied");
+  assert.equal(ejected.dialogue[0]?.rawIndex, 249);
+  assert.deepEqual(ejected.menu, []);
 
   const repair = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
     "repair",
@@ -1374,11 +1772,399 @@ test("resolves Shipyard model lists, repairs, remodeling, and investment", async
   assert.equal(rename.command?.disposition, "completed");
   assert.match(rename.command?.effects[0] ?? "", /Dauntless/);
 
+  const rareSelectionSave = Buffer.from(save);
+  rareSelectionSave.writeUInt16LE(1_000, metadata + 2);
+  rareSelectionSave[officer + 0x1b] = 95;
+  const figureheads = ordinaryBuildingEntry(
+    rareSelectionSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "figurehead"],
+  );
+  assert.equal(figureheads.command?.dialogue[0]?.rawIndex, 267);
+  assert.equal(figureheads.command?.confidence, "ambiguous");
+  assert.match(figureheads.command?.uncertainties[0] ?? "", /1-in-20/);
+  assert.match(figureheads.command?.uncertainties[1] ?? "", /Goddess/);
+  const selectedFigurehead = ordinaryBuildingEntry(
+    rareSelectionSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "figurehead", "1"],
+  );
+  assert.deepEqual(
+    selectedFigurehead.command?.dialogue.map((entry) => entry.rawIndex),
+    [267, 268],
+  );
+  const guns = ordinaryBuildingEntry(
+    rareSelectionSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "guns"],
+  );
+  assert.equal(guns.command?.dialogue[0]?.rawIndex, 270);
+  assert.equal(guns.command?.confidence, "ambiguous");
+  assert.match(guns.command?.uncertainties[0] ?? "", /Carronade/);
+  rareSelectionSave[officer + 0x1b] = 80;
+  const ordinaryFigureheads = ordinaryBuildingEntry(
+    rareSelectionSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "figurehead"],
+  );
+  assert.equal(ordinaryFigureheads.command?.confidence, "decoded");
+
+  const figureheadList = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "figurehead", "1"],
+  );
+  assert.deepEqual(figureheadList.command?.menu, [
+    "1: Sea Horse",
+    "2: Commodore",
+    "3: Unicorn",
+    "4: Lion",
+    "5: Giant Eagle",
+    "6: Hero",
+    "7: Neptune",
+    "8: Dragon",
+  ]);
+  const figureheadOffer = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "figurehead", "1", "2"],
+  );
+  assert.equal(figureheadOffer.command?.dialogue.at(-1)?.rawIndex, 269);
+  assert.match(
+    figureheadOffer.command?.dialogue.at(-1)?.text ?? "",
+    /Commodore/,
+  );
+  const figureheadCompleted = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "figurehead", "1", "2", "yes"],
+  );
+  assert.equal(figureheadCompleted.command?.disposition, "completed");
+  assert.ok(
+    figureheadCompleted.command?.effects.some((effect) =>
+      /Commodore figurehead/.test(effect),
+    ),
+  );
+
+  const gunList = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
+    "remodel",
+    "guns",
+    "1",
+  ]);
+  assert.deepEqual(gunList.command?.menu, [
+    "1: Cannon",
+    "2: Demicannon",
+    "3: Canon Pedrero",
+    "4: Culverin",
+    "5: Demiculverin",
+    "6: Saker",
+  ]);
+  const gunQuantity = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
+    "remodel",
+    "guns",
+    "1",
+    "1",
+  ]);
+  assert.equal(gunQuantity.command?.dialogue.at(-1)?.rawIndex, 271);
+  const gunOffer = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
+    "remodel",
+    "guns",
+    "1",
+    "1",
+    "2",
+  ]);
+  assert.equal(gunOffer.command?.dialogue.at(-1)?.rawIndex, 272);
+  assert.match(gunOffer.command?.dialogue.at(-1)?.text ?? "", /720/);
+  const gunCompleted = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "guns", "1", "1", "2", "yes"],
+  );
+  assert.equal(gunCompleted.command?.disposition, "completed");
+  assert.ok(
+    gunCompleted.command?.effects.some((effect) =>
+      /load 2 Cannons/.test(effect),
+    ),
+  );
+  const noGunSpaceSave = Buffer.from(save);
+  noGunSpaceSave.writeUInt16LE(40, instance + 0x16);
+  const noGunSpace = ordinaryBuildingEntry(
+    noGunSpaceSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "guns", "1", "1"],
+  );
+  assert.equal(noGunSpace.command?.disposition, "blocked");
+  assert.equal(noGunSpace.command?.dialogue.at(-1)?.combinedIndex, 1021);
+  const limitedGunSpaceSave = Buffer.from(save);
+  limitedGunSpaceSave.writeUInt16LE(38, instance + 0x16);
+  const limitedGunSpace = ordinaryBuildingEntry(
+    limitedGunSpaceSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "guns", "1", "1"],
+  );
+  assert.deepEqual(limitedGunSpace.command?.menu, ["Enter 1–2 guns", "Cancel"]);
+
+  const capacityQuote = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "load-capacity", "1"],
+  );
+  assert.equal(
+    capacityQuote.command?.dialogue.at(-1)?.text.includes("120"),
+    true,
+  );
+  assert.deepEqual(capacityQuote.command?.menu, ["Yes", "No"]);
+  const capacityAccepted = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "load-capacity", "1", "yes"],
+  );
+  assert.equal(capacityAccepted.command?.dialogue.at(-1)?.rawIndex, 258);
+  const capacityCompleted = ordinaryBuildingEntry(
+    save,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "load-capacity", "1", "yes", "10", "5", "yes"],
+  );
+  assert.equal(capacityCompleted.command?.disposition, "completed");
+  assert.match(capacityCompleted.command?.effects[1] ?? "", /35 cargo spaces/);
+  const loadedSave = Buffer.from(save);
+  loadedSave.writeUInt16LE(400, supply);
+  const capacityBlocked = ordinaryBuildingEntry(
+    loadedSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "load-capacity", "1", "yes", "10", "5", "yes"],
+  );
+  assert.equal(capacityBlocked.command?.disposition, "blocked");
+  assert.equal(capacityBlocked.command?.dialogue.at(-1)?.rawIndex, 20);
+  const capacityUnaffordable = ordinaryBuildingEntry(
+    setGold(save, 1, 50),
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["remodel", "load-capacity", "1", "yes"],
+  );
+  assert.equal(capacityUnaffordable.command?.disposition, "blocked");
+
   const sale = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
     "sell",
   ]);
   assert.equal(sale.command?.disposition, "blocked");
   assert.equal(sale.command?.dialogue[0]?.rawIndex, 208);
+
+  const saleSave = Buffer.from(save);
+  const secondSlot = fleetShip + 9;
+  const secondInstance = base + 0x47fc + 0x18;
+  const secondSupply = base + 0x423e + 0x1e;
+  const otherCaptain = protagonistId === 0 ? 1 : 0;
+  saleSave.set([0, 0, 70, 100, 40, 40, 0, 1, 0x10], secondSlot);
+  saleSave.fill(0, secondInstance, secondInstance + 0x18);
+  saleSave.write("Second", secondInstance, "latin1");
+  saleSave[secondInstance + 0x11] = 0;
+  saleSave.writeUInt16LE(10, secondInstance + 0x14);
+  saleSave.writeUInt16LE(200, secondInstance + 0x16);
+  saleSave.fill(0, secondSupply, secondSupply + 0x1e);
+  saleSave.fill(0xff, secondSupply + 0x16, secondSupply + 0x1b);
+  saleSave[secondSupply + 0x1b] = otherCaptain;
+
+  const saleList = ordinaryBuildingEntry(
+    saleSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["sell"],
+  );
+  assert.equal(saleList.command?.dialogue[0]?.rawIndex, 200);
+  assert.deepEqual(saleList.command?.menu, ["1: Mercury", "2: Second"]);
+  const saleConfirm = ordinaryBuildingEntry(
+    saleSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["sell", "2", "yes"],
+  );
+  assert.equal(saleConfirm.command?.dialogue.at(-1)?.rawIndex, 213);
+  assert.deepEqual(saleConfirm.command?.menu, ["Yes", "No"]);
+  const guardedSaleSave = Buffer.from(saleSave);
+  guardedSaleSave[secondSlot] = 1;
+  guardedSaleSave.writeUInt16LE(20, secondSupply);
+  const cargoGuard = ordinaryBuildingEntry(
+    guardedSaleSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["sell", "2", "yes"],
+  );
+  assert.equal(cargoGuard.command?.dialogue.at(-1)?.rawIndex, 211);
+  const crewGuard = ordinaryBuildingEntry(
+    guardedSaleSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["sell", "2", "yes", "yes"],
+  );
+  assert.equal(crewGuard.command?.dialogue.at(-1)?.rawIndex, 212);
+  const guardedSaleOffer = ordinaryBuildingEntry(
+    guardedSaleSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["sell", "2", "yes", "yes", "yes"],
+  );
+  assert.equal(guardedSaleOffer.command?.dialogue.at(-1)?.rawIndex, 213);
+  const saleCompleted = ordinaryBuildingEntry(
+    saleSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["sell", "2", "yes", "yes"],
+  );
+  assert.equal(saleCompleted.command?.disposition, "completed");
+  assert.ok(
+    saleCompleted.command?.effects.includes(
+      "remove Second from the active fleet",
+    ),
+  );
+  assert.ok(
+    saleCompleted.command?.effects.some((effect) =>
+      /add \d+ gold/.test(effect),
+    ),
+  );
+
+  const flagshipConfirm = ordinaryBuildingEntry(
+    saleSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["sell", "1", "yes"],
+  );
+  assert.equal(flagshipConfirm.command?.dialogue.at(-1)?.rawIndex, 209);
+  const replacement = ordinaryBuildingEntry(
+    saleSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["sell", "1", "yes", "yes"],
+  );
+  assert.equal(replacement.command?.dialogue.at(-1)?.rawIndex, 210);
+  assert.deepEqual(replacement.command?.menu, ["1: Second"]);
+  const flagshipSale = ordinaryBuildingEntry(
+    saleSave,
+    1,
+    0x02,
+    true,
+    [],
+    [],
+    data,
+    ["sell", "1", "yes", "yes", "1", "yes", "yes"],
+  );
+  assert.equal(flagshipSale.command?.disposition, "completed");
+  assert.ok(
+    flagshipSale.command?.effects.includes(
+      "make Second the flagship before the sale",
+    ),
+  );
+  assert.ok(
+    flagshipSale.command?.effects.includes(
+      "remove Mercury from the active fleet",
+    ),
+  );
 
   save[base + 0x04d6 + 0x0a] = 99;
   save.writeUInt16LE(1_000, metadata + 6);

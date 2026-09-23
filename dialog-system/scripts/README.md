@@ -73,8 +73,10 @@ all four House of Fortune readings. Guild, Palace, collector, cartographer,
 and skill-teacher commands are also resolved. Supply paths use
 `supply:load|dump:SHIP:RESOURCE[:QUANTITY]`; Moor paths use
 `moor:store|commission:SHIP[:yes|no]` or
-`moor:exchange:ACTIVE_SHIP:DOCKED_SHIP[:yes|no]`. Ship numbers are one-based
-positions in the displayed list. Bank commands accept an optional amount.
+`moor:exchange:ACTIVE_SHIP:DOCKED_SHIP[:yes|no]`. Moor is available only at
+the six national capitals; at other regular ports the query reports it as a
+disabled menu entry. Ship numbers are one-based positions in the displayed
+list. Bank commands accept an optional amount.
 Fortune readings use `life|career|love:yes|no`; Mates additionally accepts a
 one-based employed-mate selector. Palace paths include
 `meet-ruler:sphere-of-influence`, `meet-ruler:letter-of-marque`,
@@ -85,10 +87,59 @@ one-based employed-mate selector. Palace paths include
 `waitress[:COMMAND[:SELECTION]]`, and `gamble:black-jack|dice`. Market paths use
 `buy-goods:GOODS:SHIP:LOTS:yes`, `sell-goods:SHIP:GOODS:LOTS`,
 `invest:AMOUNT`, or `market-rate`. Shipyard paths use
-`new-ship[:MODEL[:MATERIAL]]`, `used-ship`, `repair:SHIP:yes|no`,
+`new-ship[:MODEL[:MATERIAL]]`, `used-ship[:SLOT]`, `repair:SHIP:yes|no`,
 `sell:SHIP`, `remodel:SUBCOMMAND[:SHIP[:VALUE]]`, or `invest:AMOUNT`.
+For a complete Load Capacity remodel, use
+`remodel:load-capacity:SHIP:yes:BUNKS:GUNS:yes`.
+For a complete New Ship order at the listed price, use
+`new-ship:MODEL:MATERIAL:yes:yes:BUNKS:GUNS:yes`; the two `yes` values
+confirm the design and price. To negotiate, replace the second `yes` with
+`no:OFFER`, for example
+`new-ship:MODEL:MATERIAL:yes:no:OFFER:BUNKS:GUNS:yes`. A `cancel` in place of
+the bunk or gun input leaves the paid order with its model-default capacity
+allocation. A below-minimum offer ends the attempt, with the refusal line and
+possible same-day Shipyard ejection dependent on gameplay RNG.
+If all ten active and thirty reserve slots are occupied, New Ship first opens
+the shared sale sequence after raw message 167. Select and confirm the ship,
+then answer any flagship-replacement, cargo, crew, and final-sale prompts that
+apply. The path form is
+`new-ship:exchange:SHIP:yes[:yes:NEW_FLAGSHIP][:yes][:yes]:yes:MODEL:MATERIAL:yes:yes:BUNKS:GUNS:yes`;
+omit the optional segments when the selected ship has no matching prompt. The
+final `yes` before `MODEL` accepts the sale. There is no extra Yes/No input
+after raw 167.
+When a construction timer reaches zero, selecting New Ship displays the
+delivery question; use `new-ship:yes` to accept or `new-ship:no` to leave the
+ship docked. If accepting requires an exchange, continue with the sale inputs
+after that `yes`, for example `new-ship:yes:SHIP:yes:yes` when no additional
+flagship, cargo, or crew prompt appears.
+For a Used Ship at the listed price, use
+`used-ship:SLOT:yes:yes:NAME`; to negotiate, use
+`used-ship:SLOT:yes:no:OFFER:NAME`. The first `yes` confirms the selected
+ship, and the second choice accepts or rejects its listed price.
+When the fleet requires an exchange, select and confirm the trade-in first:
+`used-ship:exchange:SHIP:yes:SLOT:yes:yes:NAME`. Raw message 167 proceeds
+directly to ship selection; there is no separate exchange Yes/No input. If the
+trade-in is the flagship, also confirm that choice and provide a replacement
+ship selector before the Used Ship slot:
+`used-ship:exchange:SHIP:yes:yes:NEW_FLAGSHIP:SLOT:yes:yes:NAME`. For
+compatibility, the query also accepts the older `exchange:yes:SHIP` form.
+For a normal ship sale, use `sell:SHIP:yes:yes` when no cargo or crew
+confirmation is needed. The first `yes` confirms the selected ship and the
+second accepts the final offer. If the ship is the flagship, confirm the
+replacement route and provide the replacement ship selector before the final
+offer, for example `sell:1:yes:yes:1:yes`. Cargo and crew prompts, when
+present, add one `yes` or `no` each before the final offer; a `no` at any
+confirmation returns to ship selection without selling. The query reports the
+deterministic sale value and removal/flagship effects after final acceptance.
 Ship numbers and model or goods numbers are one-based positions in their
 displayed lists; names can be used instead.
+Figurehead and gun purchases use
+`remodel:figurehead:SHIP:FIGUREHEAD:yes` and
+`remodel:guns:SHIP:GUN_TYPE:QUANTITY:yes`. Figurehead type and gun type can be
+selected by displayed name or one-based position. When the rare-selection
+requirements are met, the exact presence of “We have a great selection today”
+and the rare option in the menu remain gameplay-RNG-dependent; the query marks
+that branch ambiguous.
 
 At supply ports, priced loading cannot be reconstructed from a save alone:
 the executable reuses a regular-port metadata pointer retained in process

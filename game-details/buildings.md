@@ -39,7 +39,7 @@ one of them. Menu spelling and capitalization are copied from `raw/MENU.DAT`.
 |   1 | Market                           | "How may I help you?"                                                                                                                    | Buy Goods; Sell Goods; Invest; Market Rate                      |
 |   2 | Pub                              | "Hey sailor, you'll like our [specialty]!"                                                                                               | Recruit Crew; Dismiss Crew; Treat; Meet; Waitress; Gamble       |
 |   3 | Shipyard                         | "What brings you to this shipyard?"                                                                                                      | New Ship; Used Ship; Repair; Sell; Remodel; Invest              |
-|   4 | Harbor                           | "Ahoy there, matey, will ye be shoving off?"                                                                                             | Sail; Supply; Moor                                              |
+|   4 | Harbor                           | "Ahoy there, matey, will ye be shoving off?"                                                                                             | Sail; Supply; Moor (enabled at national capitals)               |
 |   5 | Lodge                            | "Welcome. You must be tired. Please make yourself at home."                                                                              | Check In; Gossip; Port Info                                     |
 |   6 | Palace                           | Access-dependent; a commoner is told, "Commoners are not permitted to enter the palace. Remove yourself from the premises."              | Meet Ruler; Defect; Gold; Ship; Secret Call (event-only)        |
 |   7 | Guild                            | "What do you want?"                                                                                                                      | Job Assignment; Country Info                                    |
@@ -227,11 +227,18 @@ status matrix in [friendship.md](friendship.md#nation-to-nation-relations).
 
 ### Harbor command dialogue
 
-At a regular port, the Harbor opens **Sail**, **Supply**, and **Moor**. The
-three command handlers begin at `MAIN.EXE 0x2D7FD`, `0x2DC3F`, and `0x2E2E6`.
-Cancelling Supply or Moor returns to the Harbor menu and restores its ordinary
-greeting. Sail returns there only when departure is declined or refused; a
-confirmed departure changes the player to the at-sea state.
+At a regular port, the Harbor constructs **Sail**, **Supply**, and **Moor** in
+that order. The three command handlers begin at `MAIN.EXE 0x2D7FD`, `0x2DC3F`,
+and `0x2E2E6`. **Moor is enabled only at one of the six national capitals**;
+at every other regular port its label remains in the menu but is grayed out.
+The entry preprocessing at `0x2E7E2–0x2E7EF` calls the shared capital helper
+(`0x0FC4:B44C`, file offset `0x2068C–0x206BF`), which compares the current port
+with all six nation-record capital IDs, and sets the third-entry disabled bit
+when there is no match. This is an any-capital check, not a check for the
+protagonist's own nation. Cancelling Supply or Moor returns to the Harbor menu
+and restores its ordinary greeting. Sail returns there only when departure is
+declined or refused; a confirmed departure changes the player to the at-sea
+state.
 
 #### Sail
 
@@ -307,6 +314,11 @@ pointer.
 
 #### Moor and docked ships
 
+The Moor submenu is reachable through the ordinary Harbor menu only at a
+national capital. The location restriction is separate from the docked-ship
+capacity and active-crew checks below; those checks run after the player has
+entered Moor.
+
 Moor opens **Store**, **Commission**, and **Exchange**. It first reports the
 number of ships currently kept at this port and the capacity available there.
 The displayed maximum is:
@@ -315,10 +327,11 @@ The displayed maximum is:
 min(5, ships already docked here + unused reserve ship records)
 ```
 
-The reserve pool consists of the 30 non-fleet ship records. Consequently a
-port normally holds up to five ships, but its displayed capacity can be lower
-when ships stored at other ports consume those shared records. Only ships
-whose stored location matches the current port appear in this Moor screen.
+The game allows up to 30 reserve ships in total, separate from the ships
+sailing in the active fleet. These non-fleet records are shared across ports,
+so a port normally holds up to five ships, but its displayed capacity can be
+lower when ships stored elsewhere consume those records. Only ships whose
+stored location matches the current port appear in this Moor screen.
 
 **Store** (`0x2DF09`) excludes the protagonist's flagship. If no secondary
 ship can be selected, raw index 279 says that only the flagship remains. A
@@ -755,40 +768,114 @@ belong to the gambling engine rather than to the ordinary Pub speaker loop.
 ### Shipyard command dialogue
 
 The Shipyard main handler begins at `MAIN.EXE 0x329B0`. Before its greeting
-and menu, it checks the hostile-building state and can instead display raw
+and menu, it checks the saved same-day ejection flag and can instead display raw
 index 249 (entry 250) and eject the protagonist. The six ordinary commands are
 **New Ship**, **Used Ship**, **Repair**, **Sell**, **Remodel**, and **Invest**.
 
-**New Ship** begins at `0x31D15`; its design-and-order routine begins at
-`0x31A70`. The preliminary path may refuse because this port builds no new
-ships (raw index 251, entry 252) or the protagonist already has the maximum
-ten ships in the active fleet (raw 377). Raw index 252 opens the eligible ordering
-path. Its construction sequence is:
+**New Ship** begins at `0x31D16`; model selection begins at `0x31B2E` and hull
+selection at `0x31A70`. The preliminary path may refuse because this port
+builds no new ships (raw index 251, entry 252) or the protagonist already has
+the maximum ten ships in the active fleet (raw 377). Raw index 252 opens the
+eligible ordering path. Its construction sequence is:
 
-| Stage                          | Raw index (entry) | Continuation                           |
-| ------------------------------ | ----------------: | -------------------------------------- |
-| Select model                   |         253 (254) | Confirms the chosen model.             |
-| Select hull material           |         254 (255) | Opens the material list.               |
-| Confirm current design         |         255 (256) | Follows the displayed ship statistics. |
-| Configure crew bunks           |         258 (259) | Numerical capacity input.              |
-| Configure gun space            |         259 (260) | Numerical capacity input.              |
-| Confirm capacity configuration |         260 (261) | Accepts or returns to configuration.   |
-| Confirm calculated price       |         256 (257) | Supplies the complete ship price.      |
-| Place order                    |         257 (258) | Begins construction.                   |
-| Construction time              |         262 (263) | Supplies the required number of days.  |
+| Stage                          | Raw index (entry) | Continuation                                                    |
+| ------------------------------ | ----------------: | --------------------------------------------------------------- |
+| Select model                   |         253 (254) | Confirms the chosen model.                                      |
+| Select hull material           |         254 (255) | Opens the material list.                                        |
+| Confirm current design         |         255 (256) | Follows the displayed ship statistics.                          |
+| Confirm calculated price       |         256 (257) | Supplies the quoted ship price; declining can open negotiation. |
+| Place order                    |         257 (258) | Payment and the construction order precede capacity allocation. |
+| Configure crew bunks           |         258 (259) | Numerical capacity input.                                       |
+| Configure gun space            |         259 (260) | Numerical capacity input.                                       |
+| Confirm capacity configuration |         260 (261) | Accepts or returns to configuration.                            |
+| Construction time              |         262 (263) | Supplies the required number of days.                           |
 
-Construction completion is building-entry preprocessing, not another New Ship
-menu selection. Before the due date raw index 261 reports the days remaining.
-Once ready, raw index 250 announces the ship, raw index 263 asks whether to add
-it to the fleet, and raw indices 264–265 cover leaving it in the dock. Fleet
-and dock capacity can instead invoke the ship-limit and swap-ship paths.
+The normal hull menu starts with Teak, Cedar, and Beech. Oak appears when the
+port's Industry reaches 700, and Copper at 900. A Tekkousen uses Steel alone.
+The material choice changes durability. The quoted price is handled before the
+crew-bunk and gun-space inputs, so those inputs do not determine that quote.
+Confirming the quote or an accepted negotiated offer pays for and creates the
+order before those capacity inputs. Cancelling either numeric input does not
+cancel the order: it continues with the model's default bunks and gun-space
+allocation. Confirming a proposed allocation stores the chosen limits instead.
+The executable calculates the New Ship quote from the catalog base price, hull
+material, and the port's Shipyard Price Index. Its shared negotiation routine
+also determines the minimum acceptable offer from the protagonist's Charm.
+An assigned Bookkeeper with Accounting reports that minimum exactly; without
+Accounting, the recommendation is randomized. See
+[Ships](./ships.md#shipyard-prices-and-negotiation) for the integer formulas.
+
+Construction days are calculated from the model's base durability and the
+port's Industry, independently of the selected hull and capacity allocation;
+see [Ships](./ships.md#construction-time).
+Only one construction order can be pending at a port. New Ship normally uses
+a free reserve-ship slot, regardless of how many ships are active in the
+fleet. If reserve storage is full but an active slot is free, raw message 377
+refuses another order; if all ten active-fleet slots and all thirty reserve
+slots are occupied, the game opens a ship-exchange route before model
+selection. Raw 167 is followed directly by the shared ship-sale sequence,
+starting with ship selection at raw 200; there is no separate Yes/No choice
+after raw 167. Once the sale is confirmed, the freed active slot holds the
+pending order and the model-selection sequence resumes. Forty is the combined
+storage-slot count, not the active-fleet limit: at most ten ships can be active
+in the fleet at once.
+
+When **New Ship** is selected at a port with an order pending, raw index 261
+reports the days remaining until the vessel is ready. At zero days, raw index
+250 announces the ship and raw index 263 asks whether to add it to the fleet.
+Declining leaves it docked (raw index 265). Accepting activates it if an active
+slot and eligible captain are available. Otherwise raw index 166 identifies a
+missing eligible mate when applicable, raw index 167 begins the swap path, and
+the shared sale sequence frees a slot before the finished ship is activated.
+The delivery capacity check counts both active and construction-pending ships
+in active-fleet slots; a pending ship can therefore still occupy one of the ten
+slots. The save-aware query follows both the direct-delivery and exchange
+branches.
 
 **Used Ship** begins at `0x31DE9`; its price-negotiation helper begins at
-`0x317FD`. Raw indices 193–194 select a ship and show its price. Rejecting the
-listed price opens raw index 195's offer prompt; a mate may supply raw 196's
-estimated minimum. Raw indices 197–198 reject unacceptable offers, while raw
-863 accepts a negotiated price. A completed purchase uses raw index 199 and
-immediately asks for the ship's name.
+`0x317FD`. Before the stock list, the game checks whether another mate can
+captain a ship and whether the fleet has fewer than ten active ships. A full
+active fleet requires an exchange even if an extra eligible captain is
+available; raw 166 indicates that no eligible mate can captain another ship,
+and raw 167 is followed directly by raw 200's ship selector without an extra
+Yes/No prompt. Its credit uses the selected ship's
+catalog price, hull material, and current Shipyard Price Index, and raises
+available gold for the purchase checks. After an exchange, or immediately
+when no exchange is needed, the player selects a stock slot, confirms the
+ship at raw 193, and sees its price at raw 194. Declining the selected ship
+returns to the stock list. Rejecting the listed price opens raw 195's
+offer prompt; a Bookkeeper may supply raw 196's estimated minimum. An offer
+below the minimum produces raw 198, or raw 197 on a one-in-five roll that
+also sets the same-day Shipyard ejection flag. Raw 863 accepts a negotiated
+price. Insufficient gold produces raw 239 without buying the ship.
+
+Once a price is accepted and affordable, the game deducts gold and creates
+the active-fleet ship, then displays raw 199 and asks for a name of at most
+eight characters. It marks the purchased stock slot empty when that naming
+step completes. Canceling the name input repeats the prompt rather than
+undoing the purchase. The selected stock slot matters when the list contains
+duplicates.
+
+Used Ship feeds the selected model's unmodified catalog base price into the
+same index and negotiation routine; its stored hull material does not change
+the quote. The five offered slots are generated when the port enters the
+three-port stock cache and are stored with that cache in the save. The first
+three draw from the port's shipyard model group, and the last two from a
+shared Economy-gated model pool. Thus the list need not match the models the
+port can currently build. Revisiting a cached port retains its stock; entering
+a fourth distinct regular port evicts the least recently visited record, so a later
+return regenerates it. A month change alone does not reroll stock. Without
+exchanging a ship, the purchased vessel enters the fleet with zero assigned
+crew and loaded guns while receiving crew bunks from the ship template and
+the model's maximum gun-space allocation. See
+[Ships](./ships.md#used-ship-purchase-state).
+
+The same negotiation helper serves New Ship and Used Ship. After the severe
+low-offer response, returning to any Shipyard before the next day immediately
+shows raw index 249 and ejects the protagonist before the greeting or menu.
+The flag persists across saving and loading, but the day-change routine clears
+it; see
+[Ships](./ships.md#shipyard-prices-and-negotiation).
 
 **Repair** begins at `0x31EE4`. Raw index 204 reports that the selected ship
 already needs no work. Otherwise raw index 205 supplies the repair cost and
@@ -820,21 +907,51 @@ values.
 | Sale offer                    |         213 (214) | Supplies the price and asks for final confirmation.            |
 | Sale declined                 |         214 (215) | Returns to ship selection.                                     |
 
+The save-aware query follows this sequence with colon-separated selectors:
+confirm the chosen ship, confirm any flagship replacement and select the new
+flagship, confirm discarding cargo and dismissing crew when present, then
+accept or decline raw 213's deterministic sale offer. A `No` at any guard
+returns to ship selection without selling. Accepting the final offer removes
+the selected ship, adds the quoted gold, and applies the replacement flagship
+choice when one was required. The quoted value uses the ship's stored hull
+material and the current Shipyard Price Index; it does not depend on current
+durability or crew.
+
 **Remodel** begins at `0x3263D` and opens `Figurehead / Guns / Load Capacity /
 Rename`. Figurehead and Guns begin at `0x32344` and `0x32410`; Load Capacity
 and Rename begin at `0x324C9` and `0x3259B`.
 
-| Subcommand       | Principal messages | Behavior                                                                                                   |
-| ---------------- | -----------------: | ---------------------------------------------------------------------------------------------------------- |
-| Figurehead       |            266–269 | Announces the selection, chooses a ship and figurehead, then supplies the installed price.                 |
-| Guns             |  266, 270–272, 334 | Chooses a ship and gun type, reports remaining capacity, accepts a quantity, and supplies the total price. |
-| Guns unavailable |   `MESSAGE2` 20–21 | Distinguishes a full gun allocation from a ship model that cannot carry guns.                              |
-| Load Capacity    |            273–274 | Chooses a ship, previews the cargo-capacity change, and supplies its price.                                |
-| Rename           |           273, 275 | Chooses a ship and opens the name-entry control.                                                           |
+| Subcommand       | Principal messages | Behavior                                                                                                          |
+| ---------------- | -----------------: | ----------------------------------------------------------------------------------------------------------------- |
+| Figurehead       |            266–269 | Raw 266 announces a rare selection; raw 267 normally chooses the ship, then the figurehead and price follow.      |
+| Guns             |  266, 270–272, 334 | Raw 266 announces a rare selection; raw 270 normally chooses the ship, then gun type, quantity, and price follow. |
+| Guns unavailable |   `MESSAGE2` 20–21 | Distinguishes a full gun allocation from a ship model that cannot carry guns.                                     |
+| Load Capacity    |            273–274 | Chooses a ship and quotes a fixed capacity-remodel price before opening the capacity controls.                    |
+| Rename           |           273, 275 | Chooses a ship and opens the name-entry control.                                                                  |
 
 Paid remodels use raw index 207 when on-hand gold is insufficient. Each
 subcommand owns its ship-selection loop; cancelling it returns to the Remodel
 menu, and cancelling Remodel returns to the main Shipyard menu.
+Load Capacity quotes one tenth of the selected model's listed base price. It
+checks available gold before the capacity controls, but deducts the price only
+after a completed configuration; cancelling the controls leaves the gold and
+ship allocation unchanged. See [Ships](./ships.md#load-capacity-remodeling).
+The controls accept crew bunks from the model's minimum through maximum crew
+and gun spaces from zero through the model's maximum guns. The remaining model
+capacity becomes cargo space. If carried provisions and goods exceed that
+space, raw message 20 rejects the configuration and returns to the inputs.
+The normal Figurehead list has up to eight choices based on port Economy, and
+the normal Guns list has up to six based on both Economy and Industry. The
+“great selection” line is shown only when a qualifying rare roll expands one
+of these lists; it is not the ordinary Figurehead greeting. A figurehead's
+price is 500 times the square of its one-based menu position;
+see [Ships](./ships.md#figureheads-and-guns). The save-aware query follows
+ship and type selection, gun quantity, price, affordability, and confirmation
+for both Figurehead and Guns with `remodel:figurehead:SHIP:TYPE:yes` and
+`remodel:guns:SHIP:TYPE:QUANTITY:yes`; selectors accept a displayed name or
+one-based position. When the rare-selection conditions are met, it marks the
+raw 266 message and extra menu choices ambiguous because gameplay RNG is not
+stored in the save.
 
 **Invest** begins at `0x328A3`. It applies the same 50,000 cap and message
 thresholds as Market Invest, but tests and changes the port's industrial power.

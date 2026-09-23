@@ -288,7 +288,8 @@ function integer(text: string, label: string): number {
 
 export function parseQueryAction(value: string): ScenarioQueryAction {
   const normalized = value.toLowerCase();
-  const [buildingName = "", ...commandPath] = normalized.split(":");
+  const [rawBuildingName = "", ...commandPath] = value.split(":");
+  const buildingName = rawBuildingName.toLowerCase();
   if (Object.hasOwn(BUILDING_CONTEXTS, buildingName))
     return {
       type: "building",
@@ -1739,9 +1740,12 @@ Ordinary command examples:
   market:market-rate
   shipyard:new-ship:1:Beech
   shipyard:used-ship
+  shipyard:used-ship:1:yes:no:10000:Mercury
+  shipyard:used-ship:exchange:yes:1:yes:yes:2:3:yes:yes:Mercury
   shipyard:repair:1:yes
   shipyard:sell:2
   shipyard:remodel:rename:1:Dauntless
+  shipyard:remodel:load-capacity:1:yes:10:5:yes
   shipyard:invest:10000
   harbor:sail
   harbor:sail:yes
