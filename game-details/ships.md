@@ -105,7 +105,10 @@ material multiplier:
 | Steel    |       140% |
 
 Steel is automatically selected for a newly built Tekkousen and is unavailable
-for other ship types.
+for other ship types. Other models initially offer Teak, Cedar, and Beech. The
+port's Industry unlocks Oak at 700 and Copper at 900. The selector at
+`MAIN.EXE 0x31A8C..0x31AC7` populates the material menu from
+`3 + floor(max(Industry - 500, 0) / 200)` entries, up to all five materials.
 
 ### Durability calculation and cap
 
@@ -127,6 +130,234 @@ Examples:
 Full-rigged Ship with Copper = min(90 * 12 / 10, 100) = 100
 Tekkousen with Steel         = min(90 * 14 / 10, 100) = 100
 ```
+
+### Construction time
+
+After the order and capacity configuration, the shipyard reports a build time
+in days. At `MAIN.EXE 0x31CD2..0x31D09`, it calculates:
+
+```text
+days = floor((100 - floor(port Industry / 50)) × model base durability / 100)
+```
+
+The calculation reads the model's base durability, not the hull-adjusted value.
+For example, a Balsa ordered at Industry 500 takes
+`floor((100 - 10) × 30 / 100) = 27` days with any available hull. The quoted
+price and payment occur before the crew-bunk and gun-space inputs, so those
+inputs do not change the quote. Once paid, cancelling a capacity input keeps
+the order with the model's default crew-bunk and gun-space allocation; the
+builder still records the construction time.
+
+When the timer reaches zero, selecting **New Ship** checks the existing order
+before opening the model list. The vendor announces the finished ship and asks
+whether to add it to the active fleet. The query resolves that handoff using
+the pending ship record, active fleet slots, and the game's employed-mate
+captain-eligibility check. If a slot or captain is missing, it follows the
+shared Shipyard sale sequence and then activates the finished ship in the
+fleet. Capacity checks count pending ships in active-fleet slots as occupied,
+even though they are not yet selectable as active ships. Declining leaves the
+completed vessel docked.
+
+### Shipyard prices and negotiation
+
+The New Ship builder at `MAIN.EXE 0x31BEB..0x31C33` adjusts the model's
+catalog base price for the chosen material. The shared price and negotiation
+routine at `0x317FD..0x31A6F` then applies the port's Shipyard Price Index.
+Let `B` be the catalog base price in gold, `b = B / 10` its stored integer
+value, and `m` the material index (Teak 0, Cedar 1, Beech 2, Oak 3, Copper 4,
+Steel 6). All divisions below truncate toward zero:
+
+```text
+new_price_tens = floor(4 × b / 5) + floor(m × b / 10)
+used_price_tens = b
+shipyard_index = 50 + floor(sum(port's 10 market-category rates) / 10)
+quoted_price = 10 × floor(price_tens × shipyard_index / 100)
+minimum_offer = floor(quoted_price × (500 - protagonist Charm) / 500)
+```
+
+The index normally spans 50%–150%. The New Ship material component spans
+80%–140% (Copper is 120%); the two separately truncated terms mean that
+`new_price_tens` can differ slightly from multiplying the catalog price by a
+single material percentage. The final quote is rounded down to a multiple of
+10 gold. Used Ship passes the selected model's unmodified base price to the
+same index and negotiation routine, so a used vessel's hull material does not
+affect its listed price.
+
+The player may accept the quoted price or enter an offer. Any offer at least
+`minimum_offer` is accepted. A lower offer is rejected and ends that
+negotiation. On four of five random outcomes the vendor gives an ordinary
+refusal; on the remaining outcome the vendor angrily ejects the player and
+sets a temporary Shipyard flag (`MAIN.EXE 0x319AE..0x319D5`). While that flag
+is set, entering any Shipyard immediately causes another ejection before its
+normal greeting or menu (`0x329C6..0x329DC`). The day-change routine clears
+the flag at `0x1E95E..0x1E979`. It is saved at slot offset `0x0C`, bit 1,
+so saving, sailing, or re-entering a port on the same day does not clear it.
+
+If a Bookkeeper is assigned, the game may show a recommendation. A
+Bookkeeper with the Accounting skill reports `minimum_offer` exactly. Without
+Accounting, the recommendation is
+`floor(minimum_offer × (95 + random(0..9)) / 100)`, which can lie below or
+above the true minimum. No recommendation appears without an assigned
+Bookkeeper.
+
+Selling a ship and trading one in use the same hull and Shipyard index
+calculation at `MAIN.EXE 0x30B86`. For catalog price `B`, stored price-in-tens
+`b = B / 10`, hull-material index `m`, and Shipyard index `I`:
+
+```text
+adjusted_price_tens = floor(4 × b / 5) + floor(m × b / 10)
+sale_or_trade_in    = 10 × floor(adjusted_price_tens × I / 100)
+```
+
+The hull index comes from the ship instance; the calculation does not read
+current durability, tacking, or power. The helper uses the saved port rates
+and does not call the general random-number routine. For a Used Ship exchange,
+this credit raises available gold before the purchase affordability and offer
+limit checks. The selected active ship is replaced when the purchase is
+accepted.
+
+The Sell command uses the same deterministic value after its applicable ship,
+flagship, cargo, and crew confirmations. Declining any confirmation returns to
+ship selection; accepting the final offer removes the ship and credits the
+quoted amount.
+
+### Used-ship purchase state
+
+The Used Ship list has five stock slots and is generated on port arrival
+(`MAIN.EXE 0x20F8B..0x211C0`), not on each Shipyard visit. The first three
+slots draw independently, with replacement, from the port's eight-entry
+shipyard-model row (`0x465E6`); the last two draw independently from a shared
+18-model table (`0x4663E`). Duplicate models can therefore occupy different
+slots. At `0x31DE9..0x31EB2`, selecting a slot passes its model ID and base
+price to the shared negotiation routine. Buying creates the active-fleet ship
+and deducts gold before the name prompt; after naming, the selected stock
+slot is marked empty. The new name is limited to eight characters.
+Canceling name entry repeats the prompt; it does not reverse payment.
+
+For the first three slots, the executable counts row entries whose model
+Industry requirement is met, then randomly selects among the _first that many
+positions_ of the row. This is a prefix, not a filtered list. Consequently,
+where a row is not sorted by Industry requirement, an offer can differ from
+the port's current New Ship construction list. For the last two slots, the
+number of eligible shared-table entries is
+`floor(min(Economy, 680) / 40) + 1`. The table's order is Balsa, Hansa Cog,
+Light Galley, Tallette, Caravela Latina, Caravela Redonda, Dhow, Buss,
+Flemish Galleon, Brigantine, Nao, Venetian Galeass, Pinnace, Carrack, La
+Reale, Xebec, Galleon, and Sloop. Each successive entry becomes available
+at another 40 Economy, starting with Balsa at zero. This shared pool can
+offer ships the port cannot build; the Japanese-only Tekkousen, Atakabune,
+and Kansen are absent from it.
+
+The save holds three eight-byte stock records at slot offset `0x6E5C`:
+five model IDs (`0xFF` for an empty slot), the port ID, and two trailing
+bytes. On arrival at a cached port, its record is moved to the front without
+rerolling. A new port shifts the three records and evicts the least recently
+visited one; returning after visiting three other distinct regular ports generates
+new stock. The generator has no month check, so a calendar rollover alone
+does not refresh the list. Purchased slots remain empty while their port's
+record stays cached.
+
+The purchase writer at `0x30C2A..0x30DD2` takes crew bunks from the model's
+saved ship template, allocates its full catalog maximum gun spaces, and uses
+the remaining capacity for cargo. Its initial durability is
+`floor(9 × base durability / 10) - floor(floor(9 × base durability / 10) / 15)`.
+When no ship is exchanged, the new fleet ship starts with zero assigned crew
+and zero loaded guns. These counts are distinct from its capacity limits.
+
+The player fleet has ten active-ship slots, and the game allows thirty
+additional ships in the reserve pool shared by all ports. Together these are
+forty player-ship storage positions, not a forty-ship active fleet: at most ten
+ships can be active at once, regardless of how many eligible captains are
+available. A Used Ship purchase therefore requires exchanging an active ship
+when the fleet is full, even if another mate could captain the new vessel. The
+no-eligible-captain condition is a separate reason to require an exchange.
+
+The ordinary Harbor's **Moor** command is enabled only at the six national
+capital ports. At other regular ports the command is displayed but disabled;
+the restriction is based on the visited port matching any nation's stored
+capital ID, not on the protagonist's affiliation. Supply ports use a separate
+Harbor menu that does not include Moor.
+
+Without an eligible
+additional captain or a free active-fleet slot, the purchase first enters a
+ship-exchange route. The selected trade-in's sale value supplements the gold
+available for the purchase and follows the deterministic sale/trade-in
+calculation above.
+
+### Load Capacity remodeling
+
+The Shipyard's Load Capacity command at `MAIN.EXE 0x324C9` quotes a fixed
+price equal to one tenth of the model's listed base price. For example,
+remodeling a Balsa costs 120 gold. The handler reads the model's stored price
+word, which is already in tens, at `0x3250E`; it does not multiply that word
+by ten as the catalog does. The price is checked before opening the capacity
+controls at `0x3255C`, and gold is deducted only if those controls finish
+successfully.
+
+The shared capacity control at `MAIN.EXE 0x310FF..0x31265` accepts crew bunks
+from the model's minimum through maximum crew and gun spaces from zero through
+its maximum guns. It sets `cargo capacity = model capacity - crew bunks - gun
+spaces`. The game rejects a confirmed layout when carried provisions and goods
+already exceed the proposed cargo capacity. On success it stores the new
+limits, caps assigned crew and loaded guns to them, then charges the quote.
+
+### Figureheads and guns
+
+At `MAIN.EXE 0x32344`, the normal Figurehead menu contains
+`min(floor(port Economy / 100) + 1, 8)` choices. The selected figurehead at
+one-based position `n` costs `500 × n²` gold; the ship's figurehead field is
+updated only after confirmation and payment at `0x320CB..0x3218C`.
+
+| Position | Figurehead  | Economy requirement |  Price |
+| -------: | ----------- | ------------------: | -----: |
+|        1 | Sea Horse   |                   0 |    500 |
+|        2 | Commodore   |                 100 |  2,000 |
+|        3 | Unicorn     |                 200 |  4,500 |
+|        4 | Lion        |                 300 |  8,000 |
+|        5 | Giant Eagle |                 400 | 12,500 |
+|        6 | Hero        |                 500 | 18,000 |
+|        7 | Neptune     |                 600 | 24,500 |
+|        8 | Dragon      |                 700 | 32,000 |
+|        9 | Angel       |      Rare selection | 40,500 |
+|       10 | Goddess     |      Rare selection | 50,000 |
+
+If port Economy and Industry are both above 800 and the protagonist's Luck is
+above 80, the Figurehead handler rolls `random(20)`. A zero adds the ninth
+choice and displays “We have a great selection today” (raw message 266)
+before the ordinary ship-selection prompt. It then rolls `random(Luck)`; a
+result of at least 90 also adds the tenth choice. The ninth and tenth choices
+are Angel and Goddess, respectively. Thus Goddess requires Luck above 90 and
+is conditional on Angel's roll. Angel has a 1-in-20 chance per eligible menu
+entry; Goddess has chance `(Luck - 90) / (20 × Luck)`.
+
+At `MAIN.EXE 0x32410`, the normal Guns menu contains
+`min(floor((port Economy + port Industry) / 200) + 1, 6)` choices. Each type
+uses its own per-gun price table. When Economy and Industry are both above 900
+and protagonist Luck is above 90, a zero from `random(20)` adds the seventh
+gun type, Carronade, and displays the same “great selection” message. Its
+chance is also 1 in 20 per eligible menu entry. Without a successful rare
+roll, Figurehead uses raw message 267 and Guns raw message 270 as their
+ordinary prompts.
+
+| Position | Gun type      | Economy + Industry requirement | Gold per gun |
+| -------: | ------------- | -----------------------------: | -----------: |
+|        1 | Cannon        |                              0 |          360 |
+|        2 | Demicannon    |                            200 |           80 |
+|        3 | Canon Pedrero |                            400 |           40 |
+|        4 | Culverin      |                            600 |          250 |
+|        5 | Demiculverin  |                            800 |           40 |
+|        6 | Saker         |                          1,000 |            5 |
+|        7 | Carronade     |                 Rare selection |          600 |
+
+The save-aware Shipyard query follows ordinary type selection, cost or quantity
+prompts, affordability checks, and confirmation for both controls. The input
+paths are `remodel:figurehead:SHIP:TYPE:yes` and
+`remodel:guns:SHIP:TYPE:QUANTITY:yes`; ship and equipment selectors accept
+one-based displayed positions or names. When the rare-selection conditions
+hold, the gameplay RNG determines whether raw message 266 appears and whether
+Angel, Goddess, or Carronade is actually available. The query marks that part
+ambiguous while resolving the selected purchase's deterministic price and
+effects.
 
 ## Storage layout
 

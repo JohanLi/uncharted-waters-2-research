@@ -231,6 +231,28 @@ const GOODS_NAMES = [
   "Arms",
   "Wood",
 ] as const;
+const FIGUREHEAD_NAMES = [
+  "Sea Horse",
+  "Commodore",
+  "Unicorn",
+  "Lion",
+  "Giant Eagle",
+  "Hero",
+  "Neptune",
+  "Dragon",
+  "Angel",
+  "Goddess",
+] as const;
+const GUN_NAMES = [
+  "Cannon",
+  "Demicannon",
+  "Canon Pedrero",
+  "Culverin",
+  "Demiculverin",
+  "Saker",
+  "Carronade",
+] as const;
+const GUN_PRICES = [360, 80, 40, 250, 40, 5, 600] as const;
 const GOODS_CATEGORY_LIMITS = [6, 10, 17, 21, 26, 31, 33, 36, 40, 46] as const;
 const PUB_SPECIALTIES = [
   "rum",
@@ -505,6 +527,24 @@ function harborShips(
   return ships;
 }
 
+function activeFleetOccupancyCount(
+  save: Buffer,
+  slot: number,
+  protagonistId: number,
+): number {
+  const base = slotOffset(slot);
+  const fleetId =
+    save[base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE + 0x24]!;
+  const fleet = base + PLAYER_FLEET_TABLE + fleetId * FLEET_RECORD_SIZE;
+  let count = 0;
+  for (let index = 0; index < SHIP_SLOT_COUNT; index++) {
+    const status =
+      save[fleet + FLEET_SHIP_SLOTS + index * SHIP_SLOT_SIZE + 8]! & 0x30;
+    if (status === 0x10 || status === 0x20) count++;
+  }
+  return count;
+}
+
 function dockedShips(
   save: Buffer,
   slot: number,
@@ -528,6 +568,24 @@ function dockedShips(
 
 function shipLabel(ship: HarborShip, ordinal: number): string {
   return `${ordinal + 1}: ${ship.name || `ship record ${ship.recordIndex}`}`;
+}
+
+function activeHarborShipSlot(
+  save: Buffer,
+  slot: number,
+  protagonistId: number,
+  ship: HarborShip,
+): number {
+  const base = slotOffset(slot);
+  const fleetId =
+    save[base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE + 0x24]!;
+  return (
+    base +
+    PLAYER_FLEET_TABLE +
+    fleetId * FLEET_RECORD_SIZE +
+    FLEET_SHIP_SLOTS +
+    ship.index * SHIP_SLOT_SIZE
+  );
 }
 
 function selectedShip(
@@ -3514,6 +3572,47 @@ function shipyardModels(
     );
 }
 
+function shipyardIndex(save: Buffer, slot: number, portId: number): number {
+  const metadata =
+    slotOffset(slot) + PORT_METADATA_TABLE + portId * PORT_METADATA_RECORD_SIZE;
+  const rateSum = save
+    .subarray(metadata + 0x10, metadata + 0x1a)
+    .reduce((sum, rate) => sum + rate, 0);
+  return 50 + Math.floor(rateSum / 10);
+}
+
+function shipyardQuote(
+  basePrice: number,
+  materialIndex: number,
+  index: number,
+): number {
+  const basePriceTens = basePrice / 10;
+  const materialPriceTens =
+    Math.floor((4 * basePriceTens) / 5) +
+    Math.floor((materialIndex * basePriceTens) / 10);
+  return 10 * Math.floor((materialPriceTens * index) / 100);
+}
+
+function shipyardTradeInQuote(
+  save: Buffer,
+  slot: number,
+  portId: number,
+  ship: HarborShip,
+  data: OrdinaryDialogueData,
+): number {
+  const model = data.shipModels[ship.typeId]!;
+  const instance =
+    slotOffset(slot) +
+    SHIP_INSTANCE_TABLE +
+    ship.instanceId * SHIP_INSTANCE_SIZE;
+  const materialIndex = save[instance + 0x12]! & 7;
+  return shipyardQuote(
+    model.basePrice,
+    materialIndex,
+    shipyardIndex(save, slot, portId),
+  );
+}
+
 function selectedShipModel(
   models: readonly ShipModel[],
   selector: string | undefined,
@@ -3525,7 +3624,59 @@ function selectedShipModel(
   return models.find((model) => normalizedCommand(model.name) === normalized);
 }
 
-function shipyardNewShipCommand(
+function pendingConstructionShip(
+  save: Buffer,
+  slot: number,
+  protagonistId: number,
+  portId: number,
+): HarborShip | undefined {
+  const base = slotOffset(slot);
+  const fleetId =
+    save[base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE + 0x24]!;
+  const fleet = base + PLAYER_FLEET_TABLE + fleetId * FLEET_RECORD_SIZE;
+  const marker = portId | 0x80;
+  for (
+    let recordIndex = 0;
+    recordIndex < SHIP_SLOT_COUNT + RESERVE_SHIP_COUNT;
+    recordIndex++
+  ) {
+    const shipSlot =
+      recordIndex < SHIP_SLOT_COUNT
+        ? fleet + FLEET_SHIP_SLOTS + recordIndex * SHIP_SLOT_SIZE
+        : base +
+          RESERVE_SHIP_SLOTS +
+          (recordIndex - SHIP_SLOT_COUNT) * SHIP_SLOT_SIZE;
+    const supply =
+      base + PLAYER_SUPPLY_RECORDS + recordIndex * SUPPLY_RECORD_SIZE;
+    if ((save[shipSlot + 8]! & 0x30) === 0x20 && save[supply + 0x1b] === marker)
+      return harborShip(
+        save,
+        base,
+        recordIndex,
+        recordIndex < SHIP_SLOT_COUNT
+          ? recordIndex
+          : recordIndex - SHIP_SLOT_COUNT,
+        shipSlot,
+      );
+  }
+  return undefined;
+}
+
+function shipyardAvailableCaptain(
+  save: Buffer,
+  slot: number,
+): number | undefined {
+  const base = slotOffset(slot);
+  return save
+    .subarray(base + MATE_ROSTER, base + MATE_ROSTER + MATE_ROSTER_COUNT)
+    .find(
+      (id) =>
+        id !== 0xff &&
+        save[base + SAILOR_TABLE + id * SAILOR_RECORD_SIZE + 0x26]! >= 3,
+    );
+}
+
+function shipyardConstructionDeliveryCommand(
   save: Buffer,
   slot: number,
   protagonistId: number,
@@ -3534,6 +3685,274 @@ function shipyardNewShipCommand(
   data: OrdinaryDialogueData,
 ): OrdinaryCommandResult {
   const speaker = "Shipyard vendor";
+  const pending = pendingConstructionShip(save, slot, protagonistId, portId);
+  if (!pending)
+    return result(path, {
+      confidence: "ambiguous",
+      disposition: "blocked",
+      dialogue: [line(data, 250, speaker), line(data, 263, speaker)],
+      menu: [],
+      effects: [],
+      uncertainties: [
+        "The port's construction timer is ready, but no matching pending ship record was found in the save.",
+      ],
+      notes: [],
+    });
+
+  const opening = [line(data, 250, speaker), line(data, 263, speaker)];
+  const answer = path[1] && normalizedCommand(path[1]);
+  if (!answer)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: opening,
+      menu: ["Yes", "No"],
+      effects: [],
+      uncertainties: [],
+      notes: [`Ready ship: ${pending.name}.`],
+    });
+  if (answer === "no")
+    return result(path, {
+      confidence: "decoded",
+      disposition: "completed",
+      dialogue: [...opening, line(data, 265, speaker)],
+      menu: MENUS[0x02]!,
+      effects: [`leave ${pending.name} in the dock for now`],
+      uncertainties: [],
+      notes: [],
+    });
+  if (answer !== "yes")
+    return unavailableCommand(
+      path,
+      `Unknown construction-delivery confirmation: ${path[1]}.`,
+    );
+
+  const activeShips = harborShips(save, slot, protagonistId);
+  const availableCaptain = shipyardAvailableCaptain(save, slot);
+  const exchangeRequired =
+    availableCaptain === undefined ||
+    activeFleetOccupancyCount(save, slot, protagonistId) >= SHIP_SLOT_COUNT;
+  if (!exchangeRequired) {
+    return result(path, {
+      confidence: "decoded",
+      disposition: "completed",
+      dialogue: opening,
+      menu: [
+        ...activeShips.map(shipLabel),
+        shipLabel(pending, activeShips.length),
+      ],
+      effects: [
+        `activate ${pending.name} in the active fleet`,
+        `assign ${sailorName(save, slot, availableCaptain!)} as its captain`,
+        `clear the construction order at this port`,
+      ],
+      uncertainties: [],
+      notes: [
+        `The pending ship occupies ${pending.recordIndex < SHIP_SLOT_COUNT ? "an active-fleet slot" : "a reserve slot"} before delivery.`,
+      ],
+    });
+  }
+
+  const hasCaptain = availableCaptain !== undefined;
+  const exchangeOpening = [
+    ...opening,
+    ...(!hasCaptain ? [line(data, 166, speaker)] : []),
+    line(data, 167, speaker),
+  ];
+  const suppliedPath =
+    path[2] && normalizedCommand(path[2]) === "exchange"
+      ? path.slice(3)
+      : path.slice(2);
+  const sale = shipyardSellCommand(
+    save,
+    slot,
+    protagonistId,
+    portId,
+    ["sell", ...suppliedPath],
+    data,
+  );
+  const dialogue = [...exchangeOpening, ...sale.dialogue];
+  if (sale.disposition !== "completed")
+    return result(path, {
+      confidence: sale.confidence,
+      disposition: sale.disposition,
+      dialogue,
+      menu: sale.menu.length ? sale.menu : activeShips.map(shipLabel),
+      effects: sale.effects,
+      uncertainties: sale.uncertainties,
+      notes: [
+        "The ready ship is added after one active ship is sold through the shared Shipyard sale sequence.",
+        ...sale.notes,
+      ],
+    });
+
+  const sold = selectedShip(activeShips, suppliedPath[0]);
+  if (!sold)
+    return unavailableCommand(
+      path,
+      `Unknown exchange ship: ${suppliedPath[0]}.`,
+    );
+  const captainId =
+    sold.captainId === protagonistId
+      ? selectedShip(
+          activeShips.filter(
+            (candidate) => candidate.recordIndex !== sold.recordIndex,
+          ),
+          suppliedPath[3],
+        )?.captainId
+      : sold.captainId;
+  if (captainId === undefined)
+    return result(path, {
+      confidence: "ambiguous",
+      disposition: "completed",
+      dialogue,
+      menu: activeShips
+        .filter((candidate) => candidate.recordIndex !== sold.recordIndex)
+        .map(shipLabel)
+        .concat(shipLabel(pending, activeShips.length - 1)),
+      effects: [
+        ...sale.effects,
+        `activate ${pending.name} in the active fleet after the exchange`,
+        "clear the construction order at this port",
+      ],
+      uncertainties: [
+        "The shared sale route completed, but the captain transferred from the flagship replacement could not be identified.",
+      ],
+      notes: [],
+    });
+  return result(path, {
+    confidence: sale.confidence,
+    disposition: "completed",
+    dialogue,
+    menu: activeShips
+      .filter((candidate) => candidate.recordIndex !== sold.recordIndex)
+      .map(shipLabel)
+      .concat(shipLabel(pending, activeShips.length - 1)),
+    effects: [
+      ...sale.effects,
+      `activate ${pending.name} in the active fleet after the exchange`,
+      `assign ${sailorName(save, slot, captainId)} as its captain`,
+      `clear the construction order at this port`,
+    ],
+    uncertainties: [],
+    notes: [],
+  });
+}
+
+function shipyardNewShipExchangeCommand(
+  save: Buffer,
+  slot: number,
+  protagonistId: number,
+  portId: number,
+  path: readonly string[],
+  data: OrdinaryDialogueData,
+): OrdinaryCommandResult {
+  const activeShips = harborShips(save, slot, protagonistId);
+  const speaker = "Shipyard vendor";
+  const entry = line(data, 167, speaker);
+  const exchangePath =
+    path[1] && normalizedCommand(path[1]) === "exchange"
+      ? path.slice(2)
+      : path.slice(1);
+  const sale = shipyardSellCommand(
+    save,
+    slot,
+    protagonistId,
+    portId,
+    ["sell", ...exchangePath],
+    data,
+  );
+  const dialogue = [entry, ...sale.dialogue];
+  if (sale.disposition !== "completed")
+    return result(path, {
+      confidence: sale.confidence,
+      disposition: sale.disposition,
+      dialogue,
+      menu: sale.menu.length ? sale.menu : activeShips.map(shipLabel),
+      effects: sale.effects,
+      uncertainties: sale.uncertainties,
+      notes: [
+        "The full-storage New Ship route sells one active ship before model selection.",
+        ...sale.notes,
+      ],
+    });
+
+  const sold = selectedShip(activeShips, exchangePath[0]);
+  if (!sold)
+    return unavailableCommand(
+      path,
+      `Unknown exchange ship: ${exchangePath[0]}.`,
+    );
+  let saleFinal = 3;
+  if (sold.captainId === protagonistId) saleFinal += 2;
+  if (sold.usedCapacity > 0) saleFinal++;
+  if (sold.crew > 0) saleFinal++;
+  const modelStart =
+    saleFinal + (path[1] && normalizedCommand(path[1]) === "exchange" ? 2 : 1);
+  const order = shipyardNewShipCommand(
+    save,
+    slot,
+    protagonistId,
+    portId,
+    ["new-ship", ...path.slice(modelStart)],
+    data,
+    { skipStorageCheck: true },
+  );
+  return result(path, {
+    confidence:
+      sale.confidence === "ambiguous" || order.confidence === "ambiguous"
+        ? "ambiguous"
+        : order.confidence,
+    disposition: order.disposition,
+    dialogue: [...dialogue, ...order.dialogue],
+    menu: order.menu,
+    effects: [...sale.effects, ...order.effects],
+    uncertainties: [...sale.uncertainties, ...order.uncertainties],
+    notes: [
+      "The sold ship's active slot receives the pending New Ship order until construction completes.",
+      ...sale.notes,
+      ...order.notes,
+    ],
+  });
+}
+
+function shipyardNewShipCommand(
+  save: Buffer,
+  slot: number,
+  protagonistId: number,
+  portId: number,
+  path: readonly string[],
+  data: OrdinaryDialogueData,
+  options: { readonly skipStorageCheck?: boolean } = {},
+): OrdinaryCommandResult {
+  const speaker = "Shipyard vendor";
+  const base = slotOffset(slot);
+  const metadata =
+    base + PORT_METADATA_TABLE + portId * PORT_METADATA_RECORD_SIZE;
+  // The executable's port pointer starts at metadata + 2; its +0x23
+  // construction-day field is therefore metadata + 0x25.
+  const pendingDays = save[metadata + 0x25]!;
+  if (pendingDays === 0)
+    return shipyardConstructionDeliveryCommand(
+      save,
+      slot,
+      protagonistId,
+      portId,
+      path,
+      data,
+    );
+  if (pendingDays !== 0xff)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "blocked",
+      dialogue: [
+        line(data, 261, speaker, [pendingDays, pendingDays === 1 ? "" : "s"]),
+      ],
+      menu: [],
+      effects: [],
+      uncertainties: [],
+      notes: ["This port already has a construction order."],
+    });
   const models = shipyardModels(save, slot, portId, data);
   if (models.length === 0)
     return result(path, {
@@ -3545,16 +3964,41 @@ function shipyardNewShipCommand(
       uncertainties: [],
       notes: ["No model in this shipyard meets the port's current Industry."],
     });
-  if (harborShips(save, slot, protagonistId).length >= SHIP_SLOT_COUNT)
-    return result(path, {
-      confidence: "decoded",
-      disposition: "blocked",
-      dialogue: [line(data, 377, speaker)],
-      menu: MENUS[0x02]!,
-      effects: [],
-      uncertainties: [],
-      notes: ["The active fleet already contains the maximum ten ships."],
-    });
+  const fleetId =
+    save[base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE + 0x24]!;
+  const fleet = base + PLAYER_FLEET_TABLE + fleetId * FLEET_RECORD_SIZE;
+  if (!options.skipStorageCheck) {
+    const freeReserve = Array.from(
+      { length: RESERVE_SHIP_COUNT },
+      (_, index) =>
+        save[base + RESERVE_SHIP_SLOTS + index * SHIP_SLOT_SIZE + 8]! & 0x30,
+    ).some((status) => status !== 0x10 && status !== 0x20);
+    if (!freeReserve) {
+      const freeActive = Array.from(
+        { length: SHIP_SLOT_COUNT },
+        (_, index) =>
+          save[fleet + FLEET_SHIP_SLOTS + index * SHIP_SLOT_SIZE + 8]! & 0x30,
+      ).some((status) => status !== 0x10 && status !== 0x20);
+      if (!freeActive)
+        return shipyardNewShipExchangeCommand(
+          save,
+          slot,
+          protagonistId,
+          portId,
+          path,
+          data,
+        );
+      return result(path, {
+        confidence: "decoded",
+        disposition: "blocked",
+        dialogue: [line(data, 377, speaker)],
+        menu: MENUS[0x02]!,
+        effects: [],
+        uncertainties: [],
+        notes: [],
+      });
+    }
+  }
   const opening = line(data, 252, speaker);
   const model = selectedShipModel(models, path[1]);
   if (!model)
@@ -3570,8 +4014,15 @@ function shipyardNewShipCommand(
       uncertainties: [],
       notes: path[1] ? [`Unknown available ship model: ${path[1]}.`] : [],
     });
+  const industry = save.readUInt16LE(metadata + 6);
+  const materialCount = Math.min(
+    5,
+    3 + Math.floor(Math.max(0, industry - 500) / 200),
+  );
   const materials =
-    model.id === 22 ? ["Steel"] : ["Teak", "Cedar", "Beech", "Oak", "Copper"];
+    model.id === 22
+      ? ["Steel"]
+      : ["Teak", "Cedar", "Beech", "Oak", "Copper"].slice(0, materialCount);
   const material =
     path[2] &&
     materials.find(
@@ -3597,25 +4048,287 @@ function shipyardNewShipCommand(
     100,
     Math.floor((model.durability * factor) / 10),
   );
+  const constructionDays = Math.floor(
+    ((100 - Math.floor(industry / 50)) * model.durability) / 100,
+  );
+  const basePriceTens = model.basePrice / 10;
+  const materialPriceTens =
+    Math.floor((4 * basePriceTens) / 5) +
+    Math.floor((materialIndex * basePriceTens) / 10);
+  const marketRateSum = Array.from(
+    save.subarray(metadata + 0x10, metadata + 0x1a),
+  ).reduce((sum, rate) => sum + rate, 0);
+  const shipyardIndex = 50 + Math.floor(marketRateSum / 10);
+  const quote = 10 * Math.floor((materialPriceTens * shipyardIndex) / 100);
+  const protagonist =
+    slotOffset(slot) + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE;
+  const charm = save[protagonist + 0x1a]!;
+  const minimumOffer = Math.floor((quote * (500 - charm)) / 500);
+  const preview = [
+    opening,
+    line(data, 253, speaker, [model.name]),
+    line(data, 254, speaker),
+    line(data, 255, speaker),
+  ];
+  const notes = [
+    `Preview durability: min(floor(${model.durability} × ${factor} / 10), 100) = ${durability}.`,
+    `Capacity ${model.capacity}, crew range ${model.minimumCrew}–${model.maximumCrew}, maximum guns ${model.maximumGuns}.`,
+    `Shipyard Price Index ${shipyardIndex}%; quoted price ${quote} gold.`,
+    `Minimum acceptable negotiated offer: ${minimumOffer} gold (protagonist Charm ${charm}).`,
+    `If ordered, construction takes ${constructionDays} days at Industry ${industry}.`,
+  ];
+  const designChoice = path[3] && normalizedCommand(path[3]);
+  if (!designChoice)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: preview,
+      menu: ["Yes", "No"],
+      effects: [],
+      uncertainties: [],
+      notes,
+    });
+  if (designChoice === "no")
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: preview,
+      menu: materials,
+      effects: ["return to hull-material selection"],
+      uncertainties: [],
+      notes,
+    });
+  if (designChoice !== "yes")
+    return unavailableCommand(path, `Unknown design confirmation: ${path[3]}.`);
+
+  const pricePrompt = line(data, 256, speaker, [quote]);
+  const quotedDialogue = [...preview, pricePrompt];
+  const priceChoice = path[4] && normalizedCommand(path[4]);
+  if (!priceChoice)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: quotedDialogue,
+      menu: ["Yes", "No"],
+      effects: [],
+      uncertainties: [],
+      notes,
+    });
+  if (priceChoice !== "yes" && priceChoice !== "no")
+    return unavailableCommand(path, `Unknown price confirmation: ${path[4]}.`);
+
+  const gold = inspectGold(save, slot);
+  let price = quote;
+  let nextInput = 5;
+  let priceDialogue = quotedDialogue;
+  let negotiationUncertainties: string[] = [];
+  if (priceChoice === "no") {
+    nextInput = 6;
+    const bookkeeperId = save
+      .subarray(base + MATE_ROSTER, base + MATE_ROSTER + MATE_ROSTER_COUNT)
+      .find(
+        (id) =>
+          id !== 0xff &&
+          save[base + SAILOR_TABLE + id * SAILOR_RECORD_SIZE + 0x26] === 4,
+      );
+    const accounting =
+      bookkeeperId !== undefined &&
+      (save[base + SAILOR_TABLE + bookkeeperId * SAILOR_RECORD_SIZE + 0x28]! &
+        0x02) !==
+        0;
+    if (bookkeeperId !== undefined && !accounting)
+      negotiationUncertainties = [
+        "The Bookkeeper's displayed estimate uses gameplay RNG and cannot be recovered from the save.",
+      ];
+    priceDialogue = [
+      ...quotedDialogue,
+      ...(bookkeeperId === undefined
+        ? []
+        : [
+            line(
+              data,
+              196,
+              "Bookkeeper",
+              accounting ? [minimumOffer] : ["[RNG-dependent estimate]"],
+            ),
+          ]),
+      line(data, 195, speaker),
+    ];
+    const offerInput = path[5];
+    const maximumOffer = Math.min(gold, quote);
+    if (offerInput === undefined)
+      return result(path, {
+        confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+        disposition: "shown",
+        dialogue: priceDialogue,
+        menu: [`Enter an offer from 0 to ${maximumOffer} gold`],
+        effects: [],
+        uncertainties: negotiationUncertainties,
+        notes: [...notes, `Minimum acceptable offer: ${minimumOffer} gold.`],
+      });
+    price = Number(offerInput);
+    if (!Number.isInteger(price) || price < 0 || price > maximumOffer)
+      return unavailableCommand(
+        path,
+        `The offer must be an integer from 0 to ${maximumOffer} gold.`,
+      );
+    if (price < minimumOffer)
+      return result(path, {
+        confidence: "ambiguous",
+        disposition: "blocked",
+        dialogue: priceDialogue,
+        menu: [],
+        effects: ["end the New Ship negotiation without placing an order"],
+        uncertainties: [
+          ...negotiationUncertainties,
+          "A random(5) roll selects raw refusal 198, or raw 197 and a temporary Shipyard ejection flag on zero.",
+        ],
+        notes: [
+          ...notes,
+          `Offer ${price} is below the minimum ${minimumOffer}.`,
+        ],
+      });
+    priceDialogue = [...priceDialogue, line(data, 863, speaker, [price])];
+  }
+
+  if (gold < price)
+    return result(path, {
+      confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+      disposition: "blocked",
+      dialogue: [...priceDialogue, line(data, 239, speaker)],
+      menu: [],
+      effects: [],
+      uncertainties: negotiationUncertainties,
+      notes: [`On-hand gold: ${gold}; selected price: ${price}.`],
+    });
+
+  const orderedDialogue = [...priceDialogue, line(data, 257, speaker)];
+  const orderEffects = [
+    `deduct ${price} gold`,
+    `create a ${material} ${model.name} construction order at this port`,
+  ];
+  const bunkInput = path[nextInput];
+  const defaultCargo = model.capacity - model.usedCrew - model.usedGuns;
+  if (bunkInput && normalizedCommand(bunkInput) === "cancel")
+    return result(path, {
+      confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+      disposition: "completed",
+      dialogue: [
+        ...orderedDialogue,
+        line(data, 258, speaker),
+        line(data, 262, speaker, [constructionDays]),
+      ],
+      menu: MENUS[0x02]!,
+      effects: [
+        ...orderEffects,
+        `retain default allocation of ${model.usedCrew} crew bunks, ${model.usedGuns} gun spaces, and ${defaultCargo} cargo spaces`,
+        `set construction time to ${constructionDays} days`,
+      ],
+      uncertainties: negotiationUncertainties,
+      notes,
+    });
+  if (bunkInput === undefined)
+    return result(path, {
+      confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+      disposition: "shown",
+      dialogue: [...orderedDialogue, line(data, 258, speaker)],
+      menu: [
+        `Enter ${model.minimumCrew}–${model.maximumCrew} crew bunks`,
+        "Cancel",
+      ],
+      effects: orderEffects,
+      uncertainties: negotiationUncertainties,
+      notes,
+    });
+  const bunks = Number(bunkInput);
+  if (
+    !Number.isInteger(bunks) ||
+    bunks < model.minimumCrew ||
+    bunks > model.maximumCrew
+  )
+    return unavailableCommand(
+      path,
+      `Crew bunks must be an integer from ${model.minimumCrew} to ${model.maximumCrew}.`,
+    );
+  const gunInput = path[nextInput + 1];
+  if (gunInput && normalizedCommand(gunInput) === "cancel")
+    return result(path, {
+      confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+      disposition: "completed",
+      dialogue: [
+        ...orderedDialogue,
+        line(data, 258, speaker),
+        line(data, 259, speaker),
+        line(data, 262, speaker, [constructionDays]),
+      ],
+      menu: MENUS[0x02]!,
+      effects: [
+        ...orderEffects,
+        `retain default allocation of ${model.usedCrew} crew bunks, ${model.usedGuns} gun spaces, and ${defaultCargo} cargo spaces`,
+        `set construction time to ${constructionDays} days`,
+      ],
+      uncertainties: negotiationUncertainties,
+      notes,
+    });
+  if (gunInput === undefined)
+    return result(path, {
+      confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+      disposition: "shown",
+      dialogue: [
+        ...orderedDialogue,
+        line(data, 258, speaker),
+        line(data, 259, speaker),
+      ],
+      menu: [`Enter 0–${model.maximumGuns} gun spaces`, "Cancel"],
+      effects: orderEffects,
+      uncertainties: negotiationUncertainties,
+      notes,
+    });
+  const guns = Number(gunInput);
+  if (!Number.isInteger(guns) || guns < 0 || guns > model.maximumGuns)
+    return unavailableCommand(
+      path,
+      `Gun spaces must be an integer from 0 to ${model.maximumGuns}.`,
+    );
+  const cargo = model.capacity - bunks - guns;
+  const capacityDialogue = [
+    ...orderedDialogue,
+    line(data, 258, speaker),
+    line(data, 259, speaker),
+    line(data, 260, speaker),
+  ];
+  const capacityChoice =
+    path[nextInput + 2] && normalizedCommand(path[nextInput + 2]!);
+  if (!capacityChoice || capacityChoice === "no")
+    return result(path, {
+      confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+      disposition: "shown",
+      dialogue: capacityDialogue,
+      menu: capacityChoice === "no" ? ["Re-enter crew bunks"] : ["Yes", "No"],
+      effects: orderEffects,
+      uncertainties: negotiationUncertainties,
+      notes: [...notes, `Proposed cargo capacity: ${cargo}.`],
+    });
+  if (capacityChoice !== "yes")
+    return unavailableCommand(
+      path,
+      `Unknown capacity confirmation: ${path[nextInput + 2]}.`,
+    );
   return result(path, {
-    confidence: "decoded",
+    confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
     disposition: "completed",
     dialogue: [
-      opening,
-      line(data, 253, speaker, [model.name]),
-      line(data, 254, speaker),
-      line(data, 255, speaker),
+      ...capacityDialogue,
+      line(data, 262, speaker, [constructionDays]),
     ],
-    menu: [],
+    menu: MENUS[0x02]!,
     effects: [
-      `open the crew-bunk and gun-space design controls for a ${material} ${model.name}`,
+      ...orderEffects,
+      `set ${bunks} crew bunks, ${guns} gun spaces, and ${cargo} cargo spaces`,
+      `set construction time to ${constructionDays} days`,
     ],
-    uncertainties: [],
-    notes: [
-      `Preview durability: min(floor(${model.durability} × ${factor} / 10), 100) = ${durability}.`,
-      `Capacity ${model.capacity}, crew range ${model.minimumCrew}–${model.maximumCrew}, maximum guns ${model.maximumGuns}.`,
-      "Final price and construction time depend on the interactive crew/gun allocation that follows.",
-    ],
+    uncertainties: negotiationUncertainties,
+    notes,
   });
 }
 
@@ -3707,22 +4420,432 @@ function shipyardRepairCommand(
 }
 
 function shipyardUsedShipCommand(
+  save: Buffer,
+  slot: number,
+  protagonistId: number,
+  portId: number,
   path: readonly string[],
   data: OrdinaryDialogueData,
 ): OrdinaryCommandResult {
+  const speaker = "Shipyard vendor";
+  const base = slotOffset(slot);
+  const availableCaptain = shipyardAvailableCaptain(save, slot) !== undefined;
+  const activeShips = harborShips(save, slot, protagonistId);
+  const exchangeRequired =
+    !availableCaptain ||
+    activeFleetOccupancyCount(save, slot, protagonistId) >= SHIP_SLOT_COUNT;
+  const exchangeEntryDialogue = [
+    ...(!availableCaptain ? [line(data, 166, "Shipyard vendor")] : []),
+    ...(exchangeRequired ? [line(data, 167, "Shipyard vendor")] : []),
+  ];
+  let tradeIn: HarborShip | undefined;
+  let replacementFlagship: HarborShip | undefined;
+  let exchangeDialogue: OrdinaryDialogueLine[] = [];
+  let stockPathOffset = 1;
+  if (exchangeRequired) {
+    const explicitMarker = normalizedCommand(path[1] ?? "") === "exchange";
+    const legacyConfirmation =
+      explicitMarker && normalizedCommand(path[2] ?? "") === "yes";
+    const firstSelector = explicitMarker ? (legacyConfirmation ? 3 : 2) : 1;
+    if (
+      (explicitMarker && normalizedCommand(path[2] ?? "") === "no") ||
+      (!explicitMarker && normalizedCommand(path[1] ?? "") === "no")
+    )
+      return result(path, {
+        confidence: "decoded",
+        disposition: "completed",
+        dialogue: exchangeEntryDialogue,
+        menu: MENUS[0x02]!,
+        effects: ["cancel the Used Ship exchange"],
+        uncertainties: [],
+        notes: [],
+      });
+
+    tradeIn = selectedShip(activeShips, path[firstSelector]);
+    if (!tradeIn)
+      return result(path, {
+        confidence: "decoded",
+        disposition: path[firstSelector] ? "unavailable" : "shown",
+        dialogue: [...exchangeEntryDialogue, line(data, 200, speaker)],
+        menu: activeShips.map(
+          (ship, index) =>
+            `${shipLabel(ship, index)} (trade-in credit ${shipyardTradeInQuote(save, slot, portId, ship, data)} gold)`,
+        ),
+        effects: [],
+        uncertainties: [],
+        notes: path[firstSelector]
+          ? [`Unknown exchange ship: ${path[firstSelector]}.`]
+          : [],
+      });
+
+    let next = firstSelector + 1;
+    exchangeDialogue = [
+      ...exchangeEntryDialogue,
+      line(data, 200, speaker),
+      line(data, 201, speaker, [tradeIn.name]),
+    ];
+    const shipConfirmation = path[next]
+      ? normalizedCommand(path[next]!)
+      : undefined;
+    if (!shipConfirmation)
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue: exchangeDialogue,
+        menu: ["Yes", "No"],
+        effects: [],
+        uncertainties: [],
+        notes: [
+          `Trade-in credit: ${shipyardTradeInQuote(save, slot, portId, tradeIn, data)} gold.`,
+        ],
+      });
+    if (shipConfirmation === "no")
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue: exchangeDialogue,
+        menu: activeShips.map(shipLabel),
+        effects: ["return to exchange-ship selection"],
+        uncertainties: [],
+        notes: [],
+      });
+    if (shipConfirmation !== "yes")
+      return unavailableCommand(
+        path,
+        `Unknown exchange-ship confirmation: ${path[next]}.`,
+      );
+    next++;
+
+    if (tradeIn.captainId === protagonistId) {
+      const flagshipConfirmation = path[next]
+        ? normalizedCommand(path[next]!)
+        : undefined;
+      const flagshipDialogue = [...exchangeDialogue, line(data, 209, speaker)];
+      if (!flagshipConfirmation)
+        return result(path, {
+          confidence: "decoded",
+          disposition: "shown",
+          dialogue: flagshipDialogue,
+          menu: ["Yes", "No"],
+          effects: [],
+          uncertainties: [],
+          notes: [],
+        });
+      if (flagshipConfirmation === "no")
+        return result(path, {
+          confidence: "decoded",
+          disposition: "shown",
+          dialogue: flagshipDialogue,
+          menu: activeShips.map(shipLabel),
+          effects: ["return to exchange-ship selection"],
+          uncertainties: [],
+          notes: [],
+        });
+      if (flagshipConfirmation !== "yes")
+        return unavailableCommand(
+          path,
+          `Unknown flagship exchange confirmation: ${path[next]}.`,
+        );
+      exchangeDialogue.push(line(data, 209, speaker));
+      next++;
+      const eligibleFlagships = activeShips.filter(
+        (ship) => ship.recordIndex !== tradeIn!.recordIndex,
+      );
+      replacementFlagship = selectedShip(eligibleFlagships, path[next]);
+      if (!replacementFlagship)
+        return result(path, {
+          confidence: "decoded",
+          disposition: path[next] ? "unavailable" : "shown",
+          dialogue: [...flagshipDialogue, line(data, 210, speaker)],
+          menu: eligibleFlagships.map(shipLabel),
+          effects: [],
+          uncertainties: [],
+          notes: path[next]
+            ? [`Unknown replacement flagship: ${path[next]}.`]
+            : [],
+        });
+      exchangeDialogue.push(line(data, 210, speaker));
+      next++;
+    }
+    stockPathOffset = next;
+  }
+
+  const stock = base + 0x6e5c;
+  if (save[stock + 5] !== portId)
+    return result(path, {
+      confidence: "ambiguous",
+      disposition: "shown",
+      dialogue: exchangeDialogue,
+      menu: [],
+      effects: [],
+      uncertainties: [
+        "The saved current-port Used Ship cache does not match the saved port. Stock will be refreshed on the next port-arrival update.",
+      ],
+      notes: [],
+    });
+  const stockEntries = Array.from(save.subarray(stock, stock + 5))
+    .map((id, index) => ({ slot: index + 1, model: data.shipModels[id] }))
+    .filter((entry): entry is { slot: number; model: ShipModel } =>
+      Boolean(entry.model),
+    );
+  const menu = stockEntries.map(
+    (entry) => `${entry.slot}: ${entry.model.name}`,
+  );
+  const stockSelector = path[stockPathOffset];
+  const numericStockSelector =
+    stockSelector && /^(?:model-?)?(\d+)$/i.exec(stockSelector);
+  const selectedStock = numericStockSelector
+    ? stockEntries.find(
+        (entry) => entry.slot === Number(numericStockSelector[1]),
+      )
+    : stockEntries.find(
+        (entry) =>
+          stockSelector !== undefined &&
+          normalizedCommand(entry.model.name) ===
+            normalizedCommand(stockSelector),
+      );
+  const model = selectedStock?.model;
+  if (!model)
+    return result(path, {
+      confidence: "decoded",
+      disposition: path[stockPathOffset] ? "unavailable" : "shown",
+      dialogue: exchangeDialogue,
+      menu,
+      effects: [],
+      uncertainties: [],
+      notes: path[stockPathOffset]
+        ? [`Unknown offered used ship: ${path[stockPathOffset]}.`]
+        : [],
+    });
+  const index = shipyardIndex(save, slot, portId);
+  const quote = 10 * Math.floor(((model.basePrice / 10) * index) / 100);
+  const charm =
+    save[base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE + 0x1a]!;
+  const minimumOffer = Math.floor((quote * (500 - charm)) / 500);
+  const template =
+    base +
+    SHIP_INSTANCE_TABLE +
+    (SHIP_SLOT_COUNT + RESERVE_SHIP_COUNT + model.id) * SHIP_INSTANCE_SIZE;
+  const crewBunks = save.readUInt16LE(template + 0x14);
+  const gunSpaces = model.maximumGuns;
+  const cargoSpaces = model.capacity - crewBunks - gunSpaces;
+  const firstDurabilityStep = Math.floor((9 * model.durability) / 10);
+  const usedDurability =
+    firstDurabilityStep - Math.floor(firstDurabilityStep / 15);
+  const notes = [
+    `Selected ${model.name}; Shipyard Price Index ${index}%; quoted price ${quote} gold.`,
+    `Minimum acceptable negotiated offer: ${minimumOffer} gold (protagonist Charm ${charm}).`,
+    `Purchased state: durability ${usedDurability}, ${crewBunks} crew bunks, ${gunSpaces} gun spaces, and ${cargoSpaces} cargo spaces.`,
+    ...(tradeIn
+      ? [
+          `Trade-in credit: ${shipyardTradeInQuote(save, slot, portId, tradeIn, data)} gold.`,
+        ]
+      : []),
+    "Repeated names are separate stock slots; select by number to distinguish them.",
+  ];
+  const selection = line(data, 193, speaker);
+  const selectedChoice =
+    path[stockPathOffset + 1] && normalizedCommand(path[stockPathOffset + 1]!);
+  if (!selectedChoice)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: [...exchangeDialogue, selection],
+      menu: ["Yes", "No"],
+      effects: [],
+      uncertainties: [],
+      notes,
+    });
+  if (selectedChoice === "no")
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: [...exchangeDialogue, selection],
+      menu,
+      effects: ["return to the Used Ship stock list"],
+      uncertainties: [],
+      notes,
+    });
+  if (selectedChoice !== "yes")
+    return unavailableCommand(
+      path,
+      `Unknown Used Ship confirmation: ${path[stockPathOffset + 1]}.`,
+    );
+
+  const quotedDialogue = [
+    ...exchangeDialogue,
+    selection,
+    line(data, 194, speaker, [quote]),
+  ];
+  const priceChoice =
+    path[stockPathOffset + 2] && normalizedCommand(path[stockPathOffset + 2]!);
+  if (!priceChoice)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: quotedDialogue,
+      menu: ["Yes", "No"],
+      effects: [],
+      uncertainties: [],
+      notes,
+    });
+  if (priceChoice !== "yes" && priceChoice !== "no")
+    return unavailableCommand(
+      path,
+      `Unknown price confirmation: ${path[stockPathOffset + 2]}.`,
+    );
+
+  const gold = inspectGold(save, slot);
+  let price = quote;
+  let nameIndex = stockPathOffset + 3;
+  let priceDialogue = quotedDialogue;
+  const negotiationUncertainties: string[] = [];
+  if (priceChoice === "no") {
+    nameIndex = stockPathOffset + 4;
+    const bookkeeperId = save
+      .subarray(base + MATE_ROSTER, base + MATE_ROSTER + MATE_ROSTER_COUNT)
+      .find(
+        (id) =>
+          id !== 0xff &&
+          save[base + SAILOR_TABLE + id * SAILOR_RECORD_SIZE + 0x26] === 4,
+      );
+    const accounting =
+      bookkeeperId !== undefined &&
+      (save[base + SAILOR_TABLE + bookkeeperId * SAILOR_RECORD_SIZE + 0x28]! &
+        0x02) !==
+        0;
+    if (bookkeeperId !== undefined && !accounting)
+      negotiationUncertainties.push(
+        "The Bookkeeper's displayed estimate uses gameplay RNG and cannot be recovered from the save.",
+      );
+    priceDialogue = [
+      ...quotedDialogue,
+      ...(bookkeeperId === undefined
+        ? []
+        : [
+            line(
+              data,
+              196,
+              "Bookkeeper",
+              accounting ? [minimumOffer] : ["[RNG-dependent estimate]"],
+            ),
+          ]),
+      line(data, 195, speaker),
+    ];
+    const tradeInCredit = tradeIn
+      ? shipyardTradeInQuote(save, slot, portId, tradeIn, data)
+      : 0;
+    const availableGold = gold + tradeInCredit;
+    const maximumOffer = Math.min(availableGold, quote);
+    if (path[stockPathOffset + 3] === undefined)
+      return result(path, {
+        confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+        disposition: "shown",
+        dialogue: priceDialogue,
+        menu: [`Enter an offer from 0 to ${maximumOffer} gold`],
+        effects: [],
+        uncertainties: negotiationUncertainties,
+        notes,
+      });
+    price = Number(path[stockPathOffset + 3]);
+    if (!Number.isInteger(price) || price < 0 || price > maximumOffer)
+      return unavailableCommand(
+        path,
+        `The offer must be an integer from 0 to ${maximumOffer} gold.`,
+      );
+    if (price < minimumOffer)
+      return result(path, {
+        confidence: "ambiguous",
+        disposition: "blocked",
+        dialogue: priceDialogue,
+        menu: [],
+        effects: ["end the Used Ship negotiation without buying the ship"],
+        uncertainties: [
+          ...negotiationUncertainties,
+          "A random(5) roll selects raw refusal 198, or raw 197 and a same-day Shipyard ejection flag on zero.",
+        ],
+        notes: [
+          ...notes,
+          `Offer ${price} is below the minimum ${minimumOffer}.`,
+        ],
+      });
+    priceDialogue = [...priceDialogue, line(data, 863, speaker, [price])];
+  }
+
+  const tradeInCredit = tradeIn
+    ? shipyardTradeInQuote(save, slot, portId, tradeIn, data)
+    : 0;
+  if (gold + tradeInCredit < price)
+    return result(path, {
+      confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+      disposition: "blocked",
+      dialogue: [...priceDialogue, line(data, 239, speaker)],
+      menu: [],
+      effects: [],
+      uncertainties: negotiationUncertainties,
+      notes: [
+        ...notes,
+        `On-hand gold: ${gold}; trade-in credit: ${tradeInCredit}; selected price: ${price}.`,
+      ],
+    });
+
+  const purchaseEffects = [
+    ...(tradeIn
+      ? [
+          `trade in ${tradeIn.name} for ${tradeInCredit} gold`,
+          ...(replacementFlagship
+            ? [
+                `make ${replacementFlagship.name} the flagship before the exchange`,
+              ]
+            : []),
+        ]
+      : []),
+    `deduct ${price} gold`,
+    `create a used ${model.name} ${tradeIn ? `in the exchange slot replacing ${tradeIn.name}` : "in the first free active-fleet slot"} with durability ${usedDurability}, zero assigned crew and loaded guns`,
+    `configure ${crewBunks} crew bunks, ${gunSpaces} gun spaces, and ${cargoSpaces} cargo spaces`,
+  ];
+  const namingDialogue = [...priceDialogue, line(data, 199, speaker)];
+  const proposed = path[nameIndex];
+  if (proposed === undefined)
+    return result(path, {
+      confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+      disposition: "shown",
+      dialogue: namingDialogue,
+      menu: ["Enter a ship name of at most 8 characters"],
+      effects: purchaseEffects,
+      uncertainties: negotiationUncertainties,
+      notes: [...notes, "Payment and ship creation precede naming."],
+    });
+  if (proposed.length === 0 || normalizedCommand(proposed) === "cancel")
+    return result(path, {
+      confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+      disposition: "shown",
+      dialogue: namingDialogue,
+      menu: ["Enter a ship name of at most 8 characters"],
+      effects: purchaseEffects,
+      uncertainties: negotiationUncertainties,
+      notes: [
+        ...notes,
+        "Naming retries; the completed payment is not canceled.",
+      ],
+    });
+  if (Buffer.byteLength(proposed, "latin1") > 8)
+    return unavailableCommand(
+      path,
+      "A new ship name must contain 1 to 8 single-byte characters.",
+    );
   return result(path, {
-    confidence: "ambiguous",
-    disposition: "shown",
-    dialogue: [line(data, 193, "Shipyard vendor")],
-    menu: ["Select a currently offered used ship", "Cancel"],
-    effects: ["open the used-ship stock and price-negotiation screen"],
-    uncertainties: [
-      "Used-ship stock and its quoted prices are generated in process and are not stored in the save, so a save alone cannot reconstruct the displayed list.",
-      "Rejecting the listed price enters a general-RNG negotiation path.",
+    confidence: negotiationUncertainties.length ? "ambiguous" : "decoded",
+    disposition: "completed",
+    dialogue: namingDialogue,
+    menu: MENUS[0x02]!,
+    effects: [
+      ...purchaseEffects,
+      `name the new ship ${proposed}`,
+      `mark the selected Used Ship stock slot empty`,
     ],
-    notes: [
-      "A selected ship uses raw messages 194–199 and 863 before the naming control.",
-    ],
+    uncertainties: negotiationUncertainties,
+    notes,
   });
 }
 
@@ -3730,6 +4853,7 @@ function shipyardSellCommand(
   save: Buffer,
   slot: number,
   protagonistId: number,
+  portId: number,
   path: readonly string[],
   data: OrdinaryDialogueData,
 ): OrdinaryCommandResult {
@@ -3758,30 +4882,486 @@ function shipyardSellCommand(
     });
   const flagship = ship.captainId === protagonistId;
   const hasCargo = ship.usedCapacity > 0;
-  const guards = [
-    ...(flagship ? [line(data, 209, speaker)] : []),
-    ...(hasCargo ? [line(data, 211, speaker)] : []),
-    ...(ship.crew > 0 ? [line(data, 212, speaker)] : []),
-  ];
+  const tradeInQuote = shipyardTradeInQuote(save, slot, portId, ship, data);
+  const shipDialogue = [line(data, 201, speaker, [ship.name])];
+  const selectionChoice = path[2] && normalizedCommand(path[2]);
+  if (!selectionChoice)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: shipDialogue,
+      menu: ["Yes", "No"],
+      effects: [],
+      uncertainties: [],
+      notes: [],
+    });
+  if (selectionChoice === "no")
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: shipDialogue,
+      menu: ships.map(shipLabel),
+      effects: ["return to ship selection without selling"],
+      uncertainties: [],
+      notes: [],
+    });
+  if (selectionChoice !== "yes")
+    return unavailableCommand(
+      path,
+      `Unknown ship-sale confirmation: ${path[2]}.`,
+    );
+
+  let next = 3;
+  let dialogue = [...shipDialogue];
+  const effects: string[] = [];
+  if (flagship) {
+    const flagshipChoice = path[next] && normalizedCommand(path[next]!);
+    dialogue.push(line(data, 209, speaker));
+    if (!flagshipChoice)
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue,
+        menu: ["Yes", "No"],
+        effects: ["select a replacement flagship before the sale can continue"],
+        uncertainties: [],
+        notes: [],
+      });
+    if (flagshipChoice === "no")
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue,
+        menu: ships.map(shipLabel),
+        effects: ["return to ship selection without selling"],
+        uncertainties: [],
+        notes: [],
+      });
+    if (flagshipChoice !== "yes")
+      return unavailableCommand(
+        path,
+        `Unknown flagship-sale confirmation: ${path[next]}.`,
+      );
+    next++;
+    dialogue.push(line(data, 210, speaker));
+    const replacementShips = ships.filter(
+      (candidate) => candidate.recordIndex !== ship.recordIndex,
+    );
+    const replacement = selectedShip(replacementShips, path[next]);
+    if (!replacement)
+      return result(path, {
+        confidence: "decoded",
+        disposition: path[next] ? "unavailable" : "shown",
+        dialogue,
+        menu: replacementShips.map(shipLabel),
+        effects: [],
+        uncertainties: [],
+        notes: path[next]
+          ? [`Unknown replacement flagship: ${path[next]}.`]
+          : [],
+      });
+    effects.push(`make ${replacement.name} the flagship before the sale`);
+    next++;
+  } else {
+    effects.push("retain the current flagship");
+  }
+
+  if (hasCargo) {
+    const cargoChoice = path[next] && normalizedCommand(path[next]!);
+    dialogue.push(line(data, 211, speaker));
+    if (!cargoChoice)
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue,
+        menu: ["Yes", "No"],
+        effects: [...effects, "discard carried cargo if confirmed"],
+        uncertainties: [],
+        notes: [],
+      });
+    if (cargoChoice === "no")
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue,
+        menu: ships.map(shipLabel),
+        effects: ["return to ship selection without selling"],
+        uncertainties: [],
+        notes: [],
+      });
+    if (cargoChoice !== "yes")
+      return unavailableCommand(
+        path,
+        `Unknown cargo-disposal confirmation: ${path[next]}.`,
+      );
+    effects.push("discard carried cargo");
+    next++;
+  }
+
+  if (ship.crew > 0) {
+    const crewChoice = path[next] && normalizedCommand(path[next]!);
+    dialogue.push(line(data, 212, speaker));
+    if (!crewChoice)
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue,
+        menu: ["Yes", "No"],
+        effects: [...effects, "dismiss the ship's crew if confirmed"],
+        uncertainties: [],
+        notes: [],
+      });
+    if (crewChoice === "no")
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue,
+        menu: ships.map(shipLabel),
+        effects: ["return to ship selection without selling"],
+        uncertainties: [],
+        notes: [],
+      });
+    if (crewChoice !== "yes")
+      return unavailableCommand(
+        path,
+        `Unknown crew-dismissal confirmation: ${path[next]}.`,
+      );
+    effects.push("dismiss the ship's crew");
+    next++;
+  }
+
+  const offer = line(data, 213, speaker, [tradeInQuote]);
+  dialogue.push(offer);
+  const offerChoice = path[next] && normalizedCommand(path[next]!);
+  if (!offerChoice)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue,
+      menu: ["Yes", "No"],
+      effects: [...effects, `add ${tradeInQuote} gold`, `remove ${ship.name}`],
+      uncertainties: [],
+      notes: [
+        `Sale offer: ${tradeInQuote} gold using the saved hull material and this port's Shipyard Price Index.`,
+      ],
+    });
+  if (offerChoice === "no")
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: [...dialogue, line(data, 214, speaker)],
+      menu: ships.map(shipLabel),
+      effects: ["return to ship selection without selling"],
+      uncertainties: [],
+      notes: [],
+    });
+  if (offerChoice !== "yes")
+    return unavailableCommand(
+      path,
+      `Unknown final sale confirmation: ${path[next]}.`,
+    );
   return result(path, {
-    confidence: "ambiguous",
-    disposition: "shown",
-    dialogue: [line(data, 201, speaker, [ship.name]), ...guards],
-    menu: ["Continue through the applicable confirmations", "Cancel"],
+    confidence: "decoded",
+    disposition: "completed",
+    dialogue,
+    menu: ships
+      .filter((candidate) => candidate.recordIndex !== ship.recordIndex)
+      .map(shipLabel),
     effects: [
-      flagship
-        ? "select a replacement flagship before the sale can continue"
-        : "retain the current flagship",
-      ...(hasCargo ? ["discard carried cargo if confirmed"] : []),
-      ...(ship.crew > 0 ? ["dismiss the ship's crew if confirmed"] : []),
-      "calculate and display the final sale offer",
+      ...effects,
+      `add ${tradeInQuote} gold`,
+      `remove ${ship.name} from the active fleet`,
     ],
-    uncertainties: [
-      "The sale-price helper consumes the unsaved general RNG, so its raw-213 offer cannot be predicted exactly from the save.",
-    ],
+    uncertainties: [],
+    notes: [],
+  });
+}
+
+function remodelFigureheadCommand(
+  save: Buffer,
+  slot: number,
+  protagonistId: number,
+  ship: HarborShip,
+  path: readonly string[],
+  data: OrdinaryDialogueData,
+  economy: number,
+  industry: number,
+  luck: number,
+  rareEligible: boolean,
+  rareUncertainties: readonly string[],
+  ships: readonly HarborShip[],
+): OrdinaryCommandResult {
+  const normalCount = Math.min(Math.floor(economy / 100) + 1, 8);
+  const ordinary = FIGUREHEAD_NAMES.slice(0, normalCount);
+  const choices = [...ordinary];
+  const selector = path[3];
+  const numeric = selector && /^(?:figurehead-?)?(\d+)$/i.exec(selector);
+  const selectedIndex = numeric
+    ? Number(numeric[1])
+    : selector
+      ? choices.findIndex(
+          (name) => normalizedCommand(name) === normalizedCommand(selector),
+        ) + 1
+      : undefined;
+  const possibleChoices = rareEligible
+    ? [...choices, "Angel", ...(luck > 90 ? ["Goddess"] : [])]
+    : choices;
+  const chosen =
+    selectedIndex !== undefined && selectedIndex >= 1
+      ? possibleChoices[selectedIndex - 1]
+      : possibleChoices.find(
+          (name) =>
+            selector !== undefined &&
+            normalizedCommand(name) === normalizedCommand(selector),
+        );
+  const dialogue = [
+    line(data, 267, "Shipyard vendor"),
+    line(data, 268, "Shipyard vendor"),
+  ];
+  if (!chosen)
+    return result(path, {
+      confidence: rareEligible ? "ambiguous" : "decoded",
+      disposition: selector ? "unavailable" : "shown",
+      dialogue,
+      menu: possibleChoices.map((name, index) => `${index + 1}: ${name}`),
+      effects: [],
+      uncertainties: rareUncertainties,
+      notes: selector ? [`Unknown figurehead selection: ${selector}.`] : [],
+    });
+  const figureheadIndex = possibleChoices.indexOf(chosen) + 1;
+  const cost = 500 * figureheadIndex * figureheadIndex;
+  const offered = [
+    ...dialogue,
+    line(data, 269, "Shipyard vendor", [chosen, cost]),
+  ];
+  const confirmation = path[4] && normalizedCommand(path[4]);
+  const uncertainty = rareEligible ? rareUncertainties : [];
+  const effects = [
+    `deduct ${cost} gold`,
+    `fit ${ship.name} with a ${chosen} figurehead`,
+  ];
+  if (!confirmation)
+    return result(path, {
+      confidence: uncertainty.length ? "ambiguous" : "decoded",
+      disposition: "shown",
+      dialogue: offered,
+      menu: ["Yes", "No"],
+      effects,
+      uncertainties: uncertainty,
+      notes: [`Figurehead position ${figureheadIndex} costs ${cost} gold.`],
+    });
+  if (confirmation === "no")
+    return result(path, {
+      confidence: uncertainty.length ? "ambiguous" : "decoded",
+      disposition: "shown",
+      dialogue: offered,
+      menu: possibleChoices.map((name, index) => `${index + 1}: ${name}`),
+      effects: ["return to figurehead selection"],
+      uncertainties: uncertainty,
+      notes: [],
+    });
+  if (confirmation !== "yes")
+    return unavailableCommand(
+      path,
+      `Unknown figurehead confirmation: ${path[4]}.`,
+    );
+  if (inspectGold(save, slot) < cost)
+    return result(path, {
+      confidence: uncertainty.length ? "ambiguous" : "decoded",
+      disposition: "blocked",
+      dialogue: [...offered, line(data, 207, "Shipyard vendor")],
+      menu: possibleChoices.map((name, index) => `${index + 1}: ${name}`),
+      effects: [],
+      uncertainties: uncertainty,
+      notes: [`On-hand gold: ${inspectGold(save, slot)}; required: ${cost}.`],
+    });
+  return result(path, {
+    confidence: uncertainty.length ? "ambiguous" : "decoded",
+    disposition: "completed",
+    dialogue: offered,
+    menu: ships.map(shipLabel),
+    effects,
+    uncertainties: uncertainty,
     notes: [
-      "Accepting the final offer removes the ship record and adds the quoted gold; refusing returns to ship selection.",
+      `Store figurehead index ${figureheadIndex} in ${ship.name}'s provision record.`,
     ],
+  });
+}
+
+function remodelGunsCommand(
+  save: Buffer,
+  slot: number,
+  protagonistId: number,
+  ship: HarborShip,
+  path: readonly string[],
+  data: OrdinaryDialogueData,
+  economy: number,
+  industry: number,
+  rareEligible: boolean,
+  rareUncertainties: readonly string[],
+  ships: readonly HarborShip[],
+): OrdinaryCommandResult {
+  const model = data.shipModels[ship.typeId]!;
+  const normalCount = Math.min(Math.floor((economy + industry) / 200) + 1, 6);
+  const ordinary = GUN_NAMES.slice(0, normalCount);
+  const possibleChoices = rareEligible ? [...ordinary, "Carronade"] : ordinary;
+  const selector = path[3];
+  const numeric = selector && /^(?:gun-?)?(\d+)$/i.exec(selector);
+  const selectedIndex = numeric
+    ? Number(numeric[1])
+    : selector
+      ? possibleChoices.findIndex(
+          (name) => normalizedCommand(name) === normalizedCommand(selector),
+        ) + 1
+      : undefined;
+  const chosen =
+    selectedIndex !== undefined && selectedIndex >= 1
+      ? possibleChoices[selectedIndex - 1]
+      : undefined;
+  const dialogue = [
+    line(data, 270, "Shipyard vendor"),
+    line(data, 268, "Shipyard vendor"),
+  ];
+  if (!chosen)
+    return result(path, {
+      confidence: rareEligible ? "ambiguous" : "decoded",
+      disposition: selector ? "unavailable" : "shown",
+      dialogue,
+      menu: possibleChoices.map((name, index) => `${index + 1}: ${name}`),
+      effects: [],
+      uncertainties: rareEligible ? rareUncertainties : [],
+      notes: selector ? [`Unknown gun type selection: ${selector}.`] : [],
+    });
+  const gunIndex = possibleChoices.indexOf(chosen);
+  const shipSlot = activeHarborShipSlot(save, slot, protagonistId, ship);
+  const currentGunType = save[shipSlot + 8]! & 7;
+  const configuredGunSpaces = Math.max(
+    0,
+    model.capacity - ship.configuredCrew - ship.cargoCapacity,
+  );
+  const remaining =
+    currentGunType === gunIndex + 1
+      ? Math.max(0, configuredGunSpaces - ship.guns)
+      : configuredGunSpaces;
+  if (configuredGunSpaces === 0)
+    return result(path, {
+      confidence: rareEligible ? "ambiguous" : "decoded",
+      disposition: "blocked",
+      dialogue: [...dialogue, line(data, 1021, "Shipyard vendor")],
+      menu: possibleChoices.map((name, index) => `${index + 1}: ${name}`),
+      effects: [],
+      uncertainties: rareEligible ? rareUncertainties : [],
+      notes: [`${ship.name} has no gun spaces.`],
+    });
+  if (remaining === 0)
+    return result(path, {
+      confidence: rareEligible ? "ambiguous" : "decoded",
+      disposition: "blocked",
+      dialogue: [...dialogue, line(data, 1020, "Shipyard vendor")],
+      menu: possibleChoices.map((name, index) => `${index + 1}: ${name}`),
+      effects: [],
+      uncertainties: rareEligible ? rareUncertainties : [],
+      notes: [
+        `${ship.name} already has its maximum ${configuredGunSpaces} guns of this type.`,
+      ],
+    });
+  const quantityInput = path[4];
+  const quantity =
+    quantityInput === undefined ? undefined : Number(quantityInput);
+  const quantityDialogue = [
+    ...dialogue,
+    line(data, 334, "Shipyard vendor", [
+      remaining,
+      `${chosen}${remaining === 1 ? "" : "s"}`,
+    ]),
+    line(data, 271, "Shipyard vendor"),
+  ];
+  if (quantity === undefined)
+    return result(path, {
+      confidence: rareEligible ? "ambiguous" : "decoded",
+      disposition: "shown",
+      dialogue: quantityDialogue,
+      menu: [`Enter 1–${remaining} guns`, "Cancel"],
+      effects: [],
+      uncertainties: rareEligible ? rareUncertainties : [],
+      notes: [],
+    });
+  if (!Number.isInteger(quantity) || quantity < 0 || quantity > remaining)
+    return unavailableCommand(
+      path,
+      `Gun quantity must be an integer from 0 to ${remaining}.`,
+    );
+  if (quantity === 0)
+    return result(path, {
+      confidence: rareEligible ? "ambiguous" : "decoded",
+      disposition: "shown",
+      dialogue,
+      menu: possibleChoices.map((name, index) => `${index + 1}: ${name}`),
+      effects: ["return to gun-type selection"],
+      uncertainties: rareEligible ? rareUncertainties : [],
+      notes: [],
+    });
+  const cost = quantity * GUN_PRICES[gunIndex]!;
+  const offered = [
+    ...quantityDialogue,
+    line(data, 272, "Shipyard vendor", [
+      quantity,
+      chosen,
+      quantity === 1 ? "" : "s",
+      cost,
+    ]),
+  ];
+  const confirmation = path[5] && normalizedCommand(path[5]);
+  if (!confirmation)
+    return result(path, {
+      confidence: rareEligible ? "ambiguous" : "decoded",
+      disposition: "shown",
+      dialogue: offered,
+      menu: ["Yes", "No"],
+      effects: [
+        `deduct ${cost} gold`,
+        `load ${quantity} ${chosen}${quantity === 1 ? "" : "s"} onto ${ship.name}`,
+      ],
+      uncertainties: rareEligible ? rareUncertainties : [],
+      notes: [`${chosen} costs ${GUN_PRICES[gunIndex]} gold per gun.`],
+    });
+  if (confirmation === "no")
+    return result(path, {
+      confidence: rareEligible ? "ambiguous" : "decoded",
+      disposition: "shown",
+      dialogue: offered,
+      menu: possibleChoices.map((name, index) => `${index + 1}: ${name}`),
+      effects: ["return to gun-type selection"],
+      uncertainties: rareEligible ? rareUncertainties : [],
+      notes: [],
+    });
+  if (confirmation !== "yes")
+    return unavailableCommand(
+      path,
+      `Unknown gun purchase confirmation: ${path[5]}.`,
+    );
+  if (inspectGold(save, slot) < cost)
+    return result(path, {
+      confidence: rareEligible ? "ambiguous" : "decoded",
+      disposition: "blocked",
+      dialogue: [...offered, line(data, 207, "Shipyard vendor")],
+      menu: possibleChoices.map((name, index) => `${index + 1}: ${name}`),
+      effects: [],
+      uncertainties: rareEligible ? rareUncertainties : [],
+      notes: [`On-hand gold: ${inspectGold(save, slot)}; required: ${cost}.`],
+    });
+  return result(path, {
+    confidence: rareEligible ? "ambiguous" : "decoded",
+    disposition: "completed",
+    dialogue: offered,
+    menu: ships.map(shipLabel),
+    effects: [
+      `deduct ${cost} gold`,
+      `load ${quantity} ${chosen}${quantity === 1 ? "" : "s"} onto ${ship.name}`,
+      `set ${ship.name}'s gun type to ${chosen}`,
+    ],
+    uncertainties: rareEligible ? rareUncertainties : [],
+    notes: [],
   });
 }
 
@@ -3789,6 +5369,7 @@ function shipyardRemodelCommand(
   save: Buffer,
   slot: number,
   protagonistId: number,
+  portId: number,
   path: readonly string[],
   data: OrdinaryDialogueData,
 ): OrdinaryCommandResult {
@@ -3808,18 +5389,45 @@ function shipyardRemodelCommand(
       uncertainties: [],
       notes: path[1] ? [`Unknown Remodel command: ${path[1]}.`] : [],
     });
+  const metadata =
+    slotOffset(slot) + PORT_METADATA_TABLE + portId * PORT_METADATA_RECORD_SIZE;
+  const economy = save.readUInt16LE(metadata + 2);
+  const industry = save.readUInt16LE(metadata + 6);
+  const sailor =
+    slotOffset(slot) + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE;
+  const luck = save[sailor + 0x1b]!;
+  const rareEligible =
+    subcommand === "Figurehead"
+      ? economy > 800 && industry > 800 && luck > 80
+      : subcommand === "Guns"
+        ? economy > 900 && industry > 900 && luck > 90
+        : false;
+  const rareUncertainties = !rareEligible
+    ? []
+    : subcommand === "Figurehead"
+      ? [
+          "A 1-in-20 gameplay-RNG roll may add Angel and show raw message 266 before the ordinary selection prompt.",
+          ...(luck > 90
+            ? [
+                `If Angel appears, a second random(${luck}) roll may also add Goddess when its result is at least 90.`,
+              ]
+            : []),
+        ]
+      : [
+          "A 1-in-20 gameplay-RNG roll may add Carronade and show raw message 266 before the ordinary selection prompt.",
+        ];
+  const selectionMessage =
+    subcommand === "Figurehead" ? 267 : subcommand === "Guns" ? 270 : 273;
   const ships = harborShips(save, slot, protagonistId);
   const ship = selectedShip(ships, path[2]);
   if (!ship)
     return result(path, {
-      confidence: "decoded",
+      confidence: rareEligible ? "ambiguous" : "decoded",
       disposition: path[2] ? "unavailable" : "shown",
-      dialogue: [
-        line(data, subcommand === "Figurehead" ? 266 : 273, "Shipyard vendor"),
-      ],
+      dialogue: [line(data, selectionMessage, "Shipyard vendor")],
       menu: ships.map(shipLabel),
       effects: [],
-      uncertainties: [],
+      uncertainties: rareUncertainties,
       notes: path[2] ? [`Unknown active-ship selector: ${path[2]}.`] : [],
     });
   if (subcommand === "Rename") {
@@ -3855,20 +5463,185 @@ function shipyardRemodelCommand(
       notes: [],
     });
   }
-  const message =
-    subcommand === "Figurehead" ? 267 : subcommand === "Guns" ? 270 : 274;
+  if (subcommand === "Load Capacity") {
+    const cost = data.shipModels[ship.typeId]!.basePrice / 10;
+    const dialogue = [
+      line(data, 273, "Shipyard vendor"),
+      line(data, 274, "Shipyard vendor", [cost]),
+    ];
+    const choice = path[3] && normalizedCommand(path[3]);
+    if (!choice)
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue,
+        menu: ["Yes", "No"],
+        effects: [],
+        uncertainties: [],
+        notes: [`The capacity remodel costs ${cost} gold if completed.`],
+      });
+    if (choice === "no")
+      return result(path, {
+        confidence: "decoded",
+        disposition: "completed",
+        dialogue,
+        menu: ships.map(shipLabel),
+        effects: ["return to ship selection without remodeling"],
+        uncertainties: [],
+        notes: [],
+      });
+    if (choice !== "yes")
+      return unavailableCommand(
+        path,
+        `Unknown Load Capacity confirmation: ${path[3]}.`,
+      );
+    if (inspectGold(save, slot) < cost)
+      return result(path, {
+        confidence: "decoded",
+        disposition: "blocked",
+        dialogue: [...dialogue, line(data, 207, "Shipyard vendor")],
+        menu: ships.map(shipLabel),
+        effects: [],
+        uncertainties: [],
+        notes: [`On-hand gold: ${inspectGold(save, slot)}.`],
+      });
+    const model = data.shipModels[ship.typeId]!;
+    const bunkInput = path[4];
+    if (bunkInput === undefined)
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue: [...dialogue, line(data, 258, "Shipyard vendor")],
+        menu: [`Enter ${model.minimumCrew}–${model.maximumCrew} crew bunks`],
+        effects: [],
+        uncertainties: [],
+        notes: [],
+      });
+    const bunks = Number(bunkInput);
+    if (
+      !Number.isInteger(bunks) ||
+      bunks < model.minimumCrew ||
+      bunks > model.maximumCrew
+    )
+      return unavailableCommand(
+        path,
+        `Crew bunks must be an integer from ${model.minimumCrew} to ${model.maximumCrew}.`,
+      );
+    const gunInput = path[5];
+    if (gunInput === undefined)
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue: [
+          ...dialogue,
+          line(data, 258, "Shipyard vendor"),
+          line(data, 259, "Shipyard vendor"),
+        ],
+        menu: [`Enter 0–${model.maximumGuns} gun spaces`],
+        effects: [],
+        uncertainties: [],
+        notes: [],
+      });
+    const gunSpaces = Number(gunInput);
+    if (
+      !Number.isInteger(gunSpaces) ||
+      gunSpaces < 0 ||
+      gunSpaces > model.maximumGuns
+    )
+      return unavailableCommand(
+        path,
+        `Gun spaces must be an integer from 0 to ${model.maximumGuns}.`,
+      );
+    const cargoCapacity = model.capacity - bunks - gunSpaces;
+    const configuredDialogue = [
+      ...dialogue,
+      line(data, 258, "Shipyard vendor"),
+      line(data, 259, "Shipyard vendor"),
+      line(data, 260, "Shipyard vendor"),
+    ];
+    const confirmation = path[6] && normalizedCommand(path[6]);
+    if (!confirmation || confirmation === "no")
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue: configuredDialogue,
+        menu: confirmation === "no" ? ["Re-enter crew bunks"] : ["Yes", "No"],
+        effects: confirmation === "no" ? ["return to capacity inputs"] : [],
+        uncertainties: [],
+        notes: [`Proposed cargo capacity: ${cargoCapacity}.`],
+      });
+    if (confirmation !== "yes")
+      return unavailableCommand(
+        path,
+        `Unknown capacity configuration confirmation: ${path[6]}.`,
+      );
+    if (ship.usedCapacity > cargoCapacity)
+      return result(path, {
+        confidence: "decoded",
+        disposition: "blocked",
+        dialogue: [...configuredDialogue, line(data, 20, "Shipyard vendor")],
+        menu: ["Re-enter crew bunks"],
+        effects: [],
+        uncertainties: [],
+        notes: [
+          `Carried provisions and goods occupy ${ship.usedCapacity} of ${cargoCapacity} proposed cargo spaces.`,
+        ],
+      });
+    return result(path, {
+      confidence: "decoded",
+      disposition: "completed",
+      dialogue: configuredDialogue,
+      menu: ships.map(shipLabel),
+      effects: [
+        `deduct ${cost} gold`,
+        `set ${ship.name} to ${bunks} crew bunks, ${gunSpaces} gun spaces, and ${cargoCapacity} cargo spaces`,
+        `reduce assigned crew to at most ${bunks} and loaded guns to at most ${gunSpaces}`,
+      ],
+      uncertainties: [],
+      notes: [],
+    });
+  }
+  if (subcommand === "Figurehead")
+    return remodelFigureheadCommand(
+      save,
+      slot,
+      protagonistId,
+      ship,
+      path,
+      data,
+      economy,
+      industry,
+      luck,
+      rareEligible,
+      rareUncertainties,
+      ships,
+    );
+  if (subcommand === "Guns")
+    return remodelGunsCommand(
+      save,
+      slot,
+      protagonistId,
+      ship,
+      path,
+      data,
+      economy,
+      industry,
+      rareEligible,
+      rareUncertainties,
+      ships,
+    );
   return result(path, {
-    confidence: "decoded",
+    confidence: rareEligible ? "ambiguous" : "decoded",
     disposition: "completed",
     dialogue: [
-      line(data, subcommand === "Figurehead" ? 266 : 273, "Shipyard vendor"),
-      line(data, message, "Shipyard vendor"),
+      line(data, selectionMessage, "Shipyard vendor"),
+      line(data, 268, "Shipyard vendor"),
     ],
     menu: [],
     effects: [
       `open the interactive ${subcommand.toLowerCase()} controls for ${ship.name}`,
     ],
-    uncertainties: [],
+    uncertainties: rareUncertainties,
     notes: [
       "The final cost and resulting ship fields depend on the player's following selection or numeric input.",
     ],
@@ -5630,13 +7403,28 @@ function ordinaryCommand(
         path,
         data,
       );
-    if (requested === "usedship") return shipyardUsedShipCommand(path, data);
+    if (requested === "usedship")
+      return shipyardUsedShipCommand(
+        save,
+        slot,
+        protagonistId,
+        portId,
+        path,
+        data,
+      );
     if (requested === "repair")
       return shipyardRepairCommand(save, slot, protagonistId, path, data);
     if (requested === "sell")
-      return shipyardSellCommand(save, slot, protagonistId, path, data);
+      return shipyardSellCommand(save, slot, protagonistId, portId, path, data);
     if (requested === "remodel")
-      return shipyardRemodelCommand(save, slot, protagonistId, path, data);
+      return shipyardRemodelCommand(
+        save,
+        slot,
+        protagonistId,
+        portId,
+        path,
+        data,
+      );
     if (requested === "invest")
       return portInvestCommand(save, slot, portId, path, true, data);
   }
@@ -5951,6 +7739,16 @@ export function ordinaryBuildingEntry(
       notes: ["A preceding story route forces exit before ordinary entry."],
     };
 
+  if (context === 0x02 && (save[slotOffset(slot) + 0x0c]! & 0x02) !== 0)
+    return {
+      confidence: "decoded",
+      disposition: "access-denied",
+      dialogue: [line(data, 249, "Shipyard vendor")],
+      menu: [],
+      uncertainties: [],
+      notes: ["The same-day Shipyard ejection flag is set."],
+    };
+
   const uncertainties: string[] = [];
   if (suppression === "possible")
     uncertainties.push(
@@ -5964,6 +7762,7 @@ export function ordinaryBuildingEntry(
   let menu = [...(MENUS[context] ?? [])];
   if (context === 0x03 && portId >= 100)
     menu = ["Sail", "Supply", "Rename Port"];
+  const disabledMenuNotes: string[] = [];
   let accessDenied = false;
 
   if (context === 0x00) {
@@ -6051,6 +7850,18 @@ export function ordinaryBuildingEntry(
     dialogue = [line(data, greeting, "building vendor")];
   }
 
+  let commandMenu = menu;
+  if (
+    context === 0x03 &&
+    portId < 100 &&
+    !isNationalCapital(save, slot, portId)
+  ) {
+    disabledMenuNotes.push(
+      "Moor is grayed out outside the six national capitals.",
+    );
+    commandMenu = menu.filter((item) => normalizedCommand(item) !== "moor");
+  }
+
   const conditional = uncertainties.length > 0;
   const command =
     commandPath.length > 0
@@ -6061,7 +7872,7 @@ export function ordinaryBuildingEntry(
           portId,
           context,
           commandPath,
-          menu,
+          commandMenu,
           data,
         )
       : undefined;
@@ -6075,12 +7886,14 @@ export function ordinaryBuildingEntry(
     dialogue,
     menu,
     uncertainties,
-    notes:
-      context === 0x05 && menu.length > 0
+    notes: [
+      ...disabledMenuNotes,
+      ...(context === 0x05 && menu.length > 0
         ? [
             "Palace menu entries may be disabled by rank, allegiance, or mission state.",
           ]
-        : [],
+        : []),
+    ],
     ...(command ? { command } : {}),
   };
 }
