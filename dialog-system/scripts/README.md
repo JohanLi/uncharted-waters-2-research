@@ -26,7 +26,8 @@ The command recreates the ignored `output/` directory:
 Interpretations and runtime observations belong in the hand-maintained
 scenario guides, keeping generated artifacts structural and reproducible.
 
-SNR strings and generated files use the game's `$n` and `$s` placeholders.
+SNR strings and generated files preserve the game's `$n` and `$s` name
+placeholders and its `$dNN` and `$rNN` variable placeholders.
 
 ## Query a save
 
@@ -34,18 +35,24 @@ SNR strings and generated files use the game's `$n` and `$s` placeholders.
 pnpm run query-dialog -- FILE SLOT ACTION[:COMMAND[:SELECTION]]
 ```
 
-Examples:
+The repository's only tracked save, `raw/KOUKAI2.DAT`, is a blank new-game
+template whose slot 1 is at sea, so it supports only the at-sea action:
 
 ```sh
-pnpm run query-dialog -- raw/KOUKAI2.DAT 1 pub
-pnpm run query-dialog -- raw/KOUKAI2.DAT 1 special-building
 pnpm run query-dialog -- raw/KOUKAI2.DAT 1 at-sea
-pnpm run query-dialog -- raw/KOUKAI2.DAT 1 harbor:sail:yes
-pnpm run query-dialog -- raw/KOUKAI2.DAT 1 harbor:supply:load:1:food:20
-pnpm run query-dialog -- raw/KOUKAI2.DAT 1 harbor:moor:exchange:1:1:yes
-pnpm run query-dialog -- raw/KOUKAI2.DAT 1 bank:deposit:5000
-pnpm run query-dialog -- raw/KOUKAI2.DAT 1 church:donate:500
-pnpm run query-dialog -- raw/KOUKAI2.DAT 1 house-of-fortune:mates:yes:1
+```
+
+Building actions require a save made in port. Examples of `ACTION` values:
+
+```text
+pub
+special-building
+harbor:sail:yes
+harbor:supply:load:1:food:20
+harbor:moor:exchange:1:1:yes
+bank:deposit:5000
+church:donate:500
+house-of-fortune:mates:yes:1
 ```
 
 The query never modifies the save. It symbolically executes the active
@@ -141,13 +148,18 @@ requirements are met, the exact presence of “We have a great selection today�
 and the rare option in the menu remain gameplay-RNG-dependent; the query marks
 that branch ambiguous.
 
-At supply ports, priced loading cannot be reconstructed from a save alone:
-the executable reuses a regular-port metadata pointer retained in process
-memory. Water loading and every dump operation remain exactly resolvable.
+At regular ports, Supply prices use saved port-metadata bytes `+0x12` and
+`+0x19` (executable record offsets `+0x10` and `+0x17`). At supply ports,
+priced loading cannot be reconstructed from a save alone: the executable
+reuses a regular-port metadata pointer retained in process memory. Water loading
+and every dump operation remain exactly resolvable.
 
-Pub greetings and Treat commands resolve the port's stored specialty and
-price. Collector, cartographer, skill-teacher, and locked story residences are selected by port, including
-their persistent contract-dependent greetings.
+Pub greetings and Treat commands resolve the port's stored specialty, saved
+port-metadata byte `+0x26` (executable record offset `+0x24`; the executable
+addresses records at `DS:0x6790 + port × 0x25`, save `0x5968`, while
+save-metadata offsets are framed from `0x5966`), and its price. Collector,
+cartographer, skill-teacher, and locked story residences are selected by port,
+including their persistent contract-dependent greetings.
 
 Run `pnpm run query-dialog -- --help` for all actions.
 

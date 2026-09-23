@@ -80,6 +80,12 @@ Four Istanbul buildings each resolve one debt and set one required flag:
 The Harbor and Bank use a stricter comparison than the other two: Ali must
 have more than one displayed Gold Ingot when entering.
 
+Each repayment also adds 500 Trade Fame, capped at 50,000: Pub `0x085D`,
+Harbor `0x0951` or `0x0A47` (one write on each branch of Pietro's request),
+Bank `0x0B69`, and Shipyard `0x0C81`. The four repayments therefore award
+2,000 Trade Fame in total; see
+[Trade Fame](../fame/trade-fame.md#story-awards).
+
 At the Harbor, Pietro asks for a further 10,000 Gold Coins. Lending it records
 one branch; refusing records the other. The story advances either way, but the
 choice changes Pietro's later repayment and Ali's Trade Fame award in section 3.

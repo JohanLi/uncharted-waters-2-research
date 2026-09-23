@@ -22,7 +22,8 @@ Run every extractor:
 
     pnpm run extract-all
 
-Each domain writes to its own ignored `scripts/<domain>/output/` directory.
+Each domain under `scripts/` writes to its own ignored `scripts/<domain>/output/`
+directory; the dialog extractor writes to `dialog-system/scripts/output/`.
 
 Individual workflows are also available:
 

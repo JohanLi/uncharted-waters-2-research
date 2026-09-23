@@ -108,11 +108,11 @@ Two Guild assignments award Piracy Fame:
 
 | Assignment     | Rank band       | Deadline | Piracy Fame |
 | -------------- | --------------- | -------: | ----------: |
-| Defeat Pirates | Commoner–Squire |  30 days |         300 |
-|                | Knight–Baron    |  60 days |         700 |
-|                | Viscount–Duke   |  90 days |       1,500 |
-| Collect Debt   | Commoner–Squire |  30 days |         150 |
-|                | Knight–Duke     |  90 days |         500 |
+| Defeat Pirates | Commoner–Squire |  1 month |         300 |
+|                | Knight–Baron    | 2 months |         700 |
+|                | Viscount–Duke   | 3 months |       1,500 |
+| Collect Debt   | Commoner–Squire |  1 month |         150 |
+|                | Knight–Duke     | 3 months |         500 |
 
 Collect Debt awards the same amount to Trade Fame and Piracy Fame.
 
@@ -123,21 +123,25 @@ tier.
 ### Deadlines and failure
 
 The full Fame award is made only when the assignment is completed on time.
+The deadline is the same day of the month one, two, or three months after
+acceptance; see
+[Trade Fame](trade-fame.md#deadlines-and-failure) for the stored day serial.
 Completing Defeat Pirates or Collect Debt after the deadline pays half the
 promised gold but awards no Fame.
 
 Forfeiting a Defeat Pirates assignment before its deadline reduces the player's
-existing Piracy Fame to 90%, rounded down to a multiple of ten:
+existing Piracy Fame to about 90%, rounded down to a multiple of ten
+(`SNR0` `0x1266–0x126F`):
 
 ```text
-new Piracy Fame = floor(old Piracy Fame × 90 / 100 / 10) × 10
+new Piracy Fame = floor(floor(old Piracy Fame / 10) × 9 / 10) × 10
 ```
 
-When an assignment expires, visiting the Guild reduces existing Fame to 80%,
-rounded down to a multiple of ten:
+When an assignment expires, visiting the Guild reduces existing Fame to about
+80%, rounded down to a multiple of ten:
 
 ```text
-new Fame = floor(old Fame × 80 / 100 / 10) × 10
+new Fame = floor(floor(old Fame / 10) × 8 / 10) × 10
 ```
 
 For Collect Debt, the forfeiture or expiry reduction applies to both Trade Fame
@@ -146,12 +150,22 @@ and Piracy Fame.
 ## Story awards
 
 The Prince Alberto and Duke Franco scenario sequence awards a fixed 1,000
-Piracy Fame and 1,000 Adventure Fame. This is the direct fixed Piracy Fame
-award present in the protagonist scenario bytecode.
+Piracy Fame and 1,000 Adventure Fame.
 
-Catalina and Otto receive Piracy Fame through the ordinary naval-victory
-calculation during their combat-focused stories; their scenario bytecode does
-not contain an additional fixed Piracy Fame award.
+Otto's Armada campaign (`SNR3` section 4) contains two fixed awards of 1,000
+Piracy Fame, each capped at 50,000:
+
+| Story event                                               | `SNR3` offsets  | Piracy Fame |
+| --------------------------------------------------------- | --------------- | ----------: |
+| After the Nantes battle, when the other ships have sailed | `0x1631–0x164F` |       1,000 |
+| After the Santo Domingo battle, before the Amazon search  | `0x173C–0x175A` |       1,000 |
+
+Each award runs in an after-naval-battle route (`0xA2FF`), following messages
+387–389 and 395–398 respectively.
+
+Catalina receives Piracy Fame through the ordinary naval-victory calculation
+during her combat-focused story; her scenario bytecode does not contain an
+additional fixed Piracy Fame award.
 
 ## Story thresholds
 
@@ -184,7 +198,9 @@ The relevant calculations are located at:
 - Scenario bytecode section 5 (`0x12B8–0x15CB`): Collect Debt, including equal
   Trade and Piracy awards;
 - Protagonist scenario bytecode around `0x0F19`: paired 1,000-point Piracy and
-  Adventure award; and
+  Adventure award;
+- `SNR3` section 4 at `0x1631–0x164F` and `0x173C–0x175A`: Otto's two fixed
+  1,000-point Piracy awards; and
 - `MAIN.EXE` `0x0AF42`: resolution of a protagonist's 14-byte Fame record.
 
 The Fame words at offsets `+0`, `+2`, and `+4` are Trade, Piracy, and

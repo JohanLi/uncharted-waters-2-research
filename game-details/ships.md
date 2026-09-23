@@ -148,6 +148,12 @@ inputs do not change the quote. Once paid, cancelling a capacity input keeps
 the order with the model's default crew-bunk and gun-space allocation; the
 builder still records the construction time.
 
+The remaining days are stored per port in the saved regular-port metadata byte
+at `+0x25` (see [Ports](ports.md#saved-37-byte-regular-port-metadata-record));
+`0xFF` means that no order exists. A per-port update at `0x1E908–0x1E91B`
+decrements each pending timer by one, stopping at zero, and New Ship treats a
+zero timer as a finished ship.
+
 When the timer reaches zero, selecting **New Ship** checks the existing order
 before opening the model list. The vendor announces the finished ship and asks
 whether to add it to the active fleet. The query resolves that handoff using

@@ -14,6 +14,7 @@ import {
 } from "../../save-editor/format.js";
 import { repoRoot } from "../../scripts/shared.js";
 import {
+  CONTROL_VARIABLE_EFFECT,
   loadOrdinaryDialogueData,
   ordinaryBuildingEntry,
   type OrdinaryBuildingEntry,
@@ -124,6 +125,7 @@ const RUNTIME_CONFIRMED_FIRST_MESSAGES = new Set([
 
 const SCENARIO_VARIABLES_START = 0x3a;
 const SCENARIO_VARIABLE_COUNT = 64;
+const CONTROL_VARIABLE = 63;
 const SHARED_SCENARIO_START = 0xba;
 const SHARED_VARIABLES_START = SHARED_SCENARIO_START + 0x0a;
 const PLAYER_FLEET_TABLE = 0x1de0;
@@ -603,7 +605,7 @@ function executeRoute(
     {
       offset: route.destinationOffset,
       flags: initialFlags,
-      variables: new Map(initialVariables),
+      variables: new Map([...initialVariables, [CONTROL_VARIABLE, 0]]),
       variableNotEqual: new Map(),
       references: new Map(),
       cartographerFlags: [...initialCartographerFlags],
@@ -620,6 +622,14 @@ function executeRoute(
   let truncated = false;
 
   const finish = (state: ExecutionState): void => {
+    // The dispatcher zeroes variable 63 before each route. Its caller tests the
+    // final value to skip ordinary greetings and later scenario dispatches.
+    const control = state.variables.get(CONTROL_VARIABLE);
+    if (control === undefined)
+      state.uncertainties.push(
+        `control variable ${CONTROL_VARIABLE} is unknown`,
+      );
+    else if (control !== 0) state.effects.push(CONTROL_VARIABLE_EFFECT);
     const firstMessage = state.dialogue[0]?.messageId;
     rawOutcomes.push({
       confidence:
@@ -989,7 +999,8 @@ function executeRoute(
 
     if (instruction.opcode === 0xca)
       state.effects.push(`play music track ${bytes[1]}`);
-    else if (instruction.opcode === 0xc4) state.effects.push("scene break");
+    else if (instruction.opcode === 0xc4)
+      state.effects.push("close all dialogue panels");
     else if (instruction.opcode === 0xe8)
       state.effects.push(`start duel against sailor ${bytes[1]}`);
     else if (instruction.opcode === 0xcb)
@@ -1240,6 +1251,10 @@ export function inspectSharedScenario(
       save.readUInt16LE(base + SHARED_VARIABLES_START + variable * 2),
     ]),
   );
+  // Job Assignment copies the selected row's RNG checkpoint (variables 3–5)
+  // into variable 8 before dispatch; the offer's `EC 08` restores from it.
+  if (guildAssignmentSelector !== undefined && guildRowNumber !== undefined)
+    variables.set(8, variables.get(2 + guildRowNumber)!);
   const cargo = inspectPlayerCargo(save, slot, protagonistId);
   const execution = route
     ? executeRoute(
@@ -1471,40 +1486,65 @@ export async function queryScenario(
     };
   }
 
-  const execution = executeRoute(
-    selectedScenario,
-    sectionId,
-    route,
-    flags,
-    variables,
-    portId,
-    ticks,
-    save[base + 8]!,
-    inspectCartographers(save, slot).map((cartographer) => cartographer.flags),
-    inspectGold(save, slot),
-    inspectItems(save, slot),
-    protagonistId,
-    save.subarray(
-      base + 0x5b6 + protagonistId * 14,
-      base + 0x5b6 + (protagonistId + 1) * 14,
-    ),
-    save.subarray(
-      base + 0x612 + protagonistId * 42,
-      base + 0x612 + (protagonistId + 1) * 42,
-    ),
-    protagonistScenarioRandomSeed(
-      save[base + 6]!,
-      save[base + 7]!,
-      save[base + 8]!,
-      ticks,
-      save[base + 0x612 + protagonistId * 42 + 0x1c]!,
-      save.readUInt16LE(base + 0x612 + protagonistId * 42 + 0x1e),
-    ),
-    {
-      savedYear: save[base + 6]!,
-      savedMonth: save[base + 7]!,
-    },
-  );
+  // A nonzero shared variable 63 after the shared entry route makes the
+  // building dispatcher skip the protagonist entry route (MAIN.EXE 0x20A32).
+  const sharedEntryDispatch =
+    action.type === "building" &&
+    shared.executionSection === shared.section &&
+    shared.executionSubsection === shared.subsection &&
+    shared.outcomes.length > 0;
+  const sharedControl = (every: boolean) =>
+    sharedEntryDispatch &&
+    shared.outcomes[every ? "every" : "some"]((outcome) =>
+      outcome.effects.includes(CONTROL_VARIABLE_EFFECT),
+    );
+  const sharedSkipsProtagonist = sharedControl(true);
+  if (sharedSkipsProtagonist)
+    notes.push(
+      "The shared entry route sets control variable 63, so the protagonist route is not dispatched.",
+    );
+  else if (sharedControl(false))
+    notes.push(
+      "An unresolved shared branch may set control variable 63 and prevent the protagonist route from being dispatched.",
+    );
+  const execution = sharedSkipsProtagonist
+    ? { outcomes: [], truncated: false }
+    : executeRoute(
+        selectedScenario,
+        sectionId,
+        route,
+        flags,
+        variables,
+        portId,
+        ticks,
+        save[base + 8]!,
+        inspectCartographers(save, slot).map(
+          (cartographer) => cartographer.flags,
+        ),
+        inspectGold(save, slot),
+        inspectItems(save, slot),
+        protagonistId,
+        save.subarray(
+          base + 0x5b6 + protagonistId * 14,
+          base + 0x5b6 + (protagonistId + 1) * 14,
+        ),
+        save.subarray(
+          base + 0x612 + protagonistId * 42,
+          base + 0x612 + (protagonistId + 1) * 42,
+        ),
+        protagonistScenarioRandomSeed(
+          save[base + 6]!,
+          save[base + 7]!,
+          save[base + 8]!,
+          ticks,
+          save[base + 0x612 + protagonistId * 42 + 0x1c]!,
+          save.readUInt16LE(base + 0x612 + protagonistId * 42 + 0x1e),
+        ),
+        {
+          savedYear: save[base + 6]!,
+          savedMonth: save[base + 7]!,
+        },
+      );
   if (execution.truncated)
     notes.push("Symbolic execution reached its path or instruction limit.");
   const uncertainties = execution.outcomes.flatMap(
@@ -1643,7 +1683,7 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
       lines.push("  No shared-scenario dialogue.");
     for (const line of outcome.dialogue)
       lines.push(
-        `  ${hex(line.offset)} · message ${line.messageId}${line.presentation === "choice-prompt" ? ` · choice → flag ${line.choiceFlag}` : ""} · ${line.speakerLabel ?? (line.characterId !== undefined ? `Character ${line.characterId}` : line.characterVariable !== undefined ? `Character from variable ${line.characterVariable}` : "Narration")}: ${line.body}`,
+        `  ${hex(line.offset)} · message ${line.messageId}${line.presentation === "choice-prompt" ? ` · choice → flag ${line.choiceFlag}` : ""} · ${line.speakerLabel ?? (line.characterId !== undefined ? `Character ${line.characterId}` : line.characterVariable !== undefined ? `Character from variable ${line.characterVariable}` : line.position === 0 ? "Building speaker" : "Narration")}: ${line.body}`,
       );
     for (const effect of outcome.effects) lines.push(`  Effect: ${effect}`);
     for (const uncertainty of outcome.uncertainties)
@@ -1710,7 +1750,7 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
     if (outcome.dialogue.length === 0) lines.push("  No story dialogue.");
     for (const line of outcome.dialogue)
       lines.push(
-        `  ${hex(line.offset)} · message ${line.messageId}${line.presentation === "choice-prompt" ? ` · choice → flag ${line.choiceFlag}` : ""} · ${line.speakerLabel ?? (line.characterId !== undefined ? `Character ${line.characterId}` : line.characterVariable !== undefined ? `Character from variable ${line.characterVariable}` : "Narration")}: ${line.body}`,
+        `  ${hex(line.offset)} · message ${line.messageId}${line.presentation === "choice-prompt" ? ` · choice → flag ${line.choiceFlag}` : ""} · ${line.speakerLabel ?? (line.characterId !== undefined ? `Character ${line.characterId}` : line.characterVariable !== undefined ? `Character from variable ${line.characterVariable}` : line.position === 0 ? "Building speaker" : "Narration")}: ${line.body}`,
       );
     for (const effect of outcome.effects) lines.push(`  Effect: ${effect}`);
     for (const uncertainty of outcome.uncertainties)

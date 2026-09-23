@@ -95,12 +95,12 @@ test("MAIN.EXE exposes the scenario loader and four-family VM dispatch", async (
   });
   assert.deepEqual(analysis.buildingTiming, {
     generalRandomOffset: 0x0a198,
-    durationRollOffset: 0x209e9,
+    durationRollOffset: 0x209e8,
     minimumDurationTicks: 2,
     randomDurationBound: 3,
-    durationReturnOffset: 0x20b36,
-    townClockAddOffset: 0x204a7,
-    portArrivalIncrementOffset: 0x2051e,
+    durationReturnOffset: 0x20b35,
+    townClockAddOffset: 0x204a5,
+    portArrivalIncrementOffset: 0x20521,
   });
   assert.deepEqual(analysis.menuCommandScenarioDispatch, {
     jobAssignment: {
@@ -211,7 +211,7 @@ test("disassembles João's building dialogue and one-shot state writes", async (
       [0x0003, "harbor", 0x060c],
       [0x0000, "market", 0x07b1],
       [0x0009, "item-shop", 0x07e4],
-      [0x00ff, "shared-bank-lodge-guild", 0x082f],
+      [0x00ff, "any-building", 0x082f],
       [0xa001, "at-sea-day-1", 0x08a2],
     ],
   );
@@ -467,7 +467,7 @@ test("sequential VM decoding follows table-relative control flow", async () => {
   assert.deepEqual(
     [0xc3, 0xd0, 0xe2, 0xe3, 0xe6, 0xe7, 0xeb, 0xec].map(actionMnemonic),
     [
-      "clear-dialogue-panels",
+      "close-latest-dialogue-panel",
       "resolve-indexed-game-field-reference",
       "load-goods",
       "transfer-goods",

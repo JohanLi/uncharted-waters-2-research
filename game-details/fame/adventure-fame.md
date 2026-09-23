@@ -61,7 +61,9 @@ João cannot use the Lisbon collector, but can receive the full reward in
 Bordeaux. A discovery reported to a collector is consumed and cannot later be
 given to a ruler. Likewise, a discovery given to a ruler cannot later be sold
 to a collector. Rulers use discoveries for title advancement and pay neither
-gold nor Fame for them.
+gold nor Fame for them. Both paths test and set the same reported bit in the
+discovery record; see
+[Discoveries for the ruler](../scenarios/scenario-0-royal-missions.md#discoveries-for-the-ruler-section-10).
 
 ### Complete discovery catalog
 
@@ -256,5 +258,7 @@ The main executable contains the relevant calculations at these file offsets:
 - `0x3365A–0x33849`: collector turn-in, gold, and discovery Fame;
 - `0x33CA0–0x33D58`: cartographer gold and Fame;
 - `0x3663A–0x36707`: first-time port and village Fame; and
-- `0x4380C`: the static table of 98 seven-byte village records, also present
-  in `DATA1/DATA1.015` at `0x6E74`.
+- `0x4380C`: the static table of 100 seven-byte village records, also present
+  in `DATA1/DATA1.015` at `0x6E74–0x7130`. Records 98 and 99 are placeholders
+  whose flag byte `+0x06` keeps `0x80`, the bit that marks a record as not
+  selected for the current game.

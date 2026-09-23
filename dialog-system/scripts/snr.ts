@@ -84,11 +84,15 @@ export type KnownLocation =
   | "harbor"
   | "palace"
   | "special-building"
+  | "lodge"
+  | "guild"
+  | "bank"
   | "item-shop"
-  | "church";
+  | "church"
+  | "house-of-fortune";
 
 export type KnownRouteEvent =
-  | "shared-bank-lodge-guild"
+  | "any-building"
   | `at-sea-day-${number}`
   | "at-sea-any-day"
   | "before-naval-battle"
@@ -195,10 +199,15 @@ const KNOWN_LOCATIONS = new Map<number, KnownLocation>([
   [0x0001, "pub"],
   [0x0002, "shipyard"],
   [0x0003, "harbor"],
+  [0x0004, "lodge"],
   [0x0005, "palace"],
+  [0x0006, "guild"],
   [0x0007, "special-building"],
+  [0x0008, "bank"],
   [0x0009, "item-shop"],
+  // Church or Mosque.
   [0x000a, "church"],
+  [0x000b, "house-of-fortune"],
 ]);
 
 const KNOWN_MUSIC_TRACKS = new Map<number, KnownMusicTrack>([
@@ -497,8 +506,8 @@ function annotateRoute(
               ? ("any-regular-port" as const)
               : undefined;
   const knownEvent =
-    key === 0x00ff
-      ? ("shared-bank-lodge-guild" as const)
+    isPortSelector && qualifier === 0xff
+      ? ("any-building" as const)
       : selector === 0xa0 && qualifier === 0xff
         ? ("at-sea-any-day" as const)
         : selector === 0xa0
@@ -592,8 +601,8 @@ const ACTION_LENGTHS = new Map<number, number>([
 
 const ACTION_MNEMONICS = new Map<number, string>([
   [0xc0, "set-dialogue-position"],
-  [0xc3, "clear-dialogue-panels"],
-  [0xc4, "scene-break"],
+  [0xc3, "close-latest-dialogue-panel"],
+  [0xc4, "close-all-dialogue-panels"],
   [0xc7, "present-dialogue"],
   [0xc8, "select-message"],
   [0xca, "play-music"],
@@ -601,6 +610,7 @@ const ACTION_MNEMONICS = new Map<number, string>([
   [0xcc, "select-character"],
   [0xcd, "select-character-indirect"],
   [0xd0, "resolve-indexed-game-field-reference"],
+  [0xd4, "load-message-string"],
   [0xdc, "resolve-game-field-reference"],
   [0xe2, "load-goods"],
   [0xe3, "transfer-goods"],
@@ -611,6 +621,7 @@ const ACTION_MNEMONICS = new Map<number, string>([
   [0xea, "read-gold-ingots"],
   [0xeb, "random"],
   [0xec, "restore-random-state"],
+  [0xed, "save-random-state"],
   [0xee, "read-free-cargo-capacity"],
   [0xf0, "advance-subsection-on-return"],
   [0xf1, "advance-section-on-return"],

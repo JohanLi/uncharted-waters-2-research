@@ -126,7 +126,7 @@ Fame values and compares it with the next title's requirement. If more Fame is
 needed, raw index 547 reports the difference. If the requirement is already
 met, raw index 754 says that a noble person is searching for the protagonist.
 The title portion is omitted for a Pirate. This reading uses the executable's
-nine-value title table, whose Marquis-to-Duke entry is 40,000; it does not use
+ten-value title table, whose Marquis-to-Duke entry is 40,000; it does not use
 the royal-mission eligibility formula's 40,500 boundary.
 
 **Love** reads the local waitress's favor, when an eligible one exists. Its
@@ -293,9 +293,9 @@ on-hand gold. Water is free. At a regular port, the other per-unit prices are
 integer formulas using two bytes in the port's saved 37-byte metadata record:
 
 ```text
-food price   = floor( 20 × (port byte +0x10 + 50) / 100)
-lumber price = floor( 90 × (port byte +0x17 + 50) / 100)
-shot price   = floor(120 × (port byte +0x10 + 50) / 100)
+food price   = floor( 20 × (port byte +0x12 + 50) / 100)
+lumber price = floor( 90 × (port byte +0x19 + 50) / 100)
+shot price   = floor(120 × (port byte +0x12 + 50) / 100)
 ```
 
 The corresponding prompts are raw indices 62–65 (entries 63–66). If not even
@@ -504,13 +504,17 @@ to select the paired Christian and Muslim text. **Pray** begins at `0x32AA8`;
 | Large donation         |                  95 (96) |                807 (808) | Selected when `floor(gold before donation / donation) <= 10`.                                                |
 | Leave the building     |                  96 (97) |                808 (809) | Displays a farewell, waits for acknowledgement, then returns outside.                                        |
 
-Attempting **Donate** with no gold instead clears to a system-message layout
-and displays raw index 28 (entry 29), “We have no gold!” A zero donation simply
-returns to the menu. A positive donation is deducted immediately. If it is at
-least `(random(5) + 1) × 100` gold, the routine also calculates
+Attempting **Donate** with no gold instead clears to a system-message layout and
+displays raw index 28 (entry 29), “Commodore, we have no gold!” A zero donation
+simply returns to the menu. A positive donation is deducted immediately. Luck
+can change only in the large-donation branch, when
+`floor(gold before donation / donation) <= 10` selects raw index 95 (mosque
+807); the smaller-donation branch shows raw index 94 (mosque 806) and skips the
+Luck calculation (`0x32B7A–0x32BDF`). In the large-donation branch, if the
+donation is also at least `(random(5) + 1) × 100` gold, the routine sets Luck to
 `Luck − floor(gold before donation / donation) + 11`, capped at 100. Unlike
 Pray's one-roll-per-visit guard, this calculation is performed for each
-positive donation.
+qualifying donation.
 
 ### Market command dialogue
 
@@ -544,24 +548,35 @@ purchase deducts the total price, adds the lots to the selected fleet's cargo,
 raises the selected category rate and the smaller market-wide rate adjustment,
 and returns to the goods list.
 
-The 13 regional Market definitions begin at `DATA1.015 0x67DB`, in `0x80`-byte
-records. Each contains 46 big-endian base-price words, nine goods IDs, and nine
-minimum-Economy bytes. A listed good becomes available when
-`minimum Economy × 10 <= port Economy`. The port's separately stored specialty
-at metadata `+0x1C` uses the little-endian base-price word at `+0x1A` and the
-minimum-Economy byte at `+0x1D`; it appears in the Buy list only while its saved
-rate is below 90. The 46 goods are divided among ten saved price-index
-categories at metadata `+0x10..+0x19`. For base price `B` and the saved category
-byte `R`, the ordinary per-lot value is:
+The 13 regional Market definitions begin at `DATA1.015 0x67DC`, in `0x80`-byte
+records:
+
+| Record offset  |     Size | Contents                                                           |
+| -------------- | -------: | ------------------------------------------------------------------ |
+| `+0x00..+0x5B` | 46 words | little-endian sale base prices, indexed by goods ID                |
+| `+0x5C..+0x6D` |  9 words | little-endian purchase base prices, one per listed-goods slot      |
+| `+0x6E..+0x76` |  9 bytes | listed goods IDs; `0xFF` marks an unused slot                      |
+| `+0x77..+0x7F` |  9 bytes | minimum Economy for each listed-goods slot, in units of 10 Economy |
+
+A listed good becomes available when `minimum Economy × 10 <= port Economy`.
+The port's separately stored specialty at metadata `+0x1C` uses the
+little-endian base-price word at `+0x1A` and the minimum-Economy byte at
+`+0x1D`; it appears in the Buy list only while its saved rate is below 90. The
+46 goods are divided among ten saved price-index categories at metadata
+`+0x10..+0x19`. For base price `B` and the saved category byte `R`, the
+ordinary per-lot value is:
 
 ```text
 ordinary price = floor((R + 50) × B / 100)
 ```
 
-The Market's sale price is that ordinary value. Selling a port its own
-specialty yields half that value, rounded down. The purchase price is 120% of
-the ordinary value, rounded down, unless the inventory contains the Tax Free
-Permit for the nation controlling the port; the permit removes that markup.
+For a purchase, `B` is the listed slot's purchase base price, or the
+specialty base price. For a sale, `B` is the goods-indexed sale base price, and
+the Market pays that ordinary value. Selling a port its own specialty instead
+uses the specialty base price and yields half the ordinary value, rounded down.
+The purchase price is 120% of the ordinary value, rounded down, unless the
+inventory contains the Tax Free Permit for the nation controlling the port; the
+permit removes that markup.
 
 For transaction value `V` and port Economy `E`, buying first raises the
 selected category by `min(10, floor(V / (E + 500)))`, then raises all ten
@@ -577,14 +592,15 @@ on-hand gold, the selected category rate and the smaller market-wide adjustment
 are lowered, and the revised list is shown again. Cancelling the cargo list
 returns to the Market menu.
 
-**Invest** distinguishes the Market's commercial power from the Shipyard's
-industrial power, but shares the same dialogue and reward thresholds with the
-Shipyard command:
+**Invest** adds to an accumulated-investment word in the port's saved 37-byte
+metadata record: metadata `+0x04` for the Market and `+0x08` for the Shipyard.
+It does not raise Economy or Industry directly. Both commands share the same
+dialogue and reward thresholds:
 
 | Condition or amount                | Raw index (entry) | Result                                                         |
 | ---------------------------------- | ----------------: | -------------------------------------------------------------- |
 | Current port is a national capital |             2 (3) | Supplies the port and nation names; investment is unavailable. |
-| Relevant power has reached 50,000  |             7 (8) | Refuses further investment.                                    |
+| Accumulated investment is 50,000   |             7 (8) | Refuses further investment.                                    |
 | Investment is available            |             8 (9) | Opens the amount input.                                        |
 | No gold is available               |           28 (29) | Ends the command.                                              |
 | Zero entered                       |           13 (14) | “Come back again.”                                             |
@@ -592,10 +608,26 @@ Shipyard command:
 | 500–9,999 gold                     |           15 (16) | “Thank you very much.”                                         |
 | At least 10,000 gold               |           16 (17) | “I won't forget your generosity.”                              |
 
-The entered amount is capped by the remaining room below 50,000. A positive
-investment deducts the gold, changes the port's relevant power and
-sphere-of-influence distribution, and refreshes the associated market or
-shipyard state.
+The entered amount is capped by the remaining room below 50,000 in the
+accumulated-investment word. A positive investment deducts the gold, adds the
+amount to that word, and changes the port's Support distribution. Let `E` be
+Economy for Market Invest (helper `0x2AAA5`) or Industry for Shipyard Invest
+(helper `0x3269F`). The protagonist's nation gains
+`min(100 − its current Support, floor(amount / E))` Support; a Pirate instead
+computes `min(100, floor(amount / E))` without adding it anywhere. That amount
+is then removed as evenly as possible from the other nations with nonzero
+Support. The helper at `0x327C3` then refreshes the port's cached controller.
+
+The accumulated words are converted later by the world-update routine at
+`0x1CB4E`, which visits the 100 regular ports and sets:
+
+```text
+Economy  = min(1000, Economy  + floor(Market investment   / 300))
+Industry = min(1000, Industry + floor(Shipyard investment / 300))
+```
+
+It then clears both accumulated words. The schedule on which this routine runs
+has not been traced here.
 
 **Market Rate** builds a ten-goods working list, then displays the present
 port's commodity information in successive tables. Raw index 151 (entry 152)
@@ -622,10 +654,11 @@ attract recruits (raw 31), ask whether to recruit (raw 32), and call for sailors
 - raw index 122 (entry 123), with only part of the requested number; or
 - raw index 123 (entry 124), when nobody comes forward.
 
-The amount and cost prompts use raw indices 124 and 125 (entries 125–126).
-Let `E` be the visit's current Pub enthusiasm, initialized to one third of the
-port's stored appeal byte; `P` the port recruitment-base word; and `R` the
-protagonist's rank number. The available pool is:
+The amount and cost prompts use raw indices 124 and 125 (entries 125–126). Let
+`E` be the visit's current Pub enthusiasm, initialized on entry to
+`floor(protagonist Charm / 3)` (`0x2D417–0x2D424`); `P` the port's Economy
+(metadata `+0x02`); and `R` the protagonist's rank number. The available pool
+is:
 
 ```text
 available = min(floor(E × P / 500), (R + 1) × E)
@@ -654,7 +687,10 @@ side effect are described under the shared scenario and royal mission
 mechanics. This command has no scenario-dispatch call: the invitation test is
 executable code, and the command returns to the Pub menu afterward.
 
-The port metadata's Industry ID selects one of 14 specialties and its price:
+The port's Pub drink byte selects one of 14 specialties and its price. It is
+metadata `+0x26`, the last byte of the executable's natural `0x25`-byte port
+record; in this page's `0x5966` framing it is stored as the next record's
+`+0x01`. For example, Athens serves beer and Sakai serves sake:
 
 | Specialty | Price | Specialty   | Price |
 | --------- | ----: | ----------- | ----: |
@@ -676,7 +712,7 @@ enthusiasm gain = floor(treat strength × protagonist Charm / 10)
 new enthusiasm = min(100, old enthusiasm + enthusiasm gain)
 ```
 
-Here `P` is the same port recruitment-base word used by Recruit Crew. The new
+Here `P` is the same port Economy used by Recruit Crew. The new
 enthusiasm feeds Recruit Crew if it is selected later during the same visit.
 
 **Meet** uses the patron-selection loop rooted at `0x2C6E2`. Selecting a
@@ -735,11 +771,15 @@ engine; its result is not decided by the building handler.
 The selected patron's **Treat** command buys one bottle of the same local
 specialty. A Pub patron has the interaction's doubled-location factor, so
 Loyalty rises by **12** when the patron and protagonist have different
-personality types or by **36** when their low two personality bits match,
-capped at 100. The matching branch uses raw index 44 and the other branch raw 45. If the resulting Loyalty is above 30 and the patron's greatest ability
-from Leadership through Courage is above 75, raw indices 46 and 139 also name
-that specialty. This “specialty” means the patron's strongest ability and is
-unrelated to the Pub's drink specialty.
+personality types or by **36** when their low two personality bits match, capped
+at 100. The matching branch uses raw index 44 and the other branch raw 45. When
+the patron is the captain of a hostile fleet (fleet IDs `0x3C–0x45`), the
+meeting code at `0x2BE43` sets a flag that replaces either line with raw index
+861, “You can't buy me with drinks.” (`0x2C1C7–0x2C1E8`); the Loyalty
+calculation that follows is not skipped. If the resulting Loyalty is above 30
+and the patron's greatest ability from Leadership through Courage is above 75,
+raw indices 46 and 139 also name that specialty. This “specialty” means the
+patron's strongest ability and is unrelated to the Pub's drink specialty.
 
 **Waitress** begins at `0x2D102`. Raw index 146 (entry 147) names the port's
 waitress and requests a 10-gold tip; raw index 147 refuses the interaction if
@@ -774,8 +814,9 @@ index 249 (entry 250) and eject the protagonist. The six ordinary commands are
 
 **New Ship** begins at `0x31D16`; model selection begins at `0x31B2E` and hull
 selection at `0x31A70`. The preliminary path may refuse because this port
-builds no new ships (raw index 251, entry 252) or the protagonist already has
-the maximum ten ships in the active fleet (raw 377). Raw index 252 opens the
+builds no new ships (raw index 251, entry 252) or reserve storage is full
+(raw 377, “Other than the ships sailing with you now, you can only have 30
+ships.”); see the ship-exchange rules below. Raw index 252 opens the
 eligible ordering path. Its construction sequence is:
 
 | Stage                          | Raw index (entry) | Continuation                                                    |
@@ -953,14 +994,15 @@ one-based position. When the rare-selection conditions are met, it marks the
 raw 266 message and extra menu choices ambiguous because gameplay RNG is not
 stored in the save.
 
-**Invest** begins at `0x328A3`. It applies the same 50,000 cap and message
-thresholds as Market Invest, but tests and changes the port's industrial power.
+**Invest** begins at `0x328A4`. It applies the same 50,000 cap and message
+thresholds as Market Invest, but tests and changes the Shipyard
+accumulated-investment word at metadata `+0x08`.
 Its internal recalculation helpers begin at `0x3269F` and `0x327C3`; those are
 not separately selectable commands.
 
 ### Guild command dialogue
 
-The Guild main handler begins at `MAIN.EXE 0x332E4`. It displays raw index 85
+The Guild main handler begins at `MAIN.EXE 0x332E3`. It displays raw index 85
 (entry 86), “What do you want?”, and opens **Job Assignment** and **Country
 Info**. Both commands return to this menu; leaving the menu returns outside
 without a farewell.
@@ -1007,7 +1049,7 @@ Piracy is not selectable. After a country is selected, raw index 86 asks for
 the player has fewer than 100 gold, raw index 163 says, “Sorry, no gold, no
 information!” Otherwise exactly 100 gold is deducted.
 
-The status screen rendered by `0x32F9A–0x331DB` contains:
+The status screen rendered by `0x32F9D–0x331DB` contains:
 
 - the selected nation's cached **Profit**, from nation-record word `+0x00`;
 - the protagonist's displayed Friendship with that nation, stored value minus
@@ -1033,7 +1075,7 @@ recalculate them.
 
 ### Palace command dialogue
 
-The Palace handler begins at `MAIN.EXE 0x309A5`. After the admission greeting
+The Palace handler begins at `MAIN.EXE 0x309A4`. After the admission greeting
 has been acknowledged, it opens **Meet Ruler**, **Defect**, **Gold**, and
 **Ship**. A fifth stored label, **Secret Call**, is event-only rather than an
 ordinary selectable command. The ruler is selected from the nation controlling
@@ -1077,7 +1119,7 @@ the ruler awards `1,000 × aid amount` and clears the stored amount so it cannot
 be collected twice. If that award would take on-hand gold above 600,000,000,
 the command refuses it instead.
 
-**Ship** begins at `0x306C3` and likewise consumes a ship type cached in the
+**Ship** begins at `0x306C2` and likewise consumes a ship type cached in the
 current nation record. It refuses when no ship aid is pending or when the fleet
 and ship-instance lists cannot accept another vessel, and also requires an
 eligible mate to captain it. On success it creates the specified ship, lets the
@@ -1223,7 +1265,7 @@ only if all four conditions hold: the Palace is foreign, the character is not
 affiliated with the Pirates, shared flag 17 is clear, and shared flag 18 is
 clear. A title, one's own capital, Pirate affiliation, an armed royal
 invitation, or an offer already in progress therefore passes this gate. The
-check occupies `MAIN.EXE 0x30A1B–0x30A68`; rejection begins at `0x30A5B`.
+check occupies `MAIN.EXE 0x30A1B–0x30A68`; rejection begins at `0x30A5C`.
 
 ### Vendor portraits and dialogue panels
 
@@ -1324,8 +1366,8 @@ value = (state >> 16) & 0x7FFF
 result = value % bound
 ```
 
-The `random(3) + 2` call is at `MAIN.EXE 0x209E9-0x209F5`; the entry routine
-returns the resulting tick count at `0x20B36`.
+The `random(3) + 2` call is at `MAIN.EXE 0x209E8-0x209F5`; the entry routine
+returns the resulting tick count at `0x20B35`.
 
 ### Item Shop late opening
 
@@ -1420,6 +1462,8 @@ Muscat, Quatar, Shiraz, Trebizond, and Tripoli.
 
 ## Data evidence
 
+- `raw/MENU.DAT` record numbers in this list are one-based; the zero-based
+  entry in the file's big-endian offset table is the record number minus one.
 - `raw/MENU.DAT` record 59 contains the twelve building names in ID order.
 - `raw/MENU.DAT` records 1, 2, 5-10, 16-18, 23, 25, and 26 contain the menus
   transcribed above.

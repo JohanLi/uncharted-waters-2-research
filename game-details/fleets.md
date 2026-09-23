@@ -9,8 +9,14 @@ fleet_id = officer[0x24]
 fleet = 0x1e77 + fleet_id * 0x85
 ```
 
-Each fleet has ten 9-byte ship slots beginning at `fleet + 0x2b`. Empty slots
-start with `0xff`. The ship-instance reference is slot byte `+0x07`:
+Each fleet has ten 9-byte ship slots beginning at `fleet + 0x2b`. A slot is
+occupied when its status byte satisfies `slot[0x08] & 0x30 == 0x10`, as
+described in [Fleet Info](fleet-info.md#which-ships-appear-and-where). The
+new-game template marks every empty slot with a leading `0xff`
+(`ff00ffffffffffff00`), but in played saves a vacated slot can keep stale bytes,
+such as `0000ffffffffff`, a ship-instance ID, and `00`, so the first byte alone
+does not identify an empty slot. The ship-instance reference is slot byte
+`+0x07`:
 
 ```text
 ship_instance_id = slot[0x07]
@@ -36,8 +42,8 @@ fleet       = slot base + 0x1DE0 + fleet_id × 0x85
 The protagonist index is the record selected for the current player's
 character in that save, whether the player is João, Otto, Catalina, or another
 protagonist. The ten ship slots then begin at `fleet + 0x2B`; an occupied slot
-is identified by a first byte other than `0xFF`, and its ship-instance
-reference is at slot byte `+0x07`:
+is identified by the status test `slot[0x08] & 0x30 == 0x10`, and its
+ship-instance reference is at slot byte `+0x07`:
 
 ```text
 ship_instance_id = slot[0x07]
