@@ -230,12 +230,12 @@ export function analyzeScenarioVmExecutable(
     },
     buildingTiming: {
       generalRandomOffset: 0x0a198,
-      durationRollOffset: 0x209e9,
+      durationRollOffset: 0x209e8,
       minimumDurationTicks: 2,
       randomDurationBound: 3,
-      durationReturnOffset: 0x20b36,
-      townClockAddOffset: 0x204a7,
-      portArrivalIncrementOffset: 0x2051e,
+      durationReturnOffset: 0x20b35,
+      townClockAddOffset: 0x204a5,
+      portArrivalIncrementOffset: 0x20521,
     },
     menuCommandScenarioDispatch: {
       jobAssignment: {

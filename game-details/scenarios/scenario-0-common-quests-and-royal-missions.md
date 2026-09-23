@@ -9,11 +9,11 @@ its last seven sections implement missions offered by a ruler.
 | Section | Purpose                                           | Messages |
 | ------: | ------------------------------------------------- | -------: |
 |       0 | Idle state and assignment/royal-mission selection |     1–12 |
-|       1 | Transport Goods                                   |    13–38 |
-|       2 | Buy Goods                                         |    39–66 |
-|       3 | Deliver Letter                                    |    67–90 |
-|       4 | Defeat Pirates                                    |   91–117 |
-|       5 | Collect Debt                                      |  118–142 |
+|       1 | Transport Goods                                   |    13–54 |
+|       2 | Buy Goods                                         |    55–78 |
+|       3 | Deliver Letter                                    |    79–98 |
+|       4 | Defeat Pirates                                    |   99–110 |
+|       5 | Collect Debt                                      |  111–142 |
 |       6 | Royal trading test                                |  143–154 |
 |       7 | Deliver documents between rulers                  |  155–185 |
 |       8 | Negotiate a treaty                                |  186–216 |
@@ -36,9 +36,16 @@ select Transport Goods, Buy Goods, Deliver Letter, Defeat Pirates, and Collect
 Debt respectively. Duplicate rows are therefore possible. At port IDs 42 and
 above, all three rows are Deliver Letter.
 
-Choosing one row maps its selector to shared section 1–5 and invokes the offer
-through Guild context `0x06`. Rejecting returns to the same list; accepting
-returns to the Guild's main menu with that section active. The executable
+Choosing one row does not switch sections directly. The executable
+(`MAIN.EXE 0x32F5C–0x32F61`) writes `selector + 1` into the shared
+**subsection** byte (`DS:0x0EE3`) while the shared section is still 0, copies
+the row's prepared value from variable `3 + row` into variable 8
+(`0x32F66`), and dispatches Guild qualifier `0x06`. The offer, messages 1–12,
+therefore runs in section 0. If the dispatch reports a handled route, the
+executable sets the shared section (`DS:0x0EE2`) to variable 6 (`0x32F80`),
+which the section 0 offer sets to 0 on rejection or to the chosen section 1–5
+on acceptance; it then clears the subsection. Rejecting returns to the same list; accepting returns to the
+Guild's main menu with the chosen section 1–5 active. The executable
 command flow and active-assignment reminders are documented in
 [buildings.md](../buildings.md#guild-command-dialogue).
 

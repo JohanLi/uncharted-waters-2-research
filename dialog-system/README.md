@@ -6,9 +6,11 @@ chooses and presents dialog. The practical goal is to answer this question:
 > Given a player state, a port, and a building, which conversation will occur,
 > what will it do, and will the normal building menu remain available?
 
-The repository can already answer much of that question for protagonist story
-events. It cannot yet reproduce the complete building-entry dispatcher. The
-boundary between established behavior and inference is therefore important.
+The repository can already answer much of that question. Building-entry
+precedence and ordinary command dispatch are decoded and modeled by the
+save-aware query, but outcomes driven by the unsaved general gameplay RNG and
+some transient presentation state remain conditional. The boundary between
+established behavior and inference is therefore important.
 
 ## Evidence labels
 
@@ -51,7 +53,12 @@ opening-hours and preliminary access checks in MAIN.EXE
         +--> closed or access denied
         |
         v
-dispatch shared and protagonist scenario entry hooks
+dispatch shared scenario entry hook
+        |
+        +--> nonzero shared variable 63 skips the protagonist hook
+        |
+        v
+dispatch protagonist scenario entry hook
         |
         +--> `F8` can stop the interaction and return outside
              (Lodge entry is an explicit exception)
@@ -62,7 +69,8 @@ ordinary-building hostile-country check, where eligible
         +--> confrontation can suppress the menu and return outside
         |
         v
-ordinary greeting and building menu, if still allowed
+ordinary greeting (skipped if either variable 63 is nonzero)
+and building menu, if still allowed
         |
         +--> player selects a command such as Job Assignment,
         |    Treat, or Meet Ruler
@@ -84,7 +92,16 @@ available.
 `MAIN.EXE 0x20A1B–0x20A4C` dispatches the shared and protagonist entry routes
 before the hostile-building path beginning at `0x20A70`. Story dispatch
 therefore has earlier order, but a non-ejecting story continues into the
-hostile check.
+hostile check. If the shared route leaves shared variable 63 nonzero, the
+protagonist route is not matched or dispatched at all (`0x20A32`).
+
+Variable 63 of each scenario's 64-word variable array is a
+greeting-suppression word. The dispatchers zero it before each run, and a
+route sets it with `0C 3F 0001`. The ordinary building main handlers test the
+shared and protagonist words and skip the ordinary vendor greeting when either
+is nonzero, while still offering the menu. The save-aware query models both
+this suppression and the shared-to-protagonist gate. Details are in the
+[reverse-engineering notes](./scripts/REVERSE_ENGINEERING.md#mainexe-scenario-vm).
 
 The Lodge is a caller-side exception to the usual `F8` behavior. Its branch at
 `MAIN.EXE 0x20A61` proceeds into hostile-port handling even when an entry story
@@ -96,18 +113,18 @@ Other dialog-system gaps are tracked in
 
 ## Files involved
 
-| File or output                                | Role                                                                                                                                | Current status                                                   |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `raw/MAIN.EXE`                                | Loads message banks and scenario pairs; implements ordinary building behavior and the SNR virtual machine                           | Partly decoded                                                   |
-| `raw/MESSAGE.DAT`                             | 1,000 general strings, including ordinary vendor greetings, access responses, menu interactions, rumors, and reusable gameplay text | Container and combined lookup decoded; callers partly mapped     |
-| `raw/MESSAGE2.DAT`                            | 423 additional general strings, including UI, interaction, and character-specific text                                              | Container and combined lookup decoded; callers partly mapped     |
-| `raw/SNR0.DAT` / `SNR0.MES`                   | Shared Guild jobs and royal missions                                                                                                | Structurally decoded; some message references remain unexplained |
-| `raw/SNR1` through `SNR6`                     | Protagonist-specific programs and text                                                                                              | Structurally decoded                                             |
-| `raw/KOUKAI2.DAT`                             | Save slots containing active scenario state and other inputs used by dialog conditions                                              | Relevant fields partly decoded                                   |
-| `raw/MENU.DAT`                                | Building and command-menu labels                                                                                                    | Decoded where used by the building research                      |
-| `raw/ZA_DAT.DAT`                              | Port maps and the presence/coordinates of building slots                                                                            | Decoded by the port extractor                                    |
-| `dialog-system/scripts/output/scenarios.json` | Machine-readable disassembly of all SNR pairs                                                                                       | Generated research output                                        |
-| `dialog-system/scripts/output/readable/`      | Searchable transcripts, routes, instructions, control-flow edges, and dialog occurrences                                            | Generated research output                                        |
+| File or output                                | Role                                                                                                                                | Current status                                                 |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `raw/MAIN.EXE`                                | Loads message banks and scenario pairs; implements ordinary building behavior and the SNR virtual machine                           | Partly decoded                                                 |
+| `raw/MESSAGE.DAT`                             | 1,000 general strings, including ordinary vendor greetings, access responses, menu interactions, rumors, and reusable gameplay text | Container and combined lookup decoded; callers partly mapped   |
+| `raw/MESSAGE2.DAT`                            | 423 additional general strings, including UI, interaction, and character-specific text                                              | Container and combined lookup decoded; callers partly mapped   |
+| `raw/SNR0.DAT` / `SNR0.MES`                   | Shared Guild jobs and royal missions                                                                                                | Structurally decoded; all 272 message references accounted for |
+| `raw/SNR1` through `SNR6`                     | Protagonist-specific programs and text                                                                                              | Structurally decoded                                           |
+| `raw/KOUKAI2.DAT`                             | Save slots containing active scenario state and other inputs used by dialog conditions                                              | Relevant fields partly decoded                                 |
+| `raw/MENU.DAT`                                | Building and command-menu labels                                                                                                    | Decoded where used by the building research                    |
+| `raw/ZA_DAT.DAT`                              | Port maps and the presence/coordinates of building slots                                                                            | Decoded by the port extractor                                  |
+| `dialog-system/scripts/output/scenarios.json` | Machine-readable disassembly of all SNR pairs                                                                                       | Generated research output                                      |
+| `dialog-system/scripts/output/readable/`      | Searchable transcripts, routes, instructions, control-flow edges, and dialog occurrences                                            | Generated research output                                      |
 
 `SNR1` is João, `SNR2` Catalina, `SNR3` Otto, `SNR4` Ernst, `SNR5`
 Pietro, and `SNR6` Ali. `SNR0` is shared rather than belonging to a seventh
@@ -134,8 +151,8 @@ index** or a **one-based entry number**. This avoids an easy off-by-one error.
 
 `MAIN.EXE` loads `MESSAGE.DAT` into the handle at `DS:0x05DC` and
 `MESSAGE2.DAT` into the handle at `DS:0x05DE`. The loader is at file offsets
-`0x1B170–0x1B19A`; its filename pointers are `DS:0x0B3E` and `DS:0x0B2E`.
-The offset-table readers begin at `0x3929D` and `0x392EF` respectively. Each
+`0x1B173–0x1B19F`; its filename pointers are `DS:0x0B3E` and `DS:0x0B2E`.
+The offset-table readers begin at `0x3929E` and `0x392EA` respectively. Each
 multiplies a raw index by two, reads and byte-swaps the big-endian offset, then
 reads the selected null-terminated string.
 
@@ -146,7 +163,8 @@ Callers see the pair as one continuous zero-based namespace:
 |        `0–999` | `MESSAGE.DAT`, same index  |
 |    `1000–1422` | `MESSAGE2.DAT`, index−1000 |
 
-The dispatcher at `0x39332` performs the `1000` comparison and subtraction.
+The dispatcher at `0x39336` performs the `1000` comparison (at `0x39339`) and
+subtraction.
 Consequently, an executable operand of `1047` means raw index `47` (one-based
 entry 48) in `MESSAGE2.DAT`; it is not an out-of-range `MESSAGE.DAT` index.
 
@@ -182,8 +200,11 @@ display body. A label is useful evidence, but portrait selection still comes
 from bytecode and should not be inferred from the label alone.
 
 The game interprets `$n` and `$s` as the player's first and last names when it
-renders the text. Generated output represents these placeholders as `$n` and
-`$s`.
+renders the text. Two further placeholders read the active scenario's VM
+variables: `$dNN` inserts variable `NN` (two decimal digits) as a decimal
+number, and `$rNN` inserts the string referenced by variable `NN`, such as a
+port name in a Guild contract. The executable expander at `MAIN.EXE 0x383E4`
+handles all four forms. Generated output preserves the placeholders.
 
 ### `SNR*.DAT`
 
@@ -244,14 +265,17 @@ Only one menu action introduces a distinct scenario context. `Meet Ruler`
 dispatches shared Palace context `0x05`, then protagonist and shared audience
 context `0x15`. `Job Assignment` reuses Guild qualifier `0x06` after the
 executable records the selected job. `Treat` makes no scenario-dispatch call;
-its royal-invitation path is executable logic. The route matcher itself tries
-`0xA3` and `0xFF` fallbacks when no exact route matches, so callers do not pass
-those wildcard values.
+its royal-invitation path is executable logic. The route matcher
+(`MAIN.EXE 0x390D9` shared, `0x3922E` protagonist) makes a single pass in table
+order and takes the first entry that matches. A `0xA3` selector matches any
+regular port and a `0xFF` qualifier matches any context wherever that entry
+occurs in the table, so a wildcard placed before a specific entry wins.
+Callers never pass those wildcard values themselves.
 
 The active section and subsection determine which route table is eligible.
 After a route is chosen, its bytecode may branch on scenario flags, VM
-variables, current calendar day, port, time, fame, random values, inventory, and other
-partly decoded inputs.
+variables, current calendar day, port, time, fame, random values, inventory, and
+other partly decoded inputs.
 
 ## How a scenario expresses dialog
 
@@ -406,11 +430,11 @@ CA 04
 message 67
 ```
 
-A brief screen clear follows message 66, and João's theme begins with message 67. Elsewhere, raw `CA 10` selects the
-battle theme, `CA 05` selects Catalina's theme, `CA 06` selects Otto's theme,
-and `CA 13` selects the Pub theme (“Fiddler's Green”). Track operands in
-byte dumps are hexadecimal; generated JSON writes their numeric value in
-decimal.
+A brief screen clear follows message 66, and João's theme begins with
+message 67. Elsewhere, raw `CA 10` selects the battle theme, `CA 05` selects
+Catalina's theme, `CA 06` selects Otto's theme, and `CA 13` selects the Pub
+theme (“Fiddler's Green”). Track operands in byte dumps are hexadecimal;
+generated JSON writes their numeric value in decimal.
 
 The exhaustive PC range is `CA 00` through `CA 15`. The endpoints and early
 IDs are Opening (`00`), Ending A / Duke
@@ -471,9 +495,8 @@ clears a caller-provided interaction-control word. Routes ending in `F8 F2`
 force the player outside before the normal building menu can be used. Routes
 ending in `F2` without `F8` leave the player inside and allow the menu. Pietro's
 Genoa Church warning uses the former, while his nearby Lodge reminder uses the
-latter.
-usable. Other confirmed ejecting debt conversations use the same `F8 F2`
-ending.
+latter, which leaves the Lodge usable. Other confirmed ejecting debt
+conversations use the same `F8 F2` ending.
 
 Dialog wording alone remains insufficient evidence; the encoded `F8` is what
 distinguishes an ejecting conversation from a visually similar reminder.
@@ -520,10 +543,10 @@ Use this procedure for a particular save and building:
    relevant inventory or quest fields.
 4. **Select the active SNR pair.** Check the protagonist's `SNR1`–`SNR6` and
    applicable shared `SNR0` handling.
-5. **Match a route.** Try the specific port/building key, the any-port key,
-   then applicable wildcard/nested routes as dictated by the actual route
-   tables. Do not invent a general precedence when several engine dispatches
-   may be involved.
+5. **Match a route.** Scan the active route table in order and take the first
+   entry whose selector and qualifier match, treating `0xA3` and `0xFF` as
+   wildcards wherever they occur. Do not invent a general precedence when
+   several engine dispatches may be involved.
 6. **Execute reachable branches.** Follow comparisons, flags, known variable
    values, jumps, and explicit random branches from the selected destination.
 7. **Collect presentation and effects.** Record dialog in execution order,
@@ -541,10 +564,14 @@ The existing tool predicts protagonist-story and shared-scenario paths without
 modifying a save:
 
 ```sh
-pnpm run query-dialog -- save-editor/KOUKAI2-original.DAT 1 pub
-pnpm run query-dialog -- save-editor/KOUKAI2-original.DAT 1 special-building
-pnpm run query-dialog -- save-editor/KOUKAI2-original.DAT 1 item-shop:buy:1:yes
+pnpm run query-dialog -- FILE SLOT pub
+pnpm run query-dialog -- FILE SLOT special-building
+pnpm run query-dialog -- FILE SLOT item-shop:buy:1:yes
 ```
+
+`FILE` must be a save made in port; the tracked `raw/KOUKAI2.DAT` template is
+at sea and supports only the `at-sea` action. See the
+[query usage notes](./scripts/README.md#query-a-save) for more actions.
 
 It reads the selected slot's scenario state, calendar, clock, port,
 protagonist, fame, mission variables, nation records, fleet cargo, inventory,
@@ -578,11 +605,12 @@ and Lodge Gossip reconstruct local sailors and resolve their shared Gossip,
 Hire, and Duel paths. Interactive crew distribution, investigations, and the
 gambling engines are identified at their handoff rather than simulated.
 Market paths reconstruct local goods, rates, prices, fleet cargo limits,
-purchases, sales, and commercial investment. Shipyard paths reconstruct new
-model and material availability, repairs, sale guards, Remodel routing and
-renaming, and industrial investment. Used-ship inventory, negotiation results,
-and interactive ship design or remodeling stop at explicit process-state or
-input handoffs. The tool validates selections and reports effects without
+purchases, sales, and commercial investment. Shipyard paths resolve New Ship
+ordering, negotiation, capacity allocation, and delivery; Used Ship purchase,
+exchange, negotiation, and naming; repairs; sales; Remodel; and industrial
+investment. Low-offer refusal versus same-day ejection, the presence of rare
+Figurehead or Gun selections, and other RNG-dependent Shipyard branches remain
+conditional. The tool validates selections and reports effects without
 changing the save. Item Shop counteroffers, sailor rumors and hiring,
 collector Rumor, and other branches driven by the unsaved general RNG remain
 probabilistic.

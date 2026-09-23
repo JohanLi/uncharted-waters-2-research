@@ -40,7 +40,10 @@ not a prerequisite for the Armada campaign.
 
 The 30,000-Fame section contains the London summons, Guild intelligence,
 Nantes battle, South American report, Santo Domingo, the Amazon, and
-Catalina's intervention.
+Catalina's intervention. Two after-battle routes each add a fixed 1,000 Piracy
+Fame, capped at 50,000: after the Nantes battle (`0x1631–0x164F`) and after the
+Santo Domingo battle (`0x173C–0x175A`); see
+[Piracy Fame](../fame/piracy-fame.md#story-awards).
 
 ### 5: Ezequiel and London ending
 

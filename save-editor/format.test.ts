@@ -30,6 +30,7 @@ import {
   setRank,
   slotOffset,
   validate,
+  SLOT_SIZE,
 } from "./format.js";
 
 const baseline = readFileSync(new URL("../raw/KOUKAI2.DAT", import.meta.url));
@@ -199,7 +200,8 @@ test("changes the calendar and rejects invalid dates", () => {
   const edited = setClock(save, 1, "1523-01-01", "09:20");
   const inspected = inspectSlot(edited, 1);
 
-  assert.equal(inspected.label, "Jan/01/1523");
+  // The game space-pads the day, for example "Jun/ 5/1522".
+  assert.equal(inspected.label, "Jan/ 1/1523");
   assert.equal(inspected.time, "09:20");
   assert.equal(inspected.portName, "Lisbon");
   assert.throws(() => setClock(save, 1, "1522-02-30", "00:00"));
@@ -253,7 +255,9 @@ test("applies the fixed equipment and gold changes", () => {
   ]);
   assert.equal(inspectGold(edited, 1), 1_000_000);
   assert.equal(inspectGold(save, 1), 0);
-  assert.throws(() => setGold(save, 1, 0x1000000));
+  const maximum = setGold(save, 1, 600_000_000);
+  assert.equal(inspectGold(maximum, 1), 600_000_000);
+  assert.throws(() => setGold(save, 1, 600_000_001));
 });
 
 test("sets protagonist stats and levels without changing the source", () => {
@@ -281,32 +285,49 @@ test("sets protagonist stats and levels without changing the source", () => {
   assert.equal(save[sailor + 0x1d], 1);
 });
 
-test("converts the current player's first ship to a Tekkousen", () => {
-  const save = saveInLisbon();
-  const protagonist = inspectProtagonist(save, 1);
-  const officer = slotOffset(1) + 0x612 + protagonist.id * 0x2a;
-  const fleetId = save[officer + 0x24]!;
-  const fleet = 0x1e77 + fleetId * 0x85;
-  const shipSlot = fleet + 0x2b;
-  // The raw baseline has an empty player fleet. Add one minimal source ship
-  // to the cloned fixture so this test exercises the conversion operation.
-  save.set([10, 0, 27, 27, 90, 75, 0, 0, 0x14], shipSlot);
-  const instance = 0x4893 + save[shipSlot + 7]! * 0x18;
-  save[instance + 0x11] = 5;
-  const edited = setPlayerShipToTekkousen(save, 1);
+for (const slot of [1, 2]) {
+  test(`converts the current player's first ship to a Tekkousen in slot ${slot}`, () => {
+    const save = saveInLisbon();
+    // The template's slots are identical; select protagonist 0 in this slot.
+    save[1 + (slot - 1) * 15 + 13] = 0;
+    const base = slotOffset(slot);
+    const protagonist = inspectProtagonist(save, slot);
+    const officer = base + 0x612 + protagonist.id * 0x2a;
+    const fleetId = save[officer + 0x24]!;
+    const fleet = base + 0x1de0 + fleetId * 0x85;
+    const shipSlot = fleet + 0x2b;
+    // The raw baseline has an empty player fleet. Add one minimal source ship
+    // to the cloned fixture so this test exercises the conversion operation.
+    save.set([10, 0, 27, 27, 90, 75, 0, 0, 0x14], shipSlot);
+    const instance = base + 0x47fc + save[shipSlot + 7]! * 0x18;
+    save[instance + 0x11] = 5;
+    const supply = base + 0x423e;
+    const edited = setPlayerShipToTekkousen(save, slot);
 
-  // Ship model and slot values are not currently exposed by an inspector.
-  assert.equal(edited.readUInt16LE(shipSlot), 300);
-  assert.deepEqual(
-    [...edited.subarray(shipSlot + 2, shipSlot + 7)],
-    [100, 100, 80, 85, 0],
-  );
-  assert.equal(edited[instance + 0x11], 22);
-  assert.equal(edited[instance + 0x13], 0);
-  assert.equal(edited.readUInt16LE(instance + 0x14), 300);
-  assert.equal(edited.readUInt16LE(instance + 0x16), 800);
-  assert.equal(edited[shipSlot + 0x08], 0x10);
-  assert.equal(edited.readUInt16LE(0x42d5), 3000);
-  assert.equal(edited.readUInt16LE(0x42d7), 5000);
-  assert.equal(save[instance + 0x11], 5);
-});
+    // Ship model and slot values are not currently exposed by an inspector.
+    assert.equal(edited.readUInt16LE(shipSlot), 300);
+    assert.deepEqual(
+      [...edited.subarray(shipSlot + 2, shipSlot + 7)],
+      [100, 100, 80, 85, 0],
+    );
+    assert.equal(edited[instance + 0x11], 22);
+    assert.equal(edited[instance + 0x13], 0);
+    assert.equal(edited.readUInt16LE(instance + 0x14), 300);
+    assert.equal(edited.readUInt16LE(instance + 0x16), 800);
+    assert.equal(edited[shipSlot + 0x08], 0x10);
+    assert.equal(edited.readUInt16LE(supply), 3000);
+    assert.equal(edited.readUInt16LE(supply + 2), 5000);
+    assert.equal(save[instance + 0x11], 5);
+
+    // Every other slot is left unchanged.
+    for (let other = 1; other <= 10; other++)
+      if (other !== slot)
+        assert.ok(
+          edited
+            .subarray(slotOffset(other), slotOffset(other) + SLOT_SIZE)
+            .equals(
+              save.subarray(slotOffset(other), slotOffset(other) + SLOT_SIZE),
+            ),
+        );
+  });
+}

@@ -157,6 +157,9 @@ const GOLD_CARRYING_LIMIT = 600_000_000;
 const WAITRESS_TABLE = 0x1bb2;
 const WAITRESS_COUNT = 29;
 const WAITRESS_RECORD_SIZE = 0x10;
+// Records naturally begin at 0x5968 (MAIN.EXE's current-port pointer is
+// DS:0x6790 + port * 0x25). Offsets from this table are therefore two bytes
+// larger than the executable's record-relative offsets.
 const PORT_METADATA_TABLE = 0x5966;
 const PORT_METADATA_RECORD_SIZE = 0x25;
 const ITEM_DEFINITION_TABLE = 0x7130;
@@ -172,15 +175,17 @@ const NATION_RECORDS = 0x04d6;
 const NATION_RECORD_SIZE = 0x20;
 const DISCOVERY_TABLE = 0x6e74;
 const DISCOVERY_RECORD_SIZE = 7;
-const DISCOVERY_COUNT = 98;
+// Records 98 and 99 are always-excluded placeholders (flag 0x80).
+const DISCOVERY_COUNT = 100;
 const CHART_TOTAL_KNOWN = 0x036a;
 const CHART_UNREPORTED = 0x036c;
+// Port controllers, sailor affiliations, and nation records share this order.
 const NATION_NAMES = [
   "Portugal",
   "Spain",
   "Turkey",
-  "Italy",
   "England",
+  "Italy",
   "Holland",
 ] as const;
 const GOODS_NAMES = [
@@ -345,10 +350,12 @@ export function loadOrdinaryDialogueData(): Promise<OrdinaryDialogueData> {
           ).filter((id) => id !== 0xff),
         ),
         marketDefinitions: Array.from({ length: 13 }, (_, market) => {
-          const record = 0x67db + market * 0x80;
+          // 46 little-endian base prices, nine unnamed words for the listed
+          // goods, then nine goods IDs and their minimum-Economy bytes.
+          const record = 0x67dc + market * 0x80;
           return {
             basePrices: Array.from({ length: GOODS_NAMES.length }, (_, good) =>
-              data1.readUInt16BE(record + good * 2),
+              data1.readUInt16LE(record + good * 2),
             ),
             goods: Array.from(data1.subarray(record + 0x6e, record + 0x77)),
             requirements: Array.from(
@@ -1111,16 +1118,19 @@ function churchCommand(
       notes: [],
     });
 
-  const generous = Math.floor(gold / amount) <= 10;
+  const ratio = Math.floor(gold / amount);
+  const generous = ratio <= 10;
   const dialogue = [prompt, line(data, (generous ? 95 : 94) + offset, speaker)];
   const base = slotOffset(slot);
   const luck =
     save[base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE + 0x1b]!;
-  const adjustedLuck = Math.min(100, luck - Math.floor(gold / amount) + 11);
+  const adjustedLuck = Math.min(100, luck - ratio + 11);
   const effects = [`deduct ${amount} gold`];
   const uncertainties: string[] = [];
-  if (amount >= 500) effects.push(`set Luck to ${adjustedLuck}`);
-  else if (amount >= 100)
+  // Only the generous response evaluates Luck, after comparing the donation
+  // with (random(5) + 1) * 100.
+  if (generous && amount >= 500) effects.push(`set Luck to ${adjustedLuck}`);
+  else if (generous && amount >= 100)
     uncertainties.push(
       `A general-RNG threshold may apply the donation's Luck adjustment, which would set Luck from ${luck} to ${adjustedLuck}.`,
     );
@@ -1343,14 +1353,14 @@ function pubSpecialty(
   save: Buffer,
   slot: number,
   portId: number,
-): { name: string; price: number; industryId: number } {
+): { name: string; price: number; specialtyId: number } {
   const metadata =
     slotOffset(slot) + PORT_METADATA_TABLE + portId * PORT_METADATA_RECORD_SIZE;
-  const industryId = save[metadata + 0x24]!;
+  const specialtyId = save[metadata + 0x26]!;
   return {
-    name: PUB_SPECIALTIES[industryId] ?? `specialty ${industryId}`,
-    price: PUB_SPECIALTY_PRICES[industryId] ?? 1,
-    industryId,
+    name: PUB_SPECIALTIES[specialtyId] ?? `specialty ${specialtyId}`,
+    price: PUB_SPECIALTY_PRICES[specialtyId] ?? 1,
+    specialtyId,
   };
 }
 
@@ -1480,7 +1490,7 @@ function supplyPrice(
   const port =
     slotOffset(slot) + PORT_METADATA_TABLE + portId * PORT_METADATA_RECORD_SIZE;
   const basePrice = resource === "food" ? 20 : resource === "lumber" ? 90 : 120;
-  const modifier = save[port + (resource === "lumber" ? 0x17 : 0x10)]!;
+  const modifier = save[port + (resource === "lumber" ? 0x19 : 0x12)]!;
   return Math.floor((basePrice * (modifier + 50)) / 100);
 }
 
@@ -2312,13 +2322,44 @@ function sailorTreatCommand(
     });
 
   const base = slotOffset(slot);
+  // After payment, active shared state with variable 6 equal to 11 or 5 and
+  // variable 17 naming this patron replaces the ordinary Treat response.
+  const sharedVariable = (index: number) =>
+    save.readUInt16LE(base + SHARED_VARIABLES_START + index * 2);
+  const sharedJob = sharedVariable(6);
+  if (
+    save[base + SHARED_SCENARIO_START] !== 0 &&
+    (sharedJob === 11 || sharedJob === 5) &&
+    (sharedVariable(17) & 0xff) === sailor.id &&
+    sharedVariable(18) !== 0
+  )
+    return result(path, {
+      confidence: "decoded",
+      disposition: "unsupported",
+      dialogue: [],
+      menu,
+      effects: [`deduct ${specialty.price} gold`],
+      uncertainties: [
+        `Shared assignment handler ${sharedJob === 11 ? "0x2BF2A" : "0x2C021"} replaces the ordinary Treat response and Loyalty change.`,
+      ],
+      notes: [`${specialty.name} costs ${specialty.price} gold.`],
+    });
+
   const protagonist = base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE;
+  const personality = save[sailor.record + 0x27]!;
   const matchingPersonality =
-    (save[protagonist + 0x27]! & 3) === (save[sailor.record + 0x27]! & 3);
-  const gain = matchingPersonality ? 36 : 12;
+    (save[protagonist + 0x27]! & 3) === (personality & 3);
+  const gain = 6 * (personality & 0x40 ? 2 : 1) * (matchingPersonality ? 3 : 1);
   const loyalty = save[sailor.record + 0x23]!;
   const nextLoyalty = Math.min(100, loyalty + gain);
-  const dialogue = [line(data, matchingPersonality ? 44 : 45, sailor.name)];
+  // Hostile fleet captains answer with raw 861 instead of 44 or 45.
+  const dialogue = [
+    line(
+      data,
+      sailor.pirateCaptain ? 861 : matchingPersonality ? 44 : 45,
+      sailor.name,
+    ),
+  ];
   let bestIndex = 0;
   for (let index = 1; index < SAILOR_ABILITY_NAMES.length; index++)
     if (
@@ -2344,7 +2385,7 @@ function sailorTreatCommand(
     uncertainties: [],
     notes: [
       `${specialty.name} costs ${specialty.price} gold.`,
-      `The ${matchingPersonality ? "matching" : "different"} personality types produce a ${gain}-point Loyalty gain.`,
+      `Loyalty gain: 6 × ${personality & 0x40 ? 2 : 1} × ${matchingPersonality ? "3 (matching personality)" : "1 (different personality)"} = ${gain}.`,
     ],
   });
 }
@@ -2489,10 +2530,15 @@ function sailorInteractionCommand(
   return unavailableCommand(path, `Unknown sailor command: ${path[2]}.`);
 }
 
-function pubAtmosphere(save: Buffer, slot: number, portId: number): number {
-  const metadata =
-    slotOffset(slot) + PORT_METADATA_TABLE + portId * PORT_METADATA_RECORD_SIZE;
-  return Math.floor(save[metadata + 0x1a]! / 3);
+// Pub entry resets the visit's enthusiasm to protagonist Charm / 3.
+function pubAtmosphere(
+  save: Buffer,
+  slot: number,
+  protagonistId: number,
+): number {
+  const protagonist =
+    slotOffset(slot) + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE;
+  return Math.floor(save[protagonist + 0x1a]! / 3);
 }
 
 function pubRecruitCrewCommand(
@@ -2531,7 +2577,7 @@ function pubRecruitCrewCommand(
       notes: [`On-hand gold: ${gold}.`],
     });
 
-  const atmosphere = pubAtmosphere(save, slot, portId);
+  const atmosphere = pubAtmosphere(save, slot, protagonistId);
   let amountIndex = 1;
   const opening: OrdinaryDialogueLine[] = [];
   if (atmosphere < 30) {
@@ -2568,12 +2614,12 @@ function pubRecruitCrewCommand(
   const base = slotOffset(slot);
   const metadata =
     base + PORT_METADATA_TABLE + portId * PORT_METADATA_RECORD_SIZE;
-  const recruitmentBase = save.readUInt16LE(metadata);
+  const economy = save.readUInt16LE(metadata + 2);
   const available = Math.min(
-    Math.floor((atmosphere * recruitmentBase) / 500),
+    Math.floor((atmosphere * economy) / 500),
     (inspectRank(save, slot, protagonistId) + 1) * atmosphere,
   );
-  const price = Math.floor(recruitmentBase / 20) + 5;
+  const price = Math.floor(economy / 20) + 5;
   const maximum = Math.min(available, freeCapacity, Math.floor(gold / price));
   const offer = [line(data, 33, speaker)];
   if (available >= 20) offer.push(line(data, 121, speaker, [available]));
@@ -2627,7 +2673,7 @@ function pubRecruitCrewCommand(
           ],
     uncertainties: [],
     notes: [
-      `Available recruits: min(floor(${atmosphere} × ${recruitmentBase} / 500), (rank + 1) × ${atmosphere}) = ${available}.`,
+      `Available recruits: min(floor(${atmosphere} × ${economy} / 500), (rank + 1) × ${atmosphere}) = ${available}.`,
       "The final per-ship distribution is an interactive crew-assignment screen, not a dialogue selection.",
     ],
   });
@@ -2713,10 +2759,10 @@ function pubTreatCommand(
       : [];
   const metadata =
     base + PORT_METADATA_TABLE + portId * PORT_METADATA_RECORD_SIZE;
-  const recruitmentBase = save.readUInt16LE(metadata);
+  const economy = save.readUInt16LE(metadata + 2);
   const charm = save[protagonist + 0x1a]!;
-  const treatStrength = Math.floor((amount * 200) / recruitmentBase);
-  const oldAtmosphere = pubAtmosphere(save, slot, portId);
+  const treatStrength = Math.floor((amount * 200) / economy);
+  const oldAtmosphere = pubAtmosphere(save, slot, protagonistId);
   const nextAtmosphere = Math.min(
     100,
     oldAtmosphere + Math.floor((treatStrength * charm) / 10),
@@ -2741,7 +2787,7 @@ function pubTreatCommand(
     notes: [
       `Highest Fame: ${highest}.`,
       `Treat cost: ${amount} × ${specialty.price} = ${amount * specialty.price} gold.`,
-      `Enthusiasm gain: floor(floor(${amount} × 200 / ${recruitmentBase}) × Charm ${charm} / 10).`,
+      `Enthusiasm gain: floor(floor(${amount} × 200 / ${economy}) × Charm ${charm} / 10).`,
     ],
   });
 }
@@ -3448,7 +3494,7 @@ function portInvestCommand(
       dialogue: [
         line(data, 2, speaker, [
           portName(save, slot, portId),
-          GUILD_NATIONS[palaceNation(save, slot, portId)] ?? "its nation",
+          NATION_NAMES[palaceNation(save, slot, portId)] ?? "its nation",
         ]),
       ],
       menu: MENUS[industrial ? 0x02 : 0x00]!,
@@ -3458,9 +3504,12 @@ function portInvestCommand(
     });
   const metadata =
     slotOffset(slot) + PORT_METADATA_TABLE + portId * PORT_METADATA_RECORD_SIZE;
-  const powerOffset = industrial ? 6 : 2;
-  const power = save.readUInt16LE(metadata + powerOffset);
-  if (power >= 50_000)
+  // Each port accumulates Market and Shipyard investment separately from its
+  // Economy and Industry values. The executable caps each total at 50,000.
+  const investedOffset = industrial ? 8 : 4;
+  const invested = save.readUInt16LE(metadata + investedOffset);
+  const kind = industrial ? "Shipyard" : "Market";
+  if (invested >= 50_000)
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
@@ -3468,10 +3517,10 @@ function portInvestCommand(
       menu: MENUS[industrial ? 0x02 : 0x00]!,
       effects: [],
       uncertainties: [],
-      notes: [`Current ${industrial ? "Industry" : "Economy"}: ${power}.`],
+      notes: [`Current ${kind} investment: ${invested}.`],
     });
   const gold = inspectGold(save, slot);
-  const maximum = Math.min(gold, 50_000 - power);
+  const maximum = Math.min(gold, 50_000 - invested);
   const prompt = line(data, 8, speaker);
   if (maximum === 0)
     return result(path, {
@@ -3491,7 +3540,7 @@ function portInvestCommand(
       menu: [`Amount: 0–${maximum}`],
       effects: [],
       uncertainties: [],
-      notes: [`Current ${industrial ? "Industry" : "Economy"}: ${power}.`],
+      notes: [`Current ${kind} investment: ${invested}.`],
     });
   if (!/^\d+$/.test(path[1]!) || Number(path[1]) > maximum)
     return unavailableCommand(
@@ -3511,7 +3560,7 @@ function portInvestCommand(
         ? ["return without investing"]
         : [
             `deduct ${amount} gold`,
-            `raise port ${industrial ? "Industry" : "Economy"} from ${power} to ${power + amount}`,
+            `raise the port's ${kind} investment from ${invested} to ${invested + amount}`,
             "redistribute national Support and refresh the associated port state",
           ],
     uncertainties: [],
@@ -5655,14 +5704,6 @@ const GUILD_ASSIGNMENTS = [
   "Defeat Pirates",
   "Collect Debt",
 ] as const;
-const GUILD_NATIONS = [
-  "Portugal",
-  "Spain",
-  "Turkey",
-  "England",
-  "Italy",
-  "Holland",
-] as const;
 const PALACE_REGION_NAMES = [
   "Europe",
   "New World",
@@ -5674,10 +5715,6 @@ const PALACE_REGION_NAMES = [
   "Far East",
 ] as const;
 const PALACE_REGION_DIVISORS = [4, 3, 3, 2, 3, 1, 1, 1] as const;
-// Port controllers and sailor affiliations order Italy before England. Nation
-// records and Palace document IDs order England before Italy.
-const NATION_TO_CONTROLLER = [0, 1, 2, 4, 3, 5] as const;
-const CONTROLLER_TO_NATION = [0, 1, 2, 4, 3, 5] as const;
 
 function portName(save: Buffer, slot: number, portId: number): string {
   if (portId >= PORT_COUNT) return `port ${portId}`;
@@ -5695,11 +5732,11 @@ function palaceNation(save: Buffer, slot: number, portId: number): number {
       return nation;
   const controller =
     save[base + PORT_TABLE + portId * PORT_RECORD_SIZE + PORT_CONTROLLER]! & 7;
-  return CONTROLLER_TO_NATION[controller] ?? controller;
+  return controller;
 }
 
 function palaceRuler(nation: number): string {
-  return `${GUILD_NATIONS[nation] ?? `nation ${nation}`} ruler`;
+  return `${NATION_NAMES[nation] ?? `nation ${nation}`} ruler`;
 }
 
 function sphereOfInfluence(
@@ -5708,7 +5745,7 @@ function sphereOfInfluence(
   nation: number,
 ): readonly string[] {
   const base = slotOffset(slot);
-  const controller = NATION_TO_CONTROLLER[nation]!;
+  const controller = nation;
   const economies = Array<number>(8).fill(0);
   const industries = Array<number>(8).fill(0);
   const counts = Array<number>(8).fill(0);
@@ -5840,7 +5877,7 @@ function palaceMeetRulerCommand(
       ],
       menu,
       effects: [
-        `put Marque (${GUILD_NATIONS[nation]}) (item ${itemId}) in inventory slot ${emptySlot + 1}`,
+        `put Marque (${NATION_NAMES[nation]}) (item ${itemId}) in inventory slot ${emptySlot + 1}`,
       ],
       uncertainties: [],
       notes: [],
@@ -5873,7 +5910,7 @@ function palaceMeetRulerCommand(
     const sailor = base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE;
     const affiliation = save[sailor + SAILOR_AFFILIATION]! & 7;
     const rank = inspectRank(save, slot, protagonistId);
-    const ownNation = affiliation === NATION_TO_CONTROLLER[nation];
+    const ownNation = affiliation === nation;
     const units = ownNation ? (rank >= 6 ? 0 : 7 - rank) : 11 - rank;
     const price = units * 10_000;
     const introduction = [
@@ -5956,7 +5993,7 @@ function palaceMeetRulerCommand(
       menu,
       effects: [
         ...(price > 0 ? [`deduct ${price} gold`] : []),
-        `put Tax Permit (${GUILD_NATIONS[nation]}) (item ${itemId}) in inventory slot ${emptySlot + 1}`,
+        `put Tax Permit (${NATION_NAMES[nation]}) (item ${itemId}) in inventory slot ${emptySlot + 1}`,
       ],
       uncertainties: [],
       notes: [`Permit units: ${units}.`],
@@ -5975,7 +6012,7 @@ function palaceDefectCommand(
 ): OrdinaryCommandResult {
   const base = slotOffset(slot);
   const nation = palaceNation(save, slot, portId);
-  const destination = NATION_TO_CONTROLLER[nation]!;
+  const destination = nation;
   const sailor = base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE;
   const former = save[sailor + SAILOR_AFFILIATION]! & 7;
   const flags = save.readUInt32LE(base + 0xbc);
@@ -6064,7 +6101,7 @@ function palaceGoldCommand(
 ): OrdinaryCommandResult {
   const base = slotOffset(slot);
   const nation = palaceNation(save, slot, portId);
-  const controller = NATION_TO_CONTROLLER[nation]!;
+  const controller = nation;
   const sailor = base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE;
   if ((save[sailor + SAILOR_AFFILIATION]! & 7) !== controller)
     return result(path, {
@@ -6125,7 +6162,7 @@ function palaceShipCommand(
 ): OrdinaryCommandResult {
   const base = slotOffset(slot);
   const nation = palaceNation(save, slot, portId);
-  const controller = NATION_TO_CONTROLLER[nation]!;
+  const controller = nation;
   const sailor = base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE;
   if ((save[sailor + SAILOR_AFFILIATION]! & 7) !== controller)
     return result(path, {
@@ -6317,11 +6354,12 @@ function guildJobCommand(
     menu: ["Accept", "Reject"],
     effects: [
       `select row ${row + 1}: ${GUILD_ASSIGNMENTS[selector]}`,
-      `dispatch the Old Guild Worker's shared-scenario offer for section ${selector + 1}`,
+      `copy shared variable ${3 + row} to variable 8`,
+      `dispatch the Old Guild Worker's shared-scenario offer from section 0, subsection ${selector + 1}`,
     ],
     uncertainties: [],
     notes: [
-      "The mission-specific offer is scenario dialogue; the command resolver identifies its exact shared section rather than duplicating that transcript as ordinary dialogue.",
+      "The mission-specific offer is scenario dialogue; the command resolver identifies its exact shared route table rather than duplicating that transcript as ordinary dialogue.",
     ],
   });
 }
@@ -6331,10 +6369,10 @@ function guildNationSelector(value: string | undefined): number | undefined {
   const numeric = /^(?:nation-?)?(\d+)$/i.exec(value);
   if (numeric) {
     const ordinal = Number(numeric[1]) - 1;
-    return ordinal >= 0 && ordinal < GUILD_NATIONS.length ? ordinal : undefined;
+    return ordinal >= 0 && ordinal < NATION_NAMES.length ? ordinal : undefined;
   }
   const normalized = normalizedCommand(value);
-  return GUILD_NATIONS.findIndex(
+  return NATION_NAMES.findIndex(
     (nation) => normalizedCommand(nation) === normalized,
   );
 }
@@ -6353,7 +6391,7 @@ function guildCountryInfoCommand(
       confidence: "decoded",
       disposition: path[1] ? "unavailable" : "shown",
       dialogue: [line(data, 162, speaker)],
-      menu: [...GUILD_NATIONS],
+      menu: [...NATION_NAMES],
       effects: [],
       uncertainties: [],
       notes: path[1] ? [`Unknown country selector: ${path[1]}.`] : [],
@@ -6401,12 +6439,12 @@ function guildCountryInfoCommand(
   const record = base + NATION_RECORDS + nation * NATION_RECORD_SIZE;
   const target = save[record + 2]!;
   const destination = save[record + 4]!;
-  const selectedName = GUILD_NATIONS[nation]!;
+  const selectedName = NATION_NAMES[nation]!;
   const targetLine =
     target <= 6
       ? line(data, 88, speaker, [
           selectedName,
-          target === 6 ? "pirates" : GUILD_NATIONS[target]!,
+          target === 6 ? "pirates" : NATION_NAMES[target]!,
         ])
       : line(data, 853, speaker, [selectedName]);
   const destinationLine =
@@ -6416,7 +6454,7 @@ function guildCountryInfoCommand(
   const friendship =
     save[base + FAME_START + protagonistId * FAME_RECORD_SIZE + 6 + nation]! -
     100;
-  const relationNotes = GUILD_NATIONS.flatMap((other, otherId) => {
+  const relationNotes = NATION_NAMES.flatMap((other, otherId) => {
     if (otherId === nation) return [];
     const relation = save[record + 0x0b + otherId]! - 30;
     const status = save[record + 0x12 + otherId]!;
@@ -7575,32 +7613,48 @@ function buildingExists(
   );
 }
 
+// A nonzero VM variable 63 after an entry route skips the greeting in these
+// building handlers; the Shipyard, Palace, and skill teachers do not test it.
+export const CONTROL_VARIABLE_EFFECT =
+  "set control variable 63 (skip the ordinary greeting)";
+const GREETING_CONTROL_CONTEXTS = new Set([
+  0x00, 0x01, 0x03, 0x04, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
+]);
+
+function storyEffect(
+  effect: string,
+  protagonistEffects: readonly (readonly string[])[],
+  sharedEffects: readonly (readonly string[])[],
+): "none" | "possible" | "certain" {
+  const groups = [protagonistEffects, sharedEffects].filter(
+    (outcomes) => outcomes.length > 0,
+  );
+  if (
+    groups.some((outcomes) =>
+      outcomes.every((effects) => effects.includes(effect)),
+    )
+  )
+    return "certain";
+  if (
+    groups.some((outcomes) =>
+      outcomes.some((effects) => effects.includes(effect)),
+    )
+  )
+    return "possible";
+  return "none";
+}
+
 function storySuppression(
   context: number,
   protagonistEffects: readonly (readonly string[])[],
   sharedEffects: readonly (readonly string[])[],
 ): "none" | "possible" | "certain" {
   if (context === 0x04) return "none";
-  const groups = [protagonistEffects, sharedEffects].filter(
-    (outcomes) => outcomes.length > 0,
+  return storyEffect(
+    "suppress normal building menu and force exit",
+    protagonistEffects,
+    sharedEffects,
   );
-  if (
-    groups.some((outcomes) =>
-      outcomes.every((effects) =>
-        effects.includes("suppress normal building menu and force exit"),
-      ),
-    )
-  )
-    return "certain";
-  if (
-    groups.some((outcomes) =>
-      outcomes.some((effects) =>
-        effects.includes("suppress normal building menu and force exit"),
-      ),
-    )
-  )
-    return "possible";
-  return "none";
 }
 
 function hostileRisk(
@@ -7705,6 +7759,15 @@ export function ordinaryBuildingEntry(
   const slotInfo = inspectSlot(save, slot);
   const { protagonistId } = slotInfo;
   const portId = slotInfo.portId!;
+  if (portId >= PORT_COUNT)
+    return {
+      confidence: "none",
+      disposition: "unavailable",
+      dialogue: [],
+      menu: [],
+      uncertainties: [],
+      notes: ["The saved player is at sea, not in a port."],
+    };
   if (!buildingExists(data, portId, context))
     return {
       confidence: "none",
@@ -7850,6 +7913,23 @@ export function ordinaryBuildingEntry(
     dialogue = [line(data, greeting, "building vendor")];
   }
 
+  const greetingControl =
+    !accessDenied &&
+    GREETING_CONTROL_CONTEXTS.has(context) &&
+    (context !== 0x07 || menu[0] === "Contract")
+      ? storyEffect(CONTROL_VARIABLE_EFFECT, protagonistEffects, sharedEffects)
+      : "none";
+  const greetingNotes: string[] = [];
+  if (greetingControl === "certain") {
+    dialogue = [];
+    greetingNotes.push(
+      "A preceding story route set control variable 63, so the greeting is skipped.",
+    );
+  } else if (greetingControl === "possible")
+    uncertainties.push(
+      "An unresolved story branch may set control variable 63 and skip the greeting.",
+    );
+
   let commandMenu = menu;
   if (
     context === 0x03 &&
@@ -7887,6 +7967,7 @@ export function ordinaryBuildingEntry(
     menu,
     uncertainties,
     notes: [
+      ...greetingNotes,
       ...disabledMenuNotes,
       ...(context === 0x05 && menu.length > 0
         ? [

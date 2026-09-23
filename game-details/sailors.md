@@ -39,6 +39,11 @@ exposes it in five bands:
 Ordinary unemployed sailors generally begin at 0, whereas the protagonists
 and most story recruits begin at 100.
 
+Treating a Pub patron adds `6 × P × M` Loyalty, capped at 100, where `P` is 2
+when bit `0x40` of the patron's personality byte (`+0x27`) is set and 1
+otherwise, and `M` is 3 when the patron's and Commodore's low two personality
+bits match and 1 otherwise (`MAIN.EXE 0x2C1F1–0x2C221`).
+
 Hiring a sailor adds **10 Loyalty**, capped at 100. Loyalty is then
 recalculated during monthly payroll. Let `W` be the mate's monthly wage in
 tens of gold pieces, `A` the highest of that mate's eight attributes, and `L`

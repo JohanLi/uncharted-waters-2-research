@@ -207,16 +207,24 @@ Offsets are relative to the start of a port's 20-byte record:
 
 ### Saved 37-byte regular-port metadata record
 
-Offsets are relative to the start of a regular port's 37-byte metadata record:
+Offsets are relative to the start of a regular port's 37-byte metadata record
+as framed from `0x5966`. The executable's own `0x25`-byte port record starts two
+bytes later: `MAIN.EXE` addresses port `n` at `DS:0x6790 + n × 0x25`, which is
+save offset `0x5968 + n × 0x25`. An executable field at `+N` is therefore the
+field at `+N+2` in this table. The last two fields, `+0x25` and `+0x26`, are
+stored in the bytes that this framing assigns to the next record's `+0x00` and
+`+0x01`.
 
 | Offset         |     Size | Field                        | Encoding                                                                        |
 | -------------- | -------: | ---------------------------- | ------------------------------------------------------------------------------- |
 | `+0x02`        |  2 bytes | Economy                      | little-endian `u16`                                                             |
+| `+0x04`        |  2 bytes | Market investment            | little-endian `u16`; accumulated Market Invest gold, at most 50,000             |
 | `+0x06`        |  2 bytes | Industry                     | little-endian `u16`                                                             |
-| `+0x0A..+0x0F` |  6 bytes | Allegiance / support values  | one byte per nation, in order: Portugal, Spain, Turkey, Italy, England, Holland |
+| `+0x08`        |  2 bytes | Shipyard investment          | little-endian `u16`; accumulated Shipyard Invest gold, at most 50,000           |
+| `+0x0A..+0x0F` |  6 bytes | Allegiance / support values  | one byte per nation, in order: Portugal, Spain, Turkey, England, Italy, Holland |
 | `+0x10..+0x19` | 10 bytes | Market category rates        | the displayed price index is the stored byte plus 50                            |
-| `+0x10`        |   1 byte | Food and Shot price modifier | also reused by the Harbor Supply formulas                                       |
-| `+0x17`        |   1 byte | Lumber price modifier        | also reused by the Harbor Supply formula                                        |
+| `+0x12`        |   1 byte | Food and Shot price modifier | category rate 2; also reused by the Harbor Supply formulas                      |
+| `+0x19`        |   1 byte | Lumber price modifier        | category rate 9; also reused by the Harbor Supply formula                       |
 | `+0x1A`        |  2 bytes | Specialty base price         | little-endian `u16`                                                             |
 | `+0x1C`        |   1 byte | Specialty goods ID           | zero-based; `0xFF` means none                                                   |
 | `+0x1D`        |   1 byte | Specialty Economy threshold  | stored in units of 10 Economy                                                   |
@@ -225,6 +233,12 @@ Offsets are relative to the start of a regular port's 37-byte metadata record:
 | `+0x22`        |   1 byte | Secret shop item             | item ID; stored zero-based, with `0xFF` meaning unused                          |
 | `+0x23`        |   1 byte | Market ID                    | stored zero-based; displayed as `byte + 1`                                      |
 | `+0x24`        |   1 byte | Industry ID                  | stored zero-based; displayed as `byte + 1`                                      |
+| `+0x25`        |   1 byte | Ship-construction days       | days left on a New Ship order; `0xFF` means no order                            |
+| `+0x26`        |   1 byte | Pub drink                    | index into the Pub's 14 drink specialties                                       |
 
 The price modifiers and their exact use are documented under
-[Supply](buildings.md#supply).
+[Supply](buildings.md#supply). The investment words, the Pub drink, and the
+construction timer are described under
+[Market command dialogue](buildings.md#market-command-dialogue),
+[Pub command dialogue](buildings.md#pub-command-dialogue), and
+[Construction time](ships.md#construction-time).

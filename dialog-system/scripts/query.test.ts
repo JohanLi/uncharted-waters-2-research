@@ -104,6 +104,7 @@ test("executes a shared Transport Goods progress route", async () => {
           "answer Yes (set scenario flag 1 to 1)",
           "advance section when the interpreter returns",
           "suppress normal building menu and force exit",
+          "set control variable 63 (skip the ordinary greeting)",
         ],
       },
       {
@@ -111,6 +112,7 @@ test("executes a shared Transport Goods progress route", async () => {
         effects: [
           "answer No (set scenario flag 1 to 0)",
           "suppress normal building menu and force exit",
+          "set control variable 63 (skip the ordinary greeting)",
         ],
       },
     ],
@@ -386,6 +388,7 @@ test("resolves Ernst's Mercator-contract branch and renewal effects", async () =
   assert.deepEqual(gerardResult.outcomes[0]!.effects, [
     "activate Mercator cartographer contract",
     "clear Gerard de Jode cartographer contract",
+    "set control variable 63 (skip the ordinary greeting)",
   ]);
 });
 
@@ -435,8 +438,15 @@ test("distinguishes Pietro's forced Church exit from his usable Lodge", async ()
       "suppress normal building menu and force exit",
     ),
   );
+  // The Lodge route sets control variable 63 before its position-0 lines, so
+  // the menu remains but the ordinary raw-66 greeting is skipped.
+  assert.ok(
+    lodge.outcomes[0]!.effects.includes(
+      "set control variable 63 (skip the ordinary greeting)",
+    ),
+  );
   assert.equal(lodge.ordinaryBuilding?.disposition, "shown");
-  assert.equal(lodge.ordinaryBuilding?.dialogue[0]?.rawIndex, 66);
+  assert.deepEqual(lodge.ordinaryBuilding?.dialogue, []);
   assert.deepEqual(lodge.ordinaryBuilding?.menu, [
     "Check In",
     "Gossip",
@@ -534,8 +544,9 @@ test("predicts Harbor Supply load and dump limits", async () => {
     "10",
   ]);
   assert.equal(load.command?.dialogue[0]?.rawIndex, 63);
-  assert.match(load.command?.dialogue[0]?.text ?? "", /19 gold pieces/);
-  assert.ok(load.command?.effects.includes("deduct 190 gold"));
+  // Lisbon's food modifier is metadata +0x12 = 50, so food is 20 gold.
+  assert.match(load.command?.dialogue[0]?.text ?? "", /20 gold pieces/);
+  assert.ok(load.command?.effects.includes("deduct 200 gold"));
 
   const dump = ordinaryBuildingEntry(save, 1, 0x03, true, [], [], data, [
     "supply",
@@ -961,7 +972,11 @@ test("resolves Guild assignment rows and cached Country Info", async () => {
     "job-assignment",
     "1",
   ]);
-  assert.match(selected.command?.effects[1] ?? "", /section 1/);
+  assert.equal(
+    selected.command?.effects[1],
+    "copy shared variable 3 to variable 8",
+  );
+  assert.match(selected.command?.effects[2] ?? "", /section 0, subsection 1/);
   const routed = await queryScenario(
     save,
     1,
@@ -1213,7 +1228,7 @@ test("resolves Pub Meet and Lodge Gossip sailor hiring", async () => {
   save[miguel + 0x23] = 10;
   save[miguel + 0x27] = save[base + 0x612 + protagonistId * 42 + 0x27]!;
   save[miguel + 0x14] = 80;
-  save.writeUIntLE(100, base + 0x60a, 3);
+  save.writeUInt32LE(100, base + 0x60a);
   const treat = ordinaryBuildingEntry(save, 1, 0x01, true, [], [], data, [
     "meet",
     "Miguel Solis",
@@ -1316,7 +1331,10 @@ test("resolves Market stock, purchases, rates, and investment", async () => {
     "500",
   ]);
   assert.equal(investment.command?.disposition, "completed");
-  assert.match(investment.command?.effects[1] ?? "", /Economy/);
+  assert.equal(
+    investment.command?.effects[1],
+    "raise the port's Market investment from 0 to 500",
+  );
 });
 
 test("resolves Shipyard model lists, repairs, remodeling, and investment", async () => {
@@ -2173,7 +2191,10 @@ test("resolves Shipyard model lists, repairs, remodeling, and investment", async
     "500",
   ]);
   assert.equal(investment.command?.disposition, "completed");
-  assert.match(investment.command?.effects[1] ?? "", /Industry/);
+  assert.equal(
+    investment.command?.effects[1],
+    "raise the port's Shipyard investment from 0 to 500",
+  );
 });
 
 test("decodes Pietro's one-gold-ingot Pub gate independently of Adventure Fame", async () => {
@@ -2346,4 +2367,76 @@ test("resolves Catalina's Lucia wait counter and calendar-day rollover", async (
   assert.deepEqual(await messagesFor("pub", 1), [496, 497]);
   assert.deepEqual(await messagesFor("pub", 2), [498, 499]);
   assert.deepEqual(await messagesFor("pub", 2, 9), [500, 501]);
+});
+
+test("reads port metadata and market definitions with the executable's framing", async () => {
+  const data = await loadOrdinaryDialogueData();
+  // MAIN.EXE addresses market definitions at DS:0x7604 (DATA1.015 0x67DC)
+  // with little-endian base prices.
+  assert.deepEqual(
+    data.marketDefinitions[0]!.basePrices.slice(0, 4),
+    [140, 120, 80, 95],
+  );
+  assert.deepEqual(
+    data.marketDefinitions[0]!.goods,
+    [11, 12, 14, 15, 21, 24, 25, 41, 44],
+  );
+
+  const save = await originalSave();
+  const base = slotOffset(1);
+  save[base + 0x0a] = 16;
+  const athensPub = ordinaryBuildingEntry(save, 1, 0x01, true, [], [], data);
+  assert.match(athensPub.dialogue[0]?.text ?? "", /beer/);
+
+  save[base + 0x0a] = 29;
+  const londonInfo = ordinaryBuildingEntry(save, 1, 0x04, true, [], [], data, [
+    "port-info",
+  ]);
+  assert.ok(londonInfo.command?.notes.includes("Controller: England."));
+  assert.ok(londonInfo.command?.notes.includes("England: 100%"));
+});
+
+test("evaluates Donate Luck only for the generous response", async () => {
+  const data = await loadOrdinaryDialogueData();
+  let save = await originalSave();
+  save[slotOffset(1) + 0x0a] = 0;
+  save = setGold(save, 1, 10_000);
+
+  const small = ordinaryBuildingEntry(save, 1, 0x0a, true, [], [], data, [
+    "donate",
+    "500",
+  ]);
+  assert.equal(small.command?.dialogue[1]?.rawIndex, 94);
+  assert.ok(!small.command?.effects.some((effect) => /Luck/.test(effect)));
+
+  const generous = ordinaryBuildingEntry(save, 1, 0x0a, true, [], [], data, [
+    "donate",
+    "5000",
+  ]);
+  assert.equal(generous.command?.dialogue[1]?.rawIndex, 95);
+  assert.ok(generous.command?.effects.some((effect) => /Luck/.test(effect)));
+});
+
+test("reports no ordinary building while the saved player is at sea", async () => {
+  const data = await loadOrdinaryDialogueData();
+  const save = await originalSave();
+  assert.equal(save[slotOffset(1) + 0x0a], 0xff);
+  const harbor = ordinaryBuildingEntry(save, 1, 0x03, true, [], [], data, [
+    "sail",
+  ]);
+  assert.equal(harbor.disposition, "unavailable");
+  assert.equal(harbor.command, undefined);
+});
+
+test("skips greetings after a story route sets control variable 63", async () => {
+  const data = await loadOrdinaryDialogueData();
+  const save = await originalSave();
+  save[slotOffset(1) + 0x0a] = 0;
+  const skip = ["set control variable 63 (skip the ordinary greeting)"];
+  const pub = ordinaryBuildingEntry(save, 1, 0x01, true, [skip], [], data);
+  assert.deepEqual(pub.dialogue, []);
+  assert.equal(pub.menu.length > 0, true);
+  // The Shipyard does not test variable 63.
+  const shipyard = ordinaryBuildingEntry(save, 1, 0x02, true, [skip], [], data);
+  assert.equal(shipyard.dialogue.length, 1);
 });

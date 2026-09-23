@@ -206,8 +206,9 @@ on an eligible building visit, not necessarily another Pub visit.
     offset `0x463F6` and contains `05 BC 15 02`. For Catalina's class-1 entry,
     the routine derives a band index by dividing byte `+0x0D` of the active
     protagonist's 14-byte Fame/Friendship record by 5, then uses four times
-    that index as a nibble shift. The exact gameplay name of this final record
-    byte is not yet established. In the lower band (index 0), Catalina's `BC`
+    that index as a nibble shift. This final record byte is the protagonist's
+    stored rank (No Rank 0 through Duke 9), so ranks 0–4 select index 0 and
+    ranks 5–9 select index 1. In the lower band (index 0), Catalina's `BC`
     entry supplies low nibble `C`. Adding the routine's base instance ID
     `0x31` selects ship-instance template `0x3D`. That template begins at
     `KOUKAI2.DAT` offset `0x4E4B`; its raw ship type at template offset `+0x11`
@@ -585,7 +586,7 @@ assignments.
 | If the story seems stuck at… | Try…                                                                                                                 |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Lisbon preparation           | Home → Pub once → Home after 22:00 → Church → Shipyard → recruit crew at the Pub → Harbor                            |
-| 2,000 Fame                   | Harbor, then a Pub outside Lisbon, Seville, and Istanbul before 17:00                                                |
+| 2,000 Fame                   | Harbor, then a Pub outside Lisbon, Seville, and Istanbul by 17:00                                                    |
 | Missing Domingo              | Shipyard; the Lodge clue is optional                                                                                 |
 | Duke Franco's arrest         | Lisbon home → Palace → home → Harbor                                                                                 |
 | 8,000 Fame                   | Any building to arm, then Pub; repeat buildings until Catalina's 50% appearance, then Harbor                         |

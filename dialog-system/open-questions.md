@@ -32,8 +32,8 @@ delivery paths, Used Ship purchases and exchanges, and Shipyard remodeling.
 The saved Used Ship cache, prices, construction time, and same-day Shipyard
 ejection flag are decoded. The query still cannot choose branches driven by
 the general gameplay RNG or reconstruct all transient presentation state.
-Completed building mechanics are documented in [buildings](../game-details/buildings.md)
-and [ships](../game-details/ships.md).
+Completed building mechanics are documented in
+[buildings](../game-details/buildings.md) and [ships](../game-details/ships.md).
 
 ## 1. Ordinary `MESSAGE.DAT` and `MESSAGE2.DAT` dialogue
 
@@ -50,8 +50,8 @@ reports the ordinary building entry separately. Consequently, “no story
 dialogue” can still be followed by an ordinary greeting and menu.
 
 The loading and lookup layer is now decoded. `MESSAGE.DAT` and `MESSAGE2.DAT`
-use handles `DS:0x05DC` and `DS:0x05DE`, with readers at `MAIN.EXE 0x3929D`
-and `0x392EF`. Callers address one combined namespace: `0–999` selects
+use handles `DS:0x05DC` and `DS:0x05DE`, with readers at `MAIN.EXE 0x3929E`
+and `0x392EA`. Callers address one combined namespace: `0–999` selects
 `MESSAGE.DAT`, while `1000–1422` selects `MESSAGE2.DAT` after subtracting
 1,000. A generated inventory resolves 487 direct call sites to their bank,
 raw index, entry number, and text.
@@ -150,26 +150,43 @@ scenario flags, arithmetic, comparisons, route transitions, music, event art,
 duels, forced exits, and several game-state operations are decoded. In
 particular:
 
-- `C3` clears the dialogue panels;
+- `C3` closes the most recently opened dialogue panel, while `C4` closes all
+  open panels;
 - `D0` resolves an indexed game-record reference and `DC` resolves a direct
   game-record reference;
+- `D4` expands an MES entry into the scenario string buffer;
 - `E2` loads goods and `E3` counts or transfers carried goods;
 - `E6` adds gold;
 - `E7` deducts gold;
 - `EA` reads displayed gold ingots;
 - `EB` performs a bounded scenario-RNG draw;
 - `EC` restores the scenario RNG state from a scenario-variable checkpoint;
-  and
+- `ED` saves a scenario-RNG checkpoint into a scenario variable; and
 - `EE` reads fleet free-cargo capacity.
 
 `EC <variable>` reads that 16-bit scenario variable, shifts it left by eight,
 and writes the resulting 32-bit value to the scenario RNG state. All six
 reachable occurrences are `EC 08` in shared Guild-assignment setup routes.
+`ED <variable>` is the inverse: its handler at `0x38EA9` calls `0x37FC1`,
+which stores the RNG state at `DS:0xBC94`/`DS:0xBC96` shifted right by eight.
+Its five reachable uses are in SNR0's idle Guild-preparation code.
 
-The system-value selector range used by reachable scripts is now complete:
+`D4 <message>` is largely decoded. Its handler at `0x38DD5` calls `0x383A5`,
+which expands the MES entry, including `$d`, `$n`, `$r`, and `$s`
+placeholders, into the string buffer at `DS:0x0620`. System-value selector 0
+then copies that buffer through a reference variable. Seventeen of the 18
+reachable uses follow the sailor-renaming pattern
+`D4 <message>; DC 00 03 <sailor> 00|09; 1F 00 00`, for example giving sailor
+`0x47` the names “Prince” and “Alberto”. The remaining use, `SNR1.DAT 0x2B35`,
+copies the string through an unnamed group-`0x0C` reference
+(`DC 00 0C 4A 04`).
+
+The system-value selector table has eight entries:
 
 | Selector | Runtime source | Meaning                            |
 | -------: | -------------- | ---------------------------------- |
+|        0 | `DS:0x0620`    | copy string buffer via reference   |
+|        1 | `DS:0xC76E`    | chart-cell index of position       |
 |        2 | `DS:0x0734`    | stored year offset from 1501       |
 |        3 | `DS:0x0735`    | zero-based current month           |
 |        4 | `DS:0x0736`    | zero-based current day of month    |
@@ -177,22 +194,21 @@ The system-value selector range used by reachable scripts is now complete:
 |        6 | `DS:0xA0A4`    | post-duel balance/result meter     |
 |        7 | `DS:0x0737`    | time of day in twenty-minute ticks |
 
-Selector 6 is transient duel state rather than a saved calendar or location
-field. The duel engine keeps it in the range `0–200` and treats the endpoints as
-terminal outcomes.
+Selector 0 is reachable 18 times, always after `D4`; selector 1 has no
+reachable use. Selector 6 is transient duel state rather than a saved calendar
+or location field. The duel engine keeps it in the range `0–200` and treats
+the endpoints as terminal outcomes.
 
 ### Unknown
 
-Ten reachable action opcodes still lack gameplay names:
+Eight reachable action opcodes still lack gameplay names:
 
 | Opcode | Reachable occurrences | Initial lead                                 |
 | -----: | --------------------: | -------------------------------------------- |
 |   `C9` |                     3 | presentation or named-character setup        |
 |   `D1` |                    22 | game-record or roster operation              |
-|   `D4` |                    18 | persistent state mutation                    |
 |   `D9` |                    16 | shared-mission/national state                |
 |   `E4` |                     2 | item or contract operation                   |
-|   `ED` |                     5 | shared eligibility or title state            |
 |   `F4` |                     6 | one protagonist-specific use per scenario    |
 |   `F9` |                     7 | paired story-entity setup                    |
 |   `FA` |                     7 | paired story-entity setup                    |
@@ -206,8 +222,8 @@ some indirect values and may branch ambiguously at a later comparison.
 
 ### Next work
 
-Trace `D1`, `D4`, and `D9` first. They account for 56 reachable instructions
-and are the most likely to change persistent quest state. Then treat
+Trace `D1` and `D9` first. They account for 38 reachable instructions and are
+the most likely to change persistent quest state. Then treat
 `F9`/`FA`/`FB` as one cluster because they occur together in protagonist setup
 and recruitment sequences. For each decoded operation:
 
@@ -261,6 +277,12 @@ building duration under three controlled conditions:
 3. perform one known random-consuming action before entering the building.
 
 This runtime test is not yet needed; loader tracing should come first.
+
+One lead is already identified. The only direct writes to `DS:0xC1CC` are in
+the generator at `MAIN.EXE 0x0A181` and in an `srand`-style setter at
+`0x0A18E`, which stores `AX` as the low state word and zeroes the high word.
+No direct call to `0x0A18E` has yet been found, so its caller and seed source
+remain uncertain.
 
 ## Closed investigations
 

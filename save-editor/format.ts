@@ -47,8 +47,9 @@ export const CRUSADERS_ARMOR = 0x4b;
 export const CRUSADERS_SWORD = 0x4c;
 const CRUSADER_EQUIPPED_FLAGS = [0x77b7, 0x77cd] as const;
 const EQUIPPED_MASK = 0x10;
+// Carried gold is a 32-bit value; MAIN.EXE caps it at 600,000,000.
 export const GOLD = 0x60a;
-export const GOLD_MAX = 0xffffff;
+export const GOLD_MAX = 600_000_000;
 
 export const CARTOGRAPHER_TABLE = 0x1a3a;
 export const CARTOGRAPHER_RECORD_SIZE = 24;
@@ -62,12 +63,13 @@ const CARTOGRAPHER_CONTRACT_FLAGS = 0x16;
 const CARTOGRAPHER_PORT = 0x17;
 const ACTIVE_CARTOGRAPHER_CONTRACT = 0x10;
 
-const FLEET_TABLE = 0x1e77;
+const FLEET_TABLE = 0x1de0;
 const FLEET_RECORD_SIZE = 0x85;
+const FLEET_COUNT = 70;
 const FLEET_SHIP_SLOTS = 0x2b;
 const SHIP_SLOT_SIZE = 9;
 const SHIP_SLOT_COUNT = 10;
-const SHIP_INSTANCE_TABLE = 0x4893;
+const SHIP_INSTANCE_TABLE = 0x47fc;
 const SHIP_INSTANCE_SIZE = 0x18;
 const SHIP_TYPE_OFFSET = 0x11;
 const TEKKOUSEN_TEMPLATE_INSTANCE = 0x3e;
@@ -84,9 +86,11 @@ const TEKKOUSEN_DURABILITY = 100;
 const TEKKOUSEN_TACKING = 80;
 const TEKKOUSEN_POWER = 85;
 // Ship provisions are stored as tenths: 300 water and 500 food are encoded
-// as 3000 and 5000 respectively in the active player's supply record.
-const PLAYER_WATER = 0x42d5;
-const PLAYER_FOOD = 0x42d7;
+// as 3000 and 5000. Each player-fleet ship slot has a matching supply record.
+const PLAYER_SUPPLY_RECORDS = 0x423e;
+const SUPPLY_RECORD_SIZE = 0x1e;
+const SUPPLY_WATER = 0;
+const SUPPLY_FOOD = 2;
 
 const BUILDINGS_PER_TOWN = 12;
 const BUILDING_SIZE = 2;
@@ -274,7 +278,7 @@ export function inspectItems(data: Buffer, slot: number): number[] {
 
 export function inspectGold(data: Buffer, slot: number): number {
   validate(data);
-  return data.readUIntLE(slotOffset(slot) + GOLD, 3);
+  return data.readUInt32LE(slotOffset(slot) + GOLD);
 }
 
 export function inspectCartographers(data: Buffer, slot: number) {
@@ -348,7 +352,7 @@ export function setRank(
 export function setGold(data: Buffer, slot: number, value: number): Buffer {
   validate(data);
   const result = Buffer.from(data);
-  result.writeUIntLE(integer(value, 0, GOLD_MAX), slotOffset(slot) + GOLD, 3);
+  result.writeUInt32LE(integer(value, 0, GOLD_MAX), slotOffset(slot) + GOLD);
   return result;
 }
 
@@ -407,24 +411,33 @@ export function setPlayerShipToTekkousen(data: Buffer, slot: number): Buffer {
   const officer =
     slotOffset(slot) + SAILOR_START + protagonist.id * SAILOR_SIZE;
   const fleetId = data[officer + 0x24]!;
-  if (fleetId >= 0x64) throw new Error(`Unsupported fleet ID ${fleetId}.`);
-  const fleet = FLEET_TABLE + fleetId * FLEET_RECORD_SIZE;
-  let shipSlot = -1;
+  if (fleetId >= FLEET_COUNT)
+    throw new Error(`Unsupported fleet ID ${fleetId}.`);
+  const base = slotOffset(slot);
+  const fleet = base + FLEET_TABLE + fleetId * FLEET_RECORD_SIZE;
+  let shipIndex = -1;
   for (let index = 0; index < SHIP_SLOT_COUNT; index++) {
     const offset = fleet + FLEET_SHIP_SLOTS + index * SHIP_SLOT_SIZE;
-    if (data[offset] !== 0xff) {
-      shipSlot = offset;
+    // Empty slots are not necessarily 0xFF-filled in played saves; the status
+    // byte identifies an active ship.
+    if (data[offset] !== 0xff && (data[offset + 8]! & 0x30) === 0x10) {
+      shipIndex = index;
       break;
     }
   }
-  if (shipSlot < 0) throw new Error("The player's fleet has no ships.");
+  if (shipIndex < 0) throw new Error("The player's fleet has no ships.");
+  const shipSlot = fleet + FLEET_SHIP_SLOTS + shipIndex * SHIP_SLOT_SIZE;
+  const supply = base + PLAYER_SUPPLY_RECORDS + shipIndex * SUPPLY_RECORD_SIZE;
 
   const instanceId = data[shipSlot + 0x07]!;
-  const instance = SHIP_INSTANCE_TABLE + instanceId * SHIP_INSTANCE_SIZE;
+  const instance = base + SHIP_INSTANCE_TABLE + instanceId * SHIP_INSTANCE_SIZE;
   const template =
-    SHIP_INSTANCE_TABLE + TEKKOUSEN_TEMPLATE_INSTANCE * SHIP_INSTANCE_SIZE;
+    base +
+    SHIP_INSTANCE_TABLE +
+    TEKKOUSEN_TEMPLATE_INSTANCE * SHIP_INSTANCE_SIZE;
   const result = Buffer.from(data);
-  // Preserve the existing 9-byte ship name, while copying Tekkousen's model data.
+  // Preserve the existing 17-byte ship name, while copying Tekkousen's model
+  // data.
   result.set(
     data.subarray(template + SHIP_TYPE_OFFSET, template + SHIP_INSTANCE_SIZE),
     instance + SHIP_TYPE_OFFSET,
@@ -440,8 +453,8 @@ export function setPlayerShipToTekkousen(data: Buffer, slot: number): Buffer {
     TEKKOUSEN_CARGO_CAPACITY - TEKKOUSEN_MAXIMUM_CREW,
     instance + SHIP_CARGO_CAPACITY_OFFSET,
   );
-  result.writeUInt16LE(3000, PLAYER_WATER);
-  result.writeUInt16LE(5000, PLAYER_FOOD);
+  result.writeUInt16LE(3000, supply + SUPPLY_WATER);
+  result.writeUInt16LE(5000, supply + SUPPLY_FOOD);
   // Slot state: maximum crew and full Tekkousen model stats.
   result.writeUInt16LE(TEKKOUSEN_MAXIMUM_CREW, shipSlot);
   result[shipSlot + 2] = TEKKOUSEN_DURABILITY;
@@ -540,7 +553,7 @@ export function setClock(
   // The final three header bytes are metadata, including port and protagonist.
   result.fill(0, labelOffset, labelOffset + 12);
   result.write(
-    `${monthName}/${String(day).padStart(2, "0")}/${year}`,
+    `${monthName}/${String(day).padStart(2, " ")}/${year}`,
     labelOffset,
     "ascii",
   );

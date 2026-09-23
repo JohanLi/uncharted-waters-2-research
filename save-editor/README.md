@@ -24,8 +24,9 @@ The editor updates slot 1 and can change:
 
 Every save also sets gold to 1,000,000 (displayed in-game as 100 Gold Ingots
 and 0 Gold Coins) and sets an equipped Crusader's Sword and Crusader's Armor in
-the first two inventory slots.
-All other inventory items, including Letters of Marque, are preserved. The current
+the first two inventory slots, overwriting whatever items those two slots held.
+Items in the remaining inventory slots, including Letters of Marque, are
+preserved. The current
 protagonist's leadership, seamanship, knowledge, intuition,
 courage, swordsmanship, charm, luck, Navigation Level, and Battle Level are all
 set to 100.

@@ -77,7 +77,8 @@ function lineSpeaker(line: DialogueLine): string {
   if (line.characterId !== undefined) return `Character ${line.characterId}`;
   if (line.characterVariable !== undefined)
     return `Character from variable ${line.characterVariable}`;
-  return "Narration";
+  // Position 0 reuses the surrounding building speaker's upper panel.
+  return line.position === 0 ? "Building speaker" : "Narration";
 }
 
 function renderSectionMarkdown(section: ScenarioSection): string[] {
@@ -167,7 +168,7 @@ function renderSectionMarkdown(section: ScenarioSection): string[] {
     lines.push(
       "### Scene-break candidates",
       "",
-      "Observed `C4` instructions, provisionally identified as screen clears or pauses:",
+      "Observed `C4` instructions, which close every open dialogue panel:",
       "",
       section.sceneBreakCandidates
         .map((candidate) => hex(candidate.offset))

@@ -10,9 +10,10 @@ for eligibility, Fame selection, invitations, promotion, and refusal penalties.
 ## Royal trading test (section 6)
 
 The ruler orders the protagonist to bring a generated quantity of a selected
-commodity. The selection code has three early-rank bands and uses target values
-of 1,000, 5,000, and 20,000 when calculating the cargo requirement. The final
-quantity is capped at 250 lots.
+commodity. The selection code uses target values of 1,000, 5,000, and 20,000
+for the three rank bands described under
+[Establish allied ports](#establish-allied-ports-section-9) when calculating
+the cargo requirement. The final quantity is capped at 250 lots.
 
 On a later Palace visit:
 
@@ -84,19 +85,29 @@ The script contains mappings for all six nations.
 
 ## Establish allied ports (section 9)
 
-The ruler requires the nation to control a number of allied ports. The decoded
-requirements for the three early title bands are:
+The ruler requires the nation to gain a number of new allied ports. Variable 23
+selects the rank band as `floor(min(rank, 6) / 3)`, using the stored rank at
+Fame-record `+0x0D` (`SNR0` `0x01D9–0x01E8` and `0x021F–0x022E`). The
+requested number of new alliances `N` is:
 
-| Current title | Required allied ports |
-| ------------- | --------------------: |
-| No Rank       |                     2 |
-| Page          |                     5 |
-| Squire        |                    10 |
+| Rank band          | Variable 23 | `N` |
+| ------------------ | ----------: | --: |
+| No Rank–Squire     |           0 |   2 |
+| Knight–Baron       |           1 |   5 |
+| Viscount and above |           2 |  10 |
 
-The scenario counts qualifying ports when the Palace is revisited. If the
-requirement is met, the ruler reports the current alliance count and awards the
-title. Otherwise the ruler reports that more allied ports are needed and lets
-the protagonist continue or give up.
+The requirement is relative to the ports already allied when the mission is
+offered (`SNR0` `0x226B–0x2299`). The script scans the 100 regular ports'
+cached controllers, counting ports controlled by the protagonist's nation
+(variable 13) and all other ports (variable 14). It asks for
+`min(N, variable 14)` new alliances (message 219, “$d14 ports”) and stores the
+target `variable 13 + min(N, variable 14)` in variable 19 (message 226,
+“$d19 allied ports”).
+
+The scenario recounts the allied ports when the Palace is revisited. If the
+count has reached the target, or equals 95, the ruler reports the current
+alliance count and awards the title. Otherwise the ruler reports that more
+allied ports are needed and lets the protagonist continue or give up.
 
 Investment can turn a port into an ally. The takeover itself also awards Trade
 Fame equal to the port's Economy plus Industry; see
@@ -117,9 +128,22 @@ discovery state:
   searching; or
 - the protagonist can give up and lose half of all Fame.
 
-This mission interacts with ownership/reporting state, not merely the current
-Adventure Fame total. The exact qualifying discovery rule and the effect of
-previous collector contracts remain **unknown**.
+The decoded rule in `SNR0` section 10 (`0x2609–0x2706`) is as follows. On
+acceptance, variable 19 is set to `(variable 23 + 1) × 50`, so the rank bands
+above require 50, 100, or 150 points. Each later Palace visit scans the 100
+seven-byte village/discovery records in order and takes the first one whose
+flag byte `+0x06` satisfies `flags & 0xB0 == 0x20`: found, not yet reported
+(`0x10` clear), and selected for this game (`0x80` clear). It sets `0x10` on that
+record and compares the record's difficulty byte `+0x05` with variable 19. A
+difficulty at least equal to the remaining requirement completes the mission;
+otherwise the difficulty is subtracted from variable 19 and the ruler asks for
+something else. Only one discovery is consumed per visit. If no record
+qualifies, the ruler asks whether the protagonist wants to give up.
+
+Collector turn-in in `MAIN.EXE` (`0x33675–0x33687` and `0x33840`) lists
+discoveries with the same flag test and sets the same `0x10` bit, so a
+discovery given to the ruler cannot later be sold, and a sold discovery cannot
+be given to the ruler.
 
 ## Special search (section 11)
 
