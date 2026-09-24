@@ -22,7 +22,9 @@ not Adventure Fame.
 There are 98 possible villages and discoveries, but a new game randomly makes
 only 50 of them available. The other 48 do not exist in that playthrough. A
 different new game can select a different set, so the total Fame and gold
-available from discoveries varies from game to game.
+available from discoveries varies from game to game. The selection is made by
+`MAIN.EXE 0x1B9A2`, which leaves flag `0x80` set on the unselected records;
+see [Discovery flags](../at-sea.md#discovery-flags).
 
 Finding one of the selected villages awards 50 Adventure Fame immediately.
 Finding its discovery does not award the discovery's listed Fame immediately;

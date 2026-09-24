@@ -15,8 +15,7 @@ testing.
 ## Current priorities
 
 1. **Identify the time-dependent general-RNG consumer** (Section 3).
-2. **Name the remaining record fields** (Section 2).
-3. **Extend the query past one command per visit** (Section 1).
+2. **Extend the query past one command per visit** (Section 1).
 
 All ordinary building command groups have save-aware resolvers, every
 reachable scenario opcode is decoded, and every prediction that was checked in
@@ -129,16 +128,14 @@ save addresses with per-path writes, so later branches see earlier writes.
 Play confirmed the `D9` speaker plates, `E4` setting gold, and Catalina's fleet
 being sent to Seville and removed from the sea after Ali's decoy encounter.
 
-### Unknown
-
-Only field meanings remain, and none of them changes which dialogue is shown:
-
-- the gameplay meaning of port-table bit `0x20`, which João's and Ernst's
-  scripts set on Changan, Sakai, and Nagasaki;
-- sailor duty codes 4 and 5 (probably Bookkeeper and Navigator);
-- Fame-record bytes `+6` and `+7`;
-- fleet fields `+0x0C`, `+0x21`, and `+0x22`, and the names of fleet order
-  types other than 7 (pursue) and `0x0A` (follow).
+The record fields these scripts touch are now named elsewhere: port-table bit
+`0x20` hides a port from the lookout ([Ports](../game-details/ports.md#known-and-visited-ports)),
+Fame-record bytes `+6` onward are the Friendship bytes
+([Friendship](../game-details/friendship.md#player-friendship)), fleet
+`+0x0C` is route state ([Fleet navigation](../game-details/npc/fleet-navigation.md)),
+fleet `+0x21`/`+0x22` are its cargo type and amount
+([Naval battle](../game-details/naval-battle.md#cargo)), and every fleet
+objective is listed in [Fleet navigation](../game-details/npc/fleet-navigation.md).
 
 ## 3. General gameplay RNG lifecycle
 
@@ -193,6 +190,7 @@ The following no longer need entries in this tracker:
 - music IDs and selection through scenario action `CA`;
 - event-art selection through scenario action `CB`;
 - every reachable scenario action opcode and `D0`/`DC` record group;
+- the meanings of the record fields those scripts read and write;
 - the general RNG's initialization, persistence, and unpredictability from a
   save; and
 - townsperson movement and the lines shown when walking into a townsperson.

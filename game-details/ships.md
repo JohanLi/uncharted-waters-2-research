@@ -413,11 +413,11 @@ The identity records begin in `raw/DATA1/DATA1.015` at offset `0x4BBC` and
 use a 24-byte (`0x18`) stride. Offsets are relative to the start of one
 record:
 
-| Offset         |     Size | Field     | Encoding                            |
-| -------------- | -------: | --------- | ----------------------------------- |
-| `+0x00..+0x0F` | 16 bytes | Ship name | null-terminated string              |
-| `+0x13`        |   1 byte | Used guns | number of guns occupied by the ship |
-| `+0x14`        |  2 bytes | Used crew | little-endian `u16`                 |
+| Offset         |     Size | Field     | Encoding                                                |
+| -------------- | -------: | --------- | ------------------------------------------------------- |
+| `+0x00..+0x0F` | 16 bytes | Ship name | null-terminated string                                  |
+| `+0x13`        |   1 byte | Used guns | number of guns occupied by the ship                     |
+| `+0x14`        |  2 bytes | Used crew | little-endian `u16`; the ship's configured maximum crew |
 
 ### 12-byte ship statistics record
 

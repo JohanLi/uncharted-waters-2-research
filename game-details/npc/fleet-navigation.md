@@ -56,6 +56,25 @@ The principal movement, local-search, and route-advancement routines described
 below do not read the word at `+0x0E/+0x0F`. Calling it a movement accumulator
 would therefore be premature. Its exact meaning remains unidentified.
 
+The objective byte `+0x1B` selects what a fleet is doing. Speaking to a fleet
+with **Gossip** at sea reports it through a line chosen by objective
+(`MAIN.EXE 0x2589B`, dispatch table at `0x25954`):
+
+| Objective | Gossip line                                                                                                              | Argument `+0x1C`         |
+| --------: | ------------------------------------------------------------------------------------------------------------------------ | ------------------------ |
+|         0 | 152, “We're on our way home.”                                                                                            | port                     |
+|         1 | 153, “We're heading for %s to make an investment there.”                                                                 | port                     |
+|         2 | 154, “We're off to trade goods in %s.”                                                                                   | port                     |
+|         3 | 155, “Ohhh, I was waiting for you to sail by. It's time to teach you a lesson.”                                          | port                     |
+|         4 | 156, “Unlucky fool! You don't know who I am.”                                                                            | none; follows the player |
+|       5–7 | 157, “We're looking for %s of %s.” (161, “And you know what? You are my next prey.”, when the target is the protagonist) | sailor; 7 pursues        |
+|         8 | 158, “We're sailing in a convoy to protect merchant fleets. …”                                                           | —                        |
+|         9 | 159, “I'm on the lookout for pirates. They won't get away from me!”                                                      | port                     |
+|        10 | 160, “I have some business with you.”                                                                                    | sailor; follows          |
+
+Objectives 3, 4, and 5–7 aimed at the protagonist are hostile: Gossip then
+starts a battle at any hour ([Nightfall](../naval-battle.md#nightfall)).
+
 For objectives 5–7, the pursuit refresh at `MAIN.EXE`
 `0x1F94E–0x1F9CF` continually copies the tracked fleet's coordinates into
 `+0x04/+0x06`. Pursuit therefore changes the endpoint continually, but it can

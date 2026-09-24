@@ -1406,7 +1406,7 @@ roster selects no mate portrait.
 | `0:8F3F` | 4, 3, 5, 2, 6 | 21–25, 28, 100, 147, 207, 864, 865, 872, 878      |
 | `0:8F64` | 3, 4, 5, 2, 6 | 26, 29–32, 57–61, 121–123, 209–212, 279, 285, 933 |
 
-Duty 4 is the Bookkeeper and 3 the First Mate. Raw 33 and 48 are spoken by
+Duty 3 is the First Mate, 4 the Bookkeeper, and 5 the Chief Navigator. Raw 33 and 48 are spoken by
 the protagonist.
 
 ### Vendor portraits and dialogue panels

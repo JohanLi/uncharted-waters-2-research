@@ -199,11 +199,30 @@ slot-relative `0x5966`; investment and other economic changes persist there.
 
 Offsets are relative to the start of a port's 20-byte record:
 
-| Offset         |     Size | Field         | Encoding                                                               |
-| -------------- | -------: | ------------- | ---------------------------------------------------------------------- |
-| `+0x02`        |  2 bytes | Longitude / X | little-endian `u16`; the extractor converts the wrapped map coordinate |
-| `+0x04`        |  2 bytes | Latitude / Y  | little-endian `u16`                                                    |
-| `+0x06..+0x13` | 14 bytes | Port name     | null-terminated string                                                 |
+| Offset         |     Size | Field         | Encoding                                                                                                             |
+| -------------- | -------: | ------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `+0x02`        |  2 bytes | Longitude / X | little-endian `u16`; the extractor converts the wrapped map coordinate                                               |
+| `+0x04`        |  2 bytes | Latitude / Y  | little-endian `u16`                                                                                                  |
+| `+0x06..+0x13` | 14 bytes | Port name     | null-terminated string                                                                                               |
+| `+0x13`        |   1 byte | Flags         | low 3 bits: nation; `0x10` known; `0x20` hidden from the lookout; `0x40` visited ([below](#known-and-visited-ports)) |
+
+### Known and visited ports
+
+Byte `+0x13` of the saved display record carries two discovery flags:
+
+- `0x10`, **known**: the port appears on the map and in Auto Sail's port list.
+  Sighting a port at sea sets it (`0x36C41`).
+- `0x40`, **visited**: entering a port sets both flags, `0x50` (`0x20F9D`).
+  Log of Goods only considers visited ports.
+- `0x20`: the lookout never sights a port with this bit or `0x10`
+  (`0x36BF3`), so such a port becomes known only by entering it. João's and
+  Ernst's scenario scripts set it on Changan, Sakai, and Nagasaki.
+
+A new game starts with 11 ports visited: Lisbon, Seville, Istanbul, Marseille,
+Genoa, Venice, Athens, Alexandria, Bordeaux, London, and Amsterdam. Barcelona,
+Valencia, Pisa, Naples, Trebizond, Bristol, Antwerp, and Copenhagen start
+known. Every other port must be found first. The protagonist's starting port
+is also marked visited (`0x1BAC9`).
 
 ### Saved 37-byte regular-port metadata record
 
