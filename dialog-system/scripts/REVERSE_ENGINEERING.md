@@ -475,11 +475,16 @@ building-entry dispatcher from matching and dispatching the protagonist route
 at all (`0x20A32`). The before- and after-battle paths test the same pair at
 `0x15121` and `0x161A7`. The save-aware query models this suppression.
 
-The executable applies a restriction to after-battle selector `0xA2`:
-Catalina's armed section-6 wildcard route `0xA2FF` runs after a normal naval
-victory but not after a successful escape. The route itself contains no general
-battle-result comparison; the distinction is made before the scenario
-interpreter is called.
+The executable dispatches after-battle selector `0xA2` after every battle
+except a defeat: battle-result codes 5 and 7 play the defeat music and set game
+mode `0x1A` (`0x15D6C`, `0x15DD0`), which skips the dispatch at `0x16101`.
+Scripts distinguish a victory from an escape themselves. Catalina's armed
+section-6 wildcard route `0xA2FF` begins with `D0 00 03 3C 24`, a reference to
+the fleet byte of the sailor in variable 60, the opposing captain, and plays
+the informant scene only when that byte is `0xFF`. After an escape the
+opponent still commands a fleet, so the route ends silently and the
+subsection stays armed. The save-aware query sets variable 60 for battle
+actions and treats the opponent's post-battle fleet byte as unknown.
 
 The assignment-source selector table has eight entries, `0`–`7`, dispatched
 through `MAIN.EXE 0x387E8`. Selector 0 (`0x387FD`) copies the null-terminated
@@ -1276,16 +1281,135 @@ Rocco returns and says he tied Catalina up in the merchant's storage room, then
 urges João to leave. The following `0xA001` voyage-day-1 route requires flag 2,
 clears it, and executes `F0`, advancing the story to subsection 2.
 
+## Remaining action opcodes
+
+The last eight unnamed reachable action opcodes are decoded from their
+handlers. File offsets are for the fingerprinted `MAIN.EXE`; the handlers are
+reached through the jump table at `0x38C2B`.
+
+| Opcode | Form                    |   Handler | Effect                                                                                                  |
+| -----: | ----------------------- | --------: | ------------------------------------------------------------------------------------------------------- |
+|   `C9` | `C9 <var> <mes:u16>`    | `0x38D00` | Forced menu from the `\n`-separated lines of an MES entry; the zero-based choice goes into the variable |
+|   `D1` | `D1 <var>`              | `0x38DCA` | Recomputes the course of the fleet whose ID is in the variable                                          |
+|   `D9` | `D9 <table> <selector>` | `0x38DE0` | Closes all panels and shows a formatted `MESSAGE.DAT` Guild or royal-mission line                       |
+|   `E4` | `E4 <var>`              | `0x38E45` | Sets carried gold to the signed 16-bit variable, capped at 600,000,000                                  |
+|   `F4` | `F4 <ending>`           | `0x38ECB` | Blacks out the palette, plays the protagonist's ending, and exits to `END.EXE`                          |
+|   `F9` | `F9 <type> <unused>`    | `0x38EEC` | Creates a pending ship of the given model in the first free player-fleet slot                           |
+|   `FA` | `FA <unused> <mes:u16>` | `0x38F01` | Commissions the pending ship, names it from the MES entry, and assigns its captain                      |
+|   `FB` | `FB <sailor>`           | `0x38F14` | Adds the sailor to the mate roster as an unassigned mate                                                |
+
+`C9` builds the menu at `0x384C9` and runs it through `0FC4:41F1` with the
+cancel flag cleared, so the player must choose. João's Lisbon Church offer
+(`Accept`/`Donate`/`Refuse`), Otto's informant payment (`Pay`/`Bargain`/
+`Don't Pay`), and Ali's Istanbul Lodge offer (`Accept`/`Refuse`) use it.
+
+`D1` calls `0x37BDC`, which selects fleet record `DS:0x2C08 + 0x85 × id` (save
+`0x1DE0`) and calls `2DFF:608F`. The scripts first write the fleet's position,
+order type `+0x1B`, order target `+0x1C`, and flags `+0x29 = 0x41` through
+group-`0x08` references. For order types 0–3 and 9 the target is a port, whose
+coordinates become the destination. Type 4 follows the player. The other types
+target a sailor's fleet: type 7 pursues, as in every story interception, and
+type `0x0A` follows, as in Ezequiel's escort. `D1` writes no VM state.
+
+`D9` calls a static stub that indexes nine formatters at `DS:0xB438`. Each
+formatter prints a `MESSAGE.DAT` line through `2DFF:5D46` with values taken
+from shared variables 9, 12, 18, 19, and 20, the goods-name table, item and
+discovery names, and the protagonist's title and surname:
+
+| Selector | Message   | Content                                            |
+| -------: | --------- | -------------------------------------------------- |
+|        0 | 941       | Head Trader's delivery offer (lots, goods, months) |
+|        1 | 942       | Royal treasure-quest offer                         |
+|        2 | 943       | Treasure delivered                                 |
+|        3 | 944       | Treasure not yet found; an `E9` prompt follows     |
+|        4 | 945       | “From this day forth, you shall be known as …”     |
+|        5 | 946, 957  | Old Guild Worker's pirate-extermination offer      |
+|        6 | 948 / 949 | Pirate job partly done: days and pirates remaining |
+|        7 | 950       | Discovery mission complete, with a title           |
+|        8 | 955       | Partial discovery credit                           |
+
+Selector 4 reads the rank after the script has incremented it, so it names the
+new title. Discovery names use “the ” except for the nineteen discoveries
+listed at `DS:0xB3B2`.
+
+`F9` (`0x3804B`) takes the first player-fleet ship slot whose status is not
+active or pending and the first free ship instance. It writes the model's
+statistics at 90% durability, sets the slot status to `0x20` (pending), clears
+the matching supply record, and sets the current port's construction timer to 0. `FA` (`0x38193`) turns the pending slot active (`0x10`), names the instance,
+makes the protagonist its captain (duty 1) or else the first roster mate with
+duty above 2 (duty 2), and clears the port's Shipyard order (`0xFF`).
+
+`FB` (`0x38239`) writes the sailor into the first empty roster entry (save
+`0x1D85`), sets duty `+0x26` to 6, and copies the protagonist's fleet and port.
+Unlike Pub hiring, it does not change Loyalty or the wage. Scripts then often
+set duty 3 (First Mate) directly.
+
+### Record groups
+
+`D0 <var> <group> <index-var> <field>` and `DC <var> <group> <index> <field>`
+store a pointer to `base + index × size + field` in the variable
+(`0x37A24`, jump table `0x37A4A`). `D0` takes the index from a variable.
+Assignment source and destination mode 1 then read or write through that
+pointer, and arithmetic on the variable moves it.
+
+| Group | Save offset       | Size × count | Records                                             |
+| ----: | ----------------- | -----------: | --------------------------------------------------- |
+|  `00` | `0x04D6`          |       32 × 7 | Nations                                             |
+|  `01` | `0x05B6`          |       14 × 6 | Protagonist Fame, Friendship, and rank              |
+|  `02` | `0x060A`          |      1 block | Gold, bank balance, protagonist ID                  |
+|  `03` | `0x0612`          |     42 × 120 | Sailors                                             |
+|  `04` | `0x19C2`          |      24 × 10 | Collectors (0–4) and cartographers (5–9)            |
+|  `05` | `0x1BA2`          |      16 × 30 | Pub attendants                                      |
+|  `06` | `0x1D82`          |      1 block | Voyage day, mate roster, wages, inventory           |
+|  `07` | fleet or `0x46EE` |       9 × 40 | Ship slots: 0–9 in the player's fleet, then reserve |
+|  `08` | `0x1DE0`          |     133 × 70 | Fleets                                              |
+|  `09` | `0x423E`          |      30 × 40 | Ship supplies and cargo                             |
+|  `0A` | `0x47FC`          |      24 × 65 | Ship instances and model templates                  |
+|  `0B` | `0x4E14`          |      12 × 25 | Ship model statistics                               |
+|  `0C` | `0x4F40`          |     20 × 130 | Ports                                               |
+|  `0D` | `0x5968`          |     37 × 100 | Port metadata                                       |
+|  `0E` | `0x67DC`          |     128 × 13 | Market definitions                                  |
+|  `0F` | `0x6E5C`          |        8 × 3 | Used Ship stock (not reachable)                     |
+|  `10` | `0x6E74`          |      7 × 100 | Discoveries                                         |
+|  `11` | `0x7130`          |     22 × 100 | Item definitions                                    |
+|  `12` | none              |    293 × 100 | `COLONY.DAT` text, read into `DS:0xBF90`            |
+|  `13` | none              |       2 × 46 | Goods-name pointers for `$r` text                   |
+
+The save-aware query resolves groups `00`–`11` as save addresses and keeps each
+execution path's writes, so a later read in the same route sees them.
+
+## General gameplay RNG lifecycle
+
+Executable-side random choices use the generator at `0x0A166`, whose 32-bit
+state is at `DS:0xC1CC`. That address lies beyond the end of the executable's
+data image, in the range `DS:0xBF32–0xC790` that the C startup code clears at
+`0x89C7–0x89D1`, so the state is zero when the program starts. The only direct
+writes are in the generator and in an unused `srand`-style setter at
+`0x0A18E`. The state is not part of a save slot.
+
+The state advances continuously while the player is in town. The townsperson
+routine at `0x0B5A6` runs once per frame and makes 8–12 draws in daytime
+(04:00–19:40), plus one for each visible fixed townsperson, whether or not the
+player moves. At night it makes none. The clock advances only through building
+visits (`0x204A5`), arrival (`0x20521`), battles (`0x15227`), and loading, so
+town frames do not trigger time-based world updates. Nevertheless, relaunching
+and entering the same building at night from the same save produced different
+visit lengths in play, so another routine, not yet identified, makes a
+real-time-dependent number of draws first. Building visit lengths,
+hostile-building encounters, Used Ship stock, and the other executable-side
+random outcomes therefore depend on the program's history since launch and
+cannot be predicted from a save. See
+[Townspeople](../../game-details/townspeople.md).
+
 ## Current disassembler limitations
 
 - Reachable code is now decoded sequentially from primary and nested route
   tables. All seven scenarios decode without reaching an invalid action opcode,
   and every extracted protagonist dialogue is on a reachable instruction
   boundary.
-- Assignment, arithmetic, and comparison operand modes have structural names,
-  and indirect protagonist Fame/sailor reads are resolved, but many other
-  record groups, variable indices, and action opcodes do not yet have gameplay
-  names.
+- Assignment, arithmetic, and comparison operand modes, every reachable action
+  opcode, and every record group have names. Some individual record fields and
+  variable indices still lack gameplay names.
 - Dialogue runs are still assembled by their confirmed compound signatures,
   though their component instructions are also present in the sequential decode.
 - Fame comparisons now resolve through the `DC` record reference, pointer
@@ -1299,12 +1423,9 @@ clears it, and executes `F0`, advancing the story to subsection 2.
 
 ## Next investigation steps
 
-1. Trace `D1` and `D9`, then the related `F9`/`FA`/`FB` cluster, and assign
-   gameplay names to the remaining reachable action opcodes. `D4` is largely
-   decoded as the MES string-buffer expander used by sailor renaming.
-2. Map the remaining VM record groups by correlating handler memory accesses
-   with the known save layout, especially discoveries, party membership,
-   rewards, and story-fleet setup.
+1. Name the remaining record fields listed in the
+   [open questions](../open-questions.md#unknown).
+2. Map the remaining VM variable indices used by each scenario.
 3. Group instructions and edges into named basic blocks for a compact control-
    flow graph rather than exposing only the instruction-level CSV.
 4. Optionally validate uncertain operations in a debugger-enabled DOSBox-X by

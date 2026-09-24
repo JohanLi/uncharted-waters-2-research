@@ -62,8 +62,10 @@ London. `EB 00 00 05` creates a five-way random branch in this phase.
 | 30,000 Fame                    | Return to London, then follow Guild/Nantes/South America prompts         |
 | Bordeaux appointment           | The continuation includes a 30-day wait and another 30,000 check         |
 
-## Highest-value validation
+## Open decoding items
 
-- Controlled captures around the two 5,000-Fame building stages.
+- The flag and time-of-day conditions of the section-2 building routes
+  (`SNR3.DAT 0x0B2E–0x0FA8`) that stage the two 5,000-Fame scenes are not yet
+  summarized as player-facing steps.
 - Exact trigger building and availability window for the optional 20,000 scene.
 - The five possible outcomes selected by `EB 00 00 05`.

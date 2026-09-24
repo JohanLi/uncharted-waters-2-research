@@ -6,11 +6,13 @@ destination, searches that graph, caches the next few nodes in the fleet
 record, and then uses a separate map-aware movement routine to sail toward the
 current node.
 
-This explains two otherwise surprising observations:
+Two routes computed from the stored graph (see
+[Worked routes from Lisbon](#worked-routes-from-lisbon)) show the consequences:
 
-- Fleets bound for Pernambuco follow West Africa, continue around the Cape of
-  Good Hope and along the far south of the map, and only then turn west.
-- Fleets crossing from Europe toward Veracruz can go north by Ireland and
+- Fleets bound from Lisbon for Pernambuco follow West Africa, continue around
+  the Cape of Good Hope and along the far south of the map, and only then turn
+  west.
+- Fleets crossing from Lisbon toward Veracruz go north by Ireland and
   Greenland before following North America south.
 
 Those are graph routes, not direct great-circle-like courses and not evidence
@@ -36,7 +38,7 @@ fleet[0x1C]        objective argument
 
 The low bits of `+0x0C` select one of the four cached node IDs. The upper bits
 of the `+0x0C/+0x0D` word record which slots are populated and which phase of
-navigation is active. The most useful confirmed flag is `fleet[0x0D] & 0x20`:
+navigation is active. The most useful decoded flag is `fleet[0x0D] & 0x20`:
 when set, the target selector uses the final target at `+0x04/+0x06` directly.
 Without that flag it normally resolves the selected node ID from
 `+0x10..+0x16` and uses that node's coordinates.
@@ -50,10 +52,9 @@ consumed, navigation switches to the exact `+0x04/+0x06` target. Bit `0x40`
 participates in route exhaustion and rebuilding. Some flag combinations remain
 to be named.
 
-The word at `+0x0E/+0x0F` changes in timed saves, but the principal movement,
-local-search, and route-advancement routines described below do not read it.
-Calling it a movement accumulator would therefore be premature. Its exact
-meaning remains unidentified.
+The principal movement, local-search, and route-advancement routines described
+below do not read the word at `+0x0E/+0x0F`. Calling it a movement accumulator
+would therefore be premature. Its exact meaning remains unidentified.
 
 For objectives 5–7, the pursuit refresh at `MAIN.EXE`
 `0x1F94E–0x1F9CF` continually copies the tracked fleet's coordinates into
@@ -64,8 +65,7 @@ still pass through the same graph routing machinery when the target is remote.
 
 The graph is held in a dynamically allocated block referenced through the
 handle at runtime data word `0x0E1A`. The allocation made at `MAIN.EXE`
-`0x1C3B1–0x1C3C8` reserves `0x300` paragraphs, or 12,288 bytes. Graph-node IDs
-seen in saves run at least as high as 619.
+`0x1C3B1–0x1C3C8` reserves `0x300` paragraphs, or 12,288 bytes.
 
 The loader at `MAIN.EXE` `0x1B7BA–0x1B80A` opens `C:DATA1.LZW`. It expands
 archive member 5 into runtime data beginning at `0xC1C2`, then member 4 into
@@ -124,10 +124,11 @@ order breaking ties. It is breadth-first graph traversal, not Dijkstra's
 algorithm. This implementation detail is the reason a shorter real-world route
 can lose to an extremely long route containing fewer authored graph links.
 
-## Reproducing the observed routes
+## Worked routes from Lisbon
 
 Running that breadth-first traversal over `DATA1.004`, using the count from
-`DATA1.005`, reproduces both observations from Lisbon `(120,358)`.
+`DATA1.005`, gives the following routes from Lisbon `(120,358)`. The node
+nearest Lisbon is node 184 at `(115,357)`.
 
 Pernambuco `(2064,722)` maps from node 184 to node 463 in 49 graph hops. Its
 route begins south along West Africa, passes the Cape, follows the southern map
@@ -142,8 +143,8 @@ boundary west, and then turns north to Pernambuco. The exact node sequence is:
 
 Veracruz `(1736,532)` maps from node 184 to node 441 in 43 hops. Its route goes
 north from Lisbon, across the Ireland/Greenland corridor, and south along North
-America. These results confirm that the observed tracks are the graph search's
-intended output, not a local collision-avoidance accident.
+America. Both corridors are therefore the graph search's intended output, not a
+local collision-avoidance accident.
 
 ## Following the cached route
 
@@ -200,49 +201,29 @@ at logical address `2DFF:387C`, and searches along a block edge when the first
 candidate is blocked.
 
 This routine supplies local land avoidance and incremental movement. It is not
-the long-distance route planner and cannot by itself explain the full observed
-corridors; those come from the upstream graph traversal.
+the long-distance route planner and cannot by itself produce the long corridors
+above; those come from the upstream graph traversal.
 
-## Confirmed temporary-waypoint deadlock
+## Temporary-waypoint deadlock
 
-In one observed pair of timed saves from the same campaign, taken 15 days
-apart, Jossepi Arleo and John Davis do not move at all. Their positions, exact
-mission targets, route-state words, four cached node IDs, objectives, and home
-ports are unchanged.
+The route-state routine gives the temporary waypoint priority and advances only
+on exact arrival. When flag `0x80` is set, `MAIN.EXE` `0x29819–0x29836`
+compares the fleet position at `+0x00/+0x02` with the waypoint at
+`+0x08/+0x0A`. If either coordinate differs, the routine returns without
+changing the route state. Neither it nor the incremental movement routine keeps
+a no-progress counter, timeout, or fallback.
 
-Both fleets have flag `0x80` set and share the same effective temporary
-waypoint, `(144,312)`:
-
-| Fleet         | Position    | Route state | Cached graph target          | Temporary waypoint |
-| ------------- | ----------- | ----------- | ---------------------------- | ------------------ |
-| Jossepi Arleo | `(145,381)` | `0x8071`    | slot 1: node 617 `(131,382)` | `(144,312)`        |
-| John Davis    | `(185,346)` | `0x80F0`    | slot 0: node 136 `(242,365)` | `(144,312)`        |
-
-Jossepi's cache contains `619, 617, 602, 601`; he is trading toward Shiraz.
-John's contains `136, 180, 14, 139`; his return-home objective ultimately
-targets Margarita. Nevertheless, neither cached graph node currently controls
-movement because the `0x80` temporary-waypoint branch has priority.
-
-The extracted terrain grid contains land along both straight segments to
-`(144,312)`. In the game this appears as Jossepi remaining outside Ceuta and
-John following the coast between Valencia and Barcelona without making route
-progress. The incremental movement routine repeatedly tries to approach the
-same temporary waypoint and performs only local block-edge avoidance.
-
-Route advancement requires exact coordinate equality with the temporary
-waypoint. No no-progress counter, timeout, or fallback is evident in the
-relevant routines. Consequently the `0x80` flag is never cleared, a new local
-waypoint is never generated, and the global graph cache is never advanced.
-This is a genuine navigation deadlock caused by an unusable local waypoint,
-not by the FIFO world-graph route itself. It persists while the fleet remains
-inside the currently loaded sea-map area; it is not necessarily permanent once
-the player sails away.
-
-The local search at `0x291FD–0x294DF` is the code which creates `(144,312)`.
-Both fleets were handled in the same local terrain area, and the search chose
-the same boundary-aligned point for them despite their different graph goals.
-The exact internal condition which makes that cell win remains to be isolated,
-but the saved target-selection and deadlock sequence are confirmed.
+Consequently, if the local search at `0x291FD–0x294DF` writes a waypoint that
+incremental movement never reaches exactly, the `0x80` flag is never cleared, a
+new local waypoint is never generated, and the global graph cache is never
+advanced. The fleet keeps its mission, exact target, and cached graph nodes,
+but the movement routine repeatedly tries to approach the same waypoint and
+performs only local block-edge avoidance. Because the `0x80` branch has
+priority, the cached graph nodes do not control movement meanwhile. This is a
+navigation deadlock caused by an unusable local waypoint, not by the FIFO
+world-graph route itself. It persists while the fleet remains inside the
+currently loaded sea-map area; it is not necessarily permanent once the player
+sails away.
 
 ## Off-screen recovery
 
@@ -255,27 +236,13 @@ world-coordinate movement while a fleet is inside that loaded area, but calls
 the graph-target selector and incremental movement routines when the fleet is
 outside it.
 
-This provides a recovery path for the deadlock above: sailing far enough away
-removes `(144,312)` from control without changing the fleet's mission. The
-fleet resumes toward the selected world-graph node and advances its graph cache
-normally. This is visibility/loaded-area dependent rather than a no-progress
-timer attached to the fleet.
-
-One timed-save comparison demonstrates the transition over ten days:
-
-| State | Position    | Route state | Cached nodes         | Objective and target          |
-| ----- | ----------- | ----------- | -------------------- | ----------------------------- |
-| Stuck | `(145,381)` | `0x8071`    | `619, 617, 602, 601` | trade (2), Shiraz `(502,450)` |
-| Later | `(200,588)` | `0x0271`    | `28, 29, 603, 30`    | trade (2), Shiraz `(502,450)` |
-
-Jossepi remains sailor 43, captain of active fleet 42, throughout. His ships,
-objective, objective argument, and exact mission target are unchanged. The
-later position `(200,588)` is exactly graph node 29, selected in cache slot 1.
-The expected route from node 617 runs through nodes `602, 601, 24, 25, 26, 27,
-28, 29`; the later cache and position therefore show ordinary graph progress,
-not a despawn or a direct teleport to an arbitrary reset coordinate. The stale
-words `(144,312)` remain at `+0x08`, but they are ignored after flag `0x80` has
-been cleared.
+This provides a recovery path for the deadlock above: once the fleet is outside
+the loaded area, the unusable waypoint no longer controls it, and its mission
+is unchanged. The target selector resolves the selected world-graph node from
+the four-node cache, and the fleet advances its graph cache normally. The stale
+waypoint words remain at `+0x08/+0x0A`, but they are ignored after flag `0x80`
+has been cleared. This is visibility/loaded-area dependent rather than a
+no-progress timer attached to the fleet.
 
 ## Coordinate seam
 
@@ -302,14 +269,11 @@ work is to:
 
 - plot all 622 nodes and their four possible links over the world map;
 - transcribe the FIFO search and four-node cache refill into reusable code;
-- identify the semantic purpose of the accumulated per-edge bytes; and
-- identify the word at fleet offset `+0x0E`; and
-- isolate why the local terrain search selects the unusable `(144,312)` cell.
-
-Timed saves are still useful for assigning friendly names to the route flags
-and confirming when a four-node cache is refilled. Short-interval saves around
-the moment a fleet crosses the loaded-area boundary would also quantify how
-quickly the off-screen updater resumes graph movement.
+- identify the semantic purpose of the accumulated per-edge bytes;
+- identify the word at fleet offset `+0x0E`;
+- name the remaining route-flag combinations; and
+- isolate the conditions under which the local terrain search can select a
+  waypoint that incremental movement never reaches exactly.
 
 ## Relevant code
 

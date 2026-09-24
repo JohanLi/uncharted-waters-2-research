@@ -6,9 +6,9 @@ active story section: its preceding building, voyage-day, and battle events
 must already be complete.
 
 This guide is decoded from `SNR2.DAT` and `SNR2.MES`. Literal comparisons,
-route keys, state changes, and random ranges are exact. Runtime evidence is
-still useful where an executable dispatcher or an unnamed state field acts
-outside the scenario bytecode.
+route keys, state changes, and random ranges are exact. Where an executable
+dispatcher or an unnamed state field acts outside the scenario bytecode, the
+text cites the `MAIN.EXE` routine or states that the field is not yet named.
 
 ## Story and threshold map
 
@@ -328,10 +328,13 @@ navigator says that João is defending Massawa against the Turks. Catalina
 spares him and orders a course for Massawa.
 
 The wildcard route does not compare a general victory/defeat value or require
-a particular new opponent. It checks that Antonio Khan's sailor record no
-longer has an active fleet link—normally already true after the preceding Perot
-battle. The executable only dispatches this route after victory. Escaping
-leaves the armed subsection active and does not invoke the informant.
+a particular opponent. It reads the fleet byte of the opposing captain, whom
+`MAIN.EXE` stores in variable 60 before and after a battle (`D0 00 03 3C 24` at
+`SNR2.DAT 0x1E9B`), and plays the scene only when that captain no longer
+commands a fleet (`0xFF`). After an escape the opponent still has a fleet, so
+the route ends without dialogue and the armed subsection stays active. The
+executable itself dispatches after-battle routes after every battle except a
+defeat.
 
 Thus the 15,000-Fame check does not immediately reveal Massawa: it first arms
 the next qualifying after-battle event.
@@ -440,7 +443,7 @@ that Joao kid” reminder.
 | Perot destination  | `EB 10 00 14` followed by +3 selects port IDs 3–22                                                                                                   |
 | Perot waiting step | After the first destination-Pub visit, an `0xA3FF` building route—not the Pub route—plays the waiting scene at the next eligible ordinary building   |
 | Town search        | `EB 00 00 04` gives a one-in-four successful building search                                                                                         |
-| Massawa gate       | Piracy Fame ≥15,000 arms a wildcard informant route dispatched after the next naval victory; escape does not trigger it                              |
+| Massawa gate       | Piracy Fame ≥15,000 arms a wildcard informant route that plays after a battle whose opponent no longer commands a fleet; an escape does not qualify  |
 | Final gate         | Voyage-day-5 route checks Piracy Fame ≥30,000                                                                                                        |
 | New World search   | Port IDs 42–56 and `EB 01 00 0A`; result 0 advances                                                                                                  |
 

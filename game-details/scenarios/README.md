@@ -6,12 +6,10 @@ player's point of view. The numbered scenario is the matching `SNR*.DAT` and
 
 Evidence labels used in these notes:
 
-- **Confirmed**: observed during play or in controlled save files and
-  consistent with the program.
 - **Decoded**: directly represented by a known scenario route, comparison,
-  state change, or dialogue call.
+  state change, or dialogue call, or by a cited `MAIN.EXE` routine.
 - **Likely**: supported by the program structure or game text, but at least one
-  relevant VM operation still needs a gameplay name or runtime test.
+  relevant VM operation or executable field has not yet been decoded or named.
 - **Unknown**: not established by the current research.
 
 ## Current coverage
@@ -30,7 +28,7 @@ Evidence labels used in these notes:
 
 - `raw/SNR*.DAT` and `raw/SNR*.MES`: scenario programs and their message banks.
 - [`dialog-system/scripts/REVERSE_ENGINEERING.md`](../../dialog-system/scripts/REVERSE_ENGINEERING.md):
-  VM, save-state, title, and runtime evidence.
+  VM, save-state, title, and executable evidence.
 - `game-details/fame/`: sources and effects of the three Fame values.
 - `game-details/friendship.md`: Relation changes made by diplomatic royal
   missions.

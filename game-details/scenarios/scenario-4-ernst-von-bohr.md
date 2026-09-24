@@ -49,9 +49,11 @@ Harbor introduction. The first Mercator visit replaces the ordinary
 cartographer interaction. Revisiting before the Harbor scene gives Mercator's
 short departure reminder and ejects Ernst again; after the Harbor scene, a
 Mercator visit can remain in the building and open the normal menu, including
-Report. At exactly 1,000 Adventure Fame the next section also evaluates
-map-progress state before Paula joins; Fame alone may therefore be
-insufficient.
+Report. In section 1, the Amsterdam Harbor route (`SNR4.DAT 0x0416–0x0425`)
+compares Ernst's Adventure Fame with 1,000; at 1,000 or more, Paula's joining
+scene plays and the story advances to section 2. That comparison is the only
+gate on the route. Map reports matter because each newly charted cell reported
+to a contracted cartographer awards 5 Adventure Fame.
 
 If Ernst later signs with another cartographer, visiting Mercator triggers a
 four-line accusation about the other contract. The scene automatically renews
@@ -60,9 +62,14 @@ interaction.
 
 ### 2–3: travel conversations
 
-The 5,000- and 20,000-Fame sections each use `EB 01 00 03`, selecting one of
-three dialog variants. Different lines across playthroughs are expected and do
-not indicate different story progress.
+Sections 2 and 3 each have an any-Harbor route (`SNR4.DAT 0x0627` and
+`0x0782`). It reads the current port ID and draws `EB 01 00 03`. At a port with
+ID 43 or higher, the draw selects one of three Paula dialog variants (values 0,
+1, and 2, in script order). The route then compares Adventure Fame with 5,000
+in section 2 or 20,000 in section 3, and advances the section when the value
+is reached. Ports below ID 43 skip both the dialog and the Fame check.
+Different lines across playthroughs are expected and do not indicate different
+story progress.
 
 ### 4: Far East and ending
 
@@ -72,14 +79,9 @@ the town clue, Huang He, and Paula's home/ending.
 
 ## Practical progression guide
 
-| If the story appears stuck at… | Check…                                                                               |
-| ------------------------------ | ------------------------------------------------------------------------------------ |
-| Map drawing                    | Active character has Cartography and a cartographer contract                         |
-| Paula at 1,000                 | Report sufficient map progress as well as reaching the Fame threshold                |
-| 5,000 or 20,000                | Re-enter eligible travel/building contexts; one of three variants is chosen randomly |
-| 40,000                         | Follow Changan, Sakai, and Nagasaki stages in their flag-controlled order            |
-
-## Highest-value validation
-
-- Boundary captures for the map-progress condition preceding Paula's joining.
-- Runtime mapping of each three-way travel-dialog variant.
+| If the story appears stuck at… | Check…                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| Map drawing                    | Active character has Cartography and a cartographer contract                   |
+| Paula at 1,000                 | Reach 1,000 Adventure Fame (map reports help), then visit the Amsterdam Harbor |
+| 5,000 or 20,000                | Reach the threshold, then enter a Harbor at a port with ID 43 or higher        |
+| 40,000                         | Follow Changan, Sakai, and Nagasaki stages in their flag-controlled order      |
