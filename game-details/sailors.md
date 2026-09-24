@@ -15,12 +15,125 @@
 | Battle experience                    | +0x20..+0x21 |
 | Age                                  |        +0x22 |
 | Loyalty                              |        +0x23 |
+| Duty                                 |        +0x26 |
 | Skill mask                           |        +0x28 |
 
 Skill-mask bits are `0x01` Negotiation, `0x02` Accounting, `0x04` Gunnery, `0x08` Cartography, and `0x10` Celestial Navigation. Nationality is taken from the record country/status byte.
 
 The experience thresholds, voyage and combat awards, and attribute increases
 are documented in [levels.md](levels.md).
+
+## Duties
+
+The duty byte `+0x26` holds the sailor's role in the player's fleet. The role
+names are read from the table at `DS:0x0A1E`.
+
+| Duty | Role            | Held by                                    |
+| ---: | --------------- | ------------------------------------------ |
+|    0 | none            | a sailor outside the player's service      |
+|    1 | Commodore       | the protagonist                            |
+|    2 | Captain         | the commander of one of the player's ships |
+|    3 | First Mate      | at most one mate                           |
+|    4 | Bookkeeper      | at most one mate                           |
+|    5 | Chief Navigator | at most one mate                           |
+|    6 | Navigator       | every other hired mate (no assigned role)  |
+
+### First Mate
+
+- **Navigation experience.** At a Port Call, the First Mate receives the same
+  doubled award as the Commodore and ship captains, `2 × min(D, 70)²`, instead
+  of the ordinary `min(D, 100)²` (roster duty checks at `MAIN.EXE
+0x2101B`/`0x21021`). See
+  [Navigation experience](levels.md#navigation-experience).
+- **Auto Sail** (`0x36DC3`) requires a mate with duty 3 whose skill mask has
+  Celestial Navigation (`0x10`). The protagonist's own skill and other
+  officers' skills do not count. Otherwise the First-Mate-first spokesman
+  refuses with message 855 or 856, which have the same English text; 855 is
+  used for a speaker with personality bit `0x08`.
+- **Naval battle, flagship only.** When a ship's captain is the protagonist,
+  the battle helpers take the best value among the protagonist, the First
+  Mate, and the Chief Navigator: attributes at `0x127E1`, Battle Level at
+  `0x12847`, and Gunnery at `0x1289C` (held by any of the three). Other ships
+  use only their own captain's values. Seamanship is not pooled, and duels use
+  the protagonist's own Swordsmanship and Luck (`0x13D42`).
+- **Weather anomalies.** The First Mate's Luck counts towards avoiding an
+  anomaly, and their Intuition towards warning of one; see
+  [Checks every four hours](at-sea.md#checks-every-four-hours).
+- **Spokesman.** The First Mate speaks first for most crew lines in ports,
+  such as provisioning at the Harbor; see
+  [Crew spokesmen](buildings.md#crew-spokesmen).
+
+### Bookkeeper
+
+- **Market haggling** (`0x2A152`). When an offer is refused, a protagonist
+  with Negotiation (`0x01`), or failing that a Bookkeeper with Accounting
+  (`0x02`), says message 851. The seller answers with message 852 and drops the
+  price to its floor `floor(P × (19 − N) / 20)`, where `P` is the asked price
+  and `N` is the protagonist's rank (byte `+0x0D` of their Fame record) in a
+  port of their own nation, and 0 elsewhere (`0x2A16C–0x2A190`). The routine overwrites the protagonist's record pointer with the
+  Bookkeeper's, so on a later round the Negotiation test reads the
+  Bookkeeper's Negotiation bit. The line is still shown with the protagonist's
+  portrait.
+- **Log of Goods** (Fleet menu, `0x2224E`) looks up the port with the highest
+  sale price for a carried good, among the ports the player has
+  [visited](ports.md#known-and-visited-ports). A protagonist with Accounting names the port (message 848). Otherwise a
+  Bookkeeper with Accounting names it (849), a Bookkeeper without Accounting
+  names only the good (850), and without a Bookkeeper the protagonist says
+  message 1412, “I wish I had a reliable bookkeeper.”
+- **Shipyard estimate** (`0x318E9`). Only a Bookkeeper gives one, and the
+  protagonist's Accounting does not count. It is exact with Accounting and
+  randomized without; see
+  [Shipyard prices and negotiation](ships.md#shipyard-prices-and-negotiation).
+- **Spokesman.** The Bookkeeper speaks first for money lines such as payroll
+  and gold checks. Payroll itself does not depend on any role.
+
+### Chief Navigator
+
+The Chief Navigator takes part only in the flagship battle pooling and the two
+weather-anomaly checks, always alongside the First Mate, and is third in both
+spokesman orders. It receives the ordinary navigation experience award, even
+though in-game tip 1299 says a Chief Navigator's skills improve quickly.
+
+### Captains and other mates
+
+- Fleet speed uses each ship's own captain's Navigation Level and Seamanship
+  (`0x36FFB`, supply `+0x1B`). Officers do not affect it; see
+  [Fleet speed](at-sea.md#fleet-speed).
+- Lookout uses the highest Intuition among the protagonist and **all** hired
+  mates, whatever their duty (`0x36BB3`).
+- Measuring latitude and longitude (`0x2F75F`) does not depend on duty. A
+  protagonist with Celestial Navigation measures exactly. Otherwise message 757
+  lets the player choose any mate with that skill, and cancelling makes the
+  protagonist guess with an error of `random(100) + 1`.
+
+### Assigning duties
+
+- **Change Job Duty** (`0x24301`) fills the First Mate, Bookkeeper, and Chief
+  Navigator slots from the hired mates. A captain is refused (message 227).
+  A mate holds only one role, so moving an officer clears their previous slot,
+  and the previous holder of the chosen slot becomes duty 6.
+- **Change Captain** (`0x2400D`) swaps two captains, or makes the chosen
+  sailor duty 2 and the former captain duty 6. An officer made captain
+  therefore loses their role. The protagonist must captain a ship (message
+  226).
+- **Automatic captain choice** (`0x18229`) for new, captured, and moored ships
+  takes the protagonist if they command no ship, then hired mates with a duty
+  above 2 in roster order. Officers are not skipped, so they can be promoted
+  to Captain automatically. Captured ships are limited to the number of
+  candidates (message 285).
+- Hiring sets duty 6. Leaving the player's service, through the battle-start
+  withdrawal or a Harbor resignation (`0x13F29`, `0x2E3FF`), clears it to 0.
+- Removing a ship from the fleet (`0xB13F`) makes its captain duty 6. A
+  captain whose ship sinks in battle stays in the party as an
+  unassigned mate. The same applies to a named captain whose ship sinks in a
+  storm, who is reported rescued. A generic captain lost with the ship in a
+  storm or to the [Missing Ship](at-sea.md#missing-ship) is first taken off
+  the mate roster and given no location (`+0x25 = 0xFF`, `0x1EA8F`), so the
+  sailor no longer appears in any port, although the duty byte is left at 6.
+  The record is then free: each month it has a 1-in-3 chance of being reused
+  for a new generic sailor with a new name and fresh attributes of 60–94
+  (`0x1DC64`, `0x1D71D`). No write
+  of the duty byte comes from a sailor's death.
 
 ## Mate loyalty
 
@@ -266,3 +379,9 @@ Sailor IDs `6–68` are active NPC captains. Their fleet assignments and ship co
 |  66 | Mohommed Syarook | Piracy      |         87 |         78 |        78 |        66 |      85 |            92 |    76 |   87 |               20 |           31 |  28 | Gunnery, Cartography, Celestial Navigation                 |
 |  67 | Ulgu Ali         | Piracy      |         52 |         79 |        62 |        88 |      60 |            74 |    59 |   87 |               21 |           28 |  35 | Gunnery, Cartography, Celestial Navigation                 |
 |  68 | Jack Raccam      | Piracy      |         88 |         66 |        68 |        88 |      51 |            78 |    96 |   70 |                9 |           13 |  24 | —                                                          |
+
+## Open questions
+
+- **Unused duty selectors.** Three helpers pick a mate by duty preference in
+  the orders 3–5–4 (`0x23DE2`), 4–3–5 (`0x23E12`), and 5–3–4 (`0x23E42`), but
+  no caller has been found. They may be unused.

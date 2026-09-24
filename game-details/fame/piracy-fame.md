@@ -42,15 +42,16 @@ captured ships does not enter the formula.
 
 The battle-result factor is:
 
-| Result                                                           | Factor |
-| ---------------------------------------------------------------- | -----: |
-| Ordinary victory, including an enemy fleet fleeing during combat |     ×3 |
-| Pre-combat Merchant surrender                                    |     ×1 |
+| Result                                                          | Factor |
+| --------------------------------------------------------------- | -----: |
+| Victory: the enemy flagship lost its crew, sank, or lost a duel |     ×3 |
+| The enemy flagship fled during combat                           |     ×1 |
+| Pre-combat Merchant surrender                                   |     ×1 |
 
-The pre-combat surrender result can produce battle-end text describing the
-enemy flagship as having fled. The factor is determined by whether combat took
-place, not by the word "fled" in the final message. Other scripted or
-nonstandard endings remain to be decoded.
+Both ×1 results are battle outcome 2, which shows “The battle ended as the
+enemy's flagship fled.” and takes no spoils (`0x15B33–0x15BBB`). Nightfall,
+the player fleeing or surrendering, and defeat award no Piracy Fame. See
+[How a battle ends](../naval-battle.md#how-a-battle-ends).
 
 ### Pre-combat merchant surrender
 
@@ -60,21 +61,27 @@ fleet IDs are grouped into blocks of ten, and positions 1 through 4 in each
 block are Merchant fleets. The same positions in the Pirate block are
 Buccaneers and are explicitly excluded.
 
-Before the encounter dialogue, the game totals a cached one-byte strength
-rating for every participating fleet on each side, including supporting
-fleets. Let these totals be `player strength` and `merchant strength`. The
-merchant offers surrender exactly when:
+Before the encounter dialogue (`0x1492B`), the game recalculates each
+participating fleet's strength rating and totals the ratings on each side,
+including supporting fleets. A fleet's rating is fleet byte `+0x28`
+(`0x1D40F`):
+
+```text
+rating = floor((sum of current durability of its active ships + 4) / 5)
+```
+
+Only durability counts: crew, guns, and the ship types do not. The rating is
+stored in one byte, so a fleet whose ships total more than 1,275 durability
+wraps around to a low rating. Let the side totals be `player strength` and
+`merchant strength`. The merchant offers surrender exactly when:
 
 ```text
 player strength > floor(3 × merchant strength / 2)
 ```
 
 Equality is not enough: at exactly 150% of the merchant's strength, the
-merchant refuses. There is no random roll and no independent test for wounded
-ships or ships already lost in the offer routine. Those conditions can still
-make surrender more likely indirectly by lowering the merchant fleet's cached
-strength rating. The exact formula that produces each fleet's cached strength
-byte remains to be decoded.
+merchant refuses. There is no random roll. Damaged or lost merchant ships make surrender
+more likely only by lowering the merchant's durability total.
 
 Accepting the offer selects battle-result state 2, which is the reduced
 battle-result factor used by the Piracy Fame calculation.

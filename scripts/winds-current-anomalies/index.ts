@@ -95,7 +95,9 @@ export async function run(): Promise<void> {
       .png()
       .toFile(join(output, `world-map-${name}.png`));
   }
-  const names = ["Storm", "Fog", "No Wind", "Storm +\nMissing", "?", ""];
+  // Key 4 marks Missing Ship (wind bit 6) without an anomaly region (wind
+  // bit 7). MAIN.EXE tests bit 7 first (0x1ECEF), so these cells are unused.
+  const names = ["Storm", "Fog", "No Wind", "Storm +\nMissing", "Unused", ""];
   const mapping: Record<number, number> = {
     9: 0,
     11: 1,

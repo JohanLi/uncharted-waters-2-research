@@ -1423,12 +1423,10 @@ cannot be predicted from a save. See
 
 ## Next investigation steps
 
-1. Name the remaining record fields listed in the
-   [open questions](../open-questions.md#unknown).
-2. Map the remaining VM variable indices used by each scenario.
-3. Group instructions and edges into named basic blocks for a compact control-
+1. Map the remaining VM variable indices used by each scenario.
+2. Group instructions and edges into named basic blocks for a compact control-
    flow graph rather than exposing only the instruction-level CSV.
-4. Optionally validate uncertain operations in a debugger-enabled DOSBox-X by
+3. Optionally validate uncertain operations in a debugger-enabled DOSBox-X by
    comparing memory before and after a one-shot conversation.
 
 Ghidra is not required to run the extractor. It remains useful for naming the
