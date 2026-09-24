@@ -6,13 +6,12 @@ milestones. Each milestone opens another chain of building, voyage-day, or
 battle events; reaching a later Fame value does not skip the active chain.
 
 This document describes the scenario from the player's point of view. It is
-based on the decoded route tables and dialogue, the
-[reverse-engineering notes](../../dialog-system/scripts/REVERSE_ENGINEERING.md), and
-controlled-save observations.
+based on the decoded `SNR1.DAT` route tables and dialogue and on the
+[reverse-engineering notes](../../dialog-system/scripts/REVERSE_ENGINEERING.md).
+Where a condition is evaluated by `MAIN.EXE` rather than by the scenario
+bytecode, the text cites the executable routine.
 
 Evidence labels have the meanings defined in [the scenario README](./README.md).
-Sections 1 and 2 have the strongest runtime coverage. Most of sections 3–5 is
-**decoded**, but its finer conditions still need controlled playthroughs.
 
 ## Story and threshold map
 

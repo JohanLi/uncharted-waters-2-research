@@ -29,7 +29,9 @@ Building conversations come from two cooperating systems.
 1. **Ordinary game logic** is implemented in `MAIN.EXE`. It performs such work
    as opening-hours and access checks, hostile-country encounters, standard
    vendor greetings, menus, and many reusable interactions. Most of its text
-   comes from `MESSAGE.DAT` and `MESSAGE2.DAT`.
+   comes from `MESSAGE.DAT` and `MESSAGE2.DAT`. The lines shown when walking
+   into a townsperson belong here too (see
+   [Townspeople](../game-details/townspeople.md#talking-to-townspeople)).
 2. **Scenario logic** is interpreted from `SNR*.DAT`. It can replace or augment
    the ordinary interaction with story dialog from the matching `SNR*.MES`,
    change music or presentation, update story state, start a duel, and
@@ -418,6 +420,13 @@ The following operations matter when describing what the player experiences:
 | `F1`                          | **Decoded**   | Advance section, reset subsection, and clear scenario flags        |
 | `F2`                          | **Decoded**   | Stop scenario interpretation                                       |
 | `F8`                          | **Confirmed** | Suppress the normal building menu and force the player outside     |
+| `C9 <variable> <message>`     | **Decoded**   | Show a forced menu built from the lines of an MES entry            |
+| `D9 00 <selector>`            | **Confirmed** | Show a formatted Guild or royal-mission line from `MESSAGE.DAT`    |
+| `D1 <variable>`               | **Decoded**   | Send a story fleet after a sailor or to a port                     |
+| `E4 <variable>`               | **Decoded**   | Set carried gold                                                   |
+| `F9` / `FA`                   | **Decoded**   | Start a pending ship, then commission and name it                  |
+| `FB <sailor>`                 | **Decoded**   | Add a sailor to the party as an unassigned mate                    |
+| `F4 <ending>`                 | **Decoded**   | Play the protagonist's ending and exit to `END.EXE`                |
 
 ### Music and clearing example
 

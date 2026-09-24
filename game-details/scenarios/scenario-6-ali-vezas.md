@@ -6,7 +6,8 @@ section. This makes a Fame-only progression model especially misleading for
 Ali.
 
 The details below are decoded from `SNR6.DAT`. Building and dialogue behavior
-is therefore exact unless a note explicitly calls for runtime confirmation.
+is therefore exact; where a condition depends on an executable field that is
+not yet named, the note says so.
 
 ## Story and threshold map
 
@@ -129,10 +130,16 @@ Use the story-specific **Palace audience**. The Sultan commissions Ali to
 expand Ottoman influence and:
 
 - gives Ali 50 Gold Ingots;
-- attempts to give a tax-free permit, if there is room for it; and
+- gives a Tax Permit (O), item `0x25`, if Ali does not already carry one and
+  has an empty item slot; and
 - comments on the number of Ottoman-controlled ports already present.
 
-The audience advances to section 2.
+The permit step (`SNR6.DAT 0x0F14–0x0F6E`) scans the twenty inventory slots.
+Finding item `0x25` skips the gift; otherwise the script remembers the first
+empty (`0xFF`) slot. With such a slot, messages 313–315 present the permit and
+the item is written there. With a full inventory and no permit, the gift and
+its three messages are skipped. Both paths continue with Ali's thanks (message
+316). The audience then advances to section 2.
 
 ## Section 2: João, Catalina, and Sapha
 
@@ -159,13 +166,23 @@ advances the story.
 
 The next event occurs immediately before a battle against opposing captain 1,
 Catalina. Ali recognizes her and talks his way out of the fight. This advances
-the scenario without requiring the battle to be fought.
+the scenario without requiring the battle to be fought. The same route orders
+Catalina's fleet (fleet 10) to sail to Seville, which is also its home port,
+and clears its flags (`SNR6.DAT 0x1491`). With the active bit cleared, the
+fleet no longer appears at sea.
 
 ### Wait for news
 
-The João scene initializes a counter. Every voyage-day-5 event increments it;
-the sixth such event arms the next Pub scene. This is not simply six calendar
-days—the counter advances on the recurring day-5 voyage event.
+The João scene initializes a counter. The at-sea route `0xA005` increments it
+and sets the flag that arms the next Pub scene when it reaches 6
+(`SNR6.DAT 0x15F5–0x15FD`). `MAIN.EXE` dispatches that route once per voyage:
+the voyage-day counter at `DS:0x2BAA` is reset when the fleet sets sail from a
+Harbor (`0x2D7B4`), the at-sea day routine at `0x2052F` dispatches selector
+`0xA0` with the counter as its qualifier once at the start of each sea day,
+and the counter is incremented at the end of that day (`0x1E979`). The scene
+therefore needs six separate departures, each lasting until voyage day 5;
+shorter voyages do not advance it, and a longer voyage counts only once
+(the one-byte counter would have to wrap past 255 to reach 5 again).
 
 Return to the **Istanbul Pub** once it is armed. João reports that Sapha has
 been found in Basra, and the story advances.
@@ -336,10 +353,3 @@ the scenario ending plays.
 | Second Palace summons          | Bring Ottoman control to at least 50 ports and enter a non-Istanbul Harbor     |
 | Final Fame gate                | At 40,000 Trade Fame, enter a non-Istanbul Harbor, then an Ottoman Pub         |
 | House purchase                 | Trigger Istanbul Pub, visit Venice Bank, then raise ingots to the quoted price |
-
-## Remaining high-value validation
-
-- Confirm how many voyage departures are needed for the recurring day-5
-  counter under different sailing patterns.
-- Confirm the exact inventory-full behavior when the Sultan awards the
-  tax-free permit.

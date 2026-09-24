@@ -62,19 +62,19 @@ The ordinary autonomous objective enum contains values 0–9. Value 10 is used
 by scripted pursuit, and value 11 is a dialogue-only substitution rather than
 a distinct autonomous assignment.
 
-| Value | Meaning | Argument | Captain's statement | Waitress's report |
-| ----: | ------- | -------- | ------------------- | ------------------ |
-| 0 | Return home | home-port ID | “We're on our way home.” | heading toward the port |
-| 1 | Invest | destination port ID | heading there to invest | heading toward the port |
-| 2 | Trade | destination port ID | off to trade goods there | heading toward the port |
-| 3 | Waylay fleets | region ID | a hostile encounter statement | waylaying fleets in the region |
-| 4 | Attack merchant fleets | target sailor ID | a hostile encounter statement | attacking merchant fleets indiscriminately |
-| 5 | Pursue a fleet | target sailor ID | looking for that captain | targeting that captain's fleet |
-| 6 | Pursue a fleet | target sailor ID | looking for that captain | targeting that captain's fleet |
-| 7 | Pursue a fleet | target sailor ID | looking for that captain | targeting that captain's fleet |
-| 8 | Guard a fleet | target sailor ID | sailing in a convoy | guarding that captain's fleet |
-| 9 | Guard a port | port ID | on the lookout for pirates | guarding the port |
-| 10 | Scripted pursuit | target sailor ID | “I have some business with you.” | not handled by the ordinary report table |
+| Value | Meaning                | Argument            | Captain's statement              | Waitress's report                          |
+| ----: | ---------------------- | ------------------- | -------------------------------- | ------------------------------------------ |
+|     0 | Return home            | home-port ID        | “We're on our way home.”         | heading toward the port                    |
+|     1 | Invest                 | destination port ID | heading there to invest          | heading toward the port                    |
+|     2 | Trade                  | destination port ID | off to trade goods there         | heading toward the port                    |
+|     3 | Waylay fleets          | region ID           | a hostile encounter statement    | waylaying fleets in the region             |
+|     4 | Attack merchant fleets | target sailor ID    | a hostile encounter statement    | attacking merchant fleets indiscriminately |
+|     5 | Pursue a fleet         | target sailor ID    | looking for that captain         | targeting that captain's fleet             |
+|     6 | Pursue a fleet         | target sailor ID    | looking for that captain         | targeting that captain's fleet             |
+|     7 | Pursue a fleet         | target sailor ID    | looking for that captain         | targeting that captain's fleet             |
+|     8 | Guard a fleet          | target sailor ID    | sailing in a convoy              | guarding that captain's fleet              |
+|     9 | Guard a port           | port ID             | on the lookout for pirates       | guarding the port                          |
+|    10 | Scripted pursuit       | target sailor ID    | “I have some business with you.” | not handled by the ordinary report table   |
 
 Objectives 5–7 deliberately share the same public wording and all follow the
 target's fleet. Values 5 and 6 use the same pursuit branches in the movement,
@@ -105,17 +105,17 @@ update chooses that mode. An NPC fleet consults it later, when the fleet has
 returned home and begins a new sortie. The selector at `MAIN.EXE`
 `0x397FF–0x3986E` uses the following packed table at file offset `0x47818`:
 
-| Strategic mode | Merchant/Buccaneer | Convoy/Corsair | Voyaging/Privateer |
-| -------------: | ------------------: | -------------: | ------------------: |
-| 0 | 1 — invest | 9 — guard port | 8 — guard fleet |
-| 1 | 1 — invest | 9 — guard port | 8 — guard fleet |
-| 2 | 2 — trade | 9 — guard port | 8 — guard fleet |
-| 3 | 1 — invest | 6 — pursue fleet | 6 — pursue fleet |
-| 4 | 1 — invest | 5 — pursue fleet | 6 — pursue fleet |
-| 5 | 1 — invest | 5 — pursue fleet | 6 — pursue fleet |
-| 6 | 1 — invest | 5 — pursue fleet | 6 — pursue fleet |
-| 7 | 6 — pursue fleet | 9 — guard port | 6 — pursue fleet |
-| 8 | 6 — pursue fleet | 4 — attack merchants | 6 — pursue fleet |
+| Strategic mode | Merchant/Buccaneer |       Convoy/Corsair | Voyaging/Privateer |
+| -------------: | -----------------: | -------------------: | -----------------: |
+|              0 |         1 — invest |       9 — guard port |    8 — guard fleet |
+|              1 |         1 — invest |       9 — guard port |    8 — guard fleet |
+|              2 |          2 — trade |       9 — guard port |    8 — guard fleet |
+|              3 |         1 — invest |     6 — pursue fleet |   6 — pursue fleet |
+|              4 |         1 — invest |     5 — pursue fleet |   6 — pursue fleet |
+|              5 |         1 — invest |     5 — pursue fleet |   6 — pursue fleet |
+|              6 |         1 — invest |     5 — pursue fleet |   6 — pursue fleet |
+|              7 |   6 — pursue fleet |       9 — guard port |   6 — pursue fleet |
+|              8 |   6 — pursue fleet | 4 — attack merchants |   6 — pursue fleet |
 
 Modes 0–2 are the normal non-offensive modes. The monthly routine randomly
 chooses among them when a nation does not begin an attack; only mode 2 changes
@@ -139,20 +139,20 @@ mode; they are available to special or scripted state changes.
 After selecting an objective, `MAIN.EXE` `0x396DB–0x397FE` chooses its argument
 and initializes the navigation target:
 
-| Objective | Argument rule |
-| --------: | ------------- |
-| 0 | The fleet's own home port. |
-| 1–2 | The nation's cached merchant-fleet destination at nation byte `+0x04`. |
-| 3 | The existing region argument is retained. |
-| 4 | The current player's fleet is tracked. |
-| 5–7, mode 3 | The current player's fleet is targeted. |
-| 5–7, mode 4 | A random position 0–4 in the target nation's fleet block is targeted. |
-| 5–7, mode 5 | One of positions 5–6—the target nation's convoy fleets—is targeted. |
-| 5–7, mode 6 | One of pirate fleet IDs 61–69 is targeted. |
-| 5–7, mode 7 | The current player's fleet is targeted. |
-| 5–7, mode 8 | A random position 0–4 in the target nation's fleet block is targeted. |
-| 8 | One of the nation's own four merchant fleets is guarded. |
-| 9 | The fleet's own home port is guarded. |
+|   Objective | Argument rule                                                          |
+| ----------: | ---------------------------------------------------------------------- |
+|           0 | The fleet's own home port.                                             |
+|         1–2 | The nation's cached merchant-fleet destination at nation byte `+0x04`. |
+|           3 | The existing region argument is retained.                              |
+|           4 | The current player's fleet is tracked.                                 |
+| 5–7, mode 3 | The current player's fleet is targeted.                                |
+| 5–7, mode 4 | A random position 0–4 in the target nation's fleet block is targeted.  |
+| 5–7, mode 5 | One of positions 5–6—the target nation's convoy fleets—is targeted.    |
+| 5–7, mode 6 | One of pirate fleet IDs 61–69 is targeted.                             |
+| 5–7, mode 7 | The current player's fleet is targeted.                                |
+| 5–7, mode 8 | A random position 0–4 in the target nation's fleet block is targeted.  |
+|           8 | One of the nation's own four merchant fleets is guarded.               |
+|           9 | The fleet's own home port is guarded.                                  |
 
 For fleet-targeted objectives the stored argument is the target captain's
 sailor ID, not the target fleet ID. The game resolves the sailor's current
@@ -214,10 +214,11 @@ check occurs during a subsequent pursuit refresh. A fleet can therefore leave
 port with an explicit pursuit assignment, make a little progress toward the
 selected target, and then be redirected home when that later check fails.
 
-This gives a concrete explanation to test for the short privateer sorties from
-Tunis: in pirate strategic mode 8, privateers receive objective 6 and a random
-captain from positions 0–4 of the target nation. It is not yet established that
-this is the sole cause of every observed short privateer sortie.
+Privateers are directly exposed to this sequence. In pirate strategic mode 8,
+they receive objective 6 and a random captain from positions 0–4 of the target
+nation. When that captain fails the later status check, the privateer turns
+home shortly after leaving port. Other code paths that end a privateer sortie
+early have not yet been examined.
 
 Objective 4, Attack Merchant Fleets, is also fleet-targeted: its ordinary
 argument selector records the current player's captain, and its movement code
@@ -236,12 +237,14 @@ player even before the fleets share a coordinate. Exact coordinate overlap
 changes it to objective 5 and begins the encounter path.
 
 Before starting that battle, the encounter routine makes a rank/status gate for
-the player. For a fleet without flag `0x40`, it reads the current
-protagonist's entry in a 14-byte status table at runtime address
-`0x13EB + protagonist ID × 14`. A zero entry sends the fleet home; a nonzero
-entry permits the encounter to continue. The Commoner-to-Page observation
-matches this branch: Commoner has the zero state, while Page has a nonzero
-state. The exact save field and the values for later ranks remain to be mapped.
+the player. For a fleet without flag `0x40`, the check at `MAIN.EXE`
+`0x1FA87–0x1FA9A` reads the byte at runtime address
+`0x13EB + protagonist ID × 14`. That is `+0x0D` of the current protagonist's
+14-byte Fame/Friendship record (runtime `0x13DE`, save-slot offset `0x05B6`):
+the stored rank, from No Rank 0 through Duke 9. A zero rank sends the fleet
+home; any nonzero rank permits the encounter to continue. Corsairs therefore
+break off from a commoner but attack a protagonist holding any title, from
+Page upward.
 
 ### Profit and fleet activity
 
@@ -257,9 +260,9 @@ wealthier nation sends better-funded investment and trading sorties. Profit
 also affects the monthly choice to begin an offensive national strategy.
 
 No direct Profit test has yet been found in the active-fleet flag or in a
-fleet-count limit. The observed link between economic power and the number or
-frequency of fleets at sea may therefore be indirect, but it is not yet a
-decoded activation formula.
+fleet-count limit. Profit is therefore not known to change how many fleets are
+at sea or how often they sail; its decoded effects are the funding word above
+and the monthly offensive-strategy choice.
 
 ## Relevant code
 

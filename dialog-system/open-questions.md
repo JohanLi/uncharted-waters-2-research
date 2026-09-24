@@ -7,244 +7,142 @@ This file tracks only gaps that still prevent a complete answer to:
 
 Resolved investigations belong in the [dialog-system guide](./README.md), the
 [reverse-engineering notes](./scripts/REVERSE_ENGINEERING.md), and the relevant
-game-detail page rather than remaining as full sections here.
-
-Literal threshold comparisons no longer need routine boundary testing; their
-inclusive lower bounds are decoded. New runtime evidence is most useful for
-field lifecycle, presentation, or
-executable behavior that cannot be settled from code and data.
+game-detail page rather than remaining as full sections here. Runtime evidence
+is most useful for field lifecycles, presentation, and executable behavior that
+code and data cannot settle; decoded threshold comparisons do not need boundary
+testing.
 
 ## Current priorities
 
-1. **Audit command-level save queries.** Every ordinary building group now has
-   a resolver; remaining gaps are interactive controls, transient process
-   state, computed presentation, and random outcomes.
-2. **Complete reachable VM state and effect coverage.** Name the remaining
-   action opcodes and game-record groups that can alter a selected route's
-   result.
-3. **Trace the general gameplay RNG lifecycle.** Determine initialization,
-   save/load persistence, and intervening draws so executable-side random
-   results can be predicted from a save when possible.
+1. **Identify the time-dependent general-RNG consumer** (Section 3).
+2. **Name the remaining record fields** (Section 2).
+3. **Extend the query past one command per visit** (Section 1).
 
-The first item is now a refinement phase: all ordinary building command groups
-have resolvers, including the complete deterministic New Ship order and
-delivery paths, Used Ship purchases and exchanges, and Shipyard remodeling.
-The saved Used Ship cache, prices, construction time, and same-day Shipyard
-ejection flag are decoded. The query still cannot choose branches driven by
-the general gameplay RNG or reconstruct all transient presentation state.
-Completed building mechanics are documented in
+All ordinary building command groups have save-aware resolvers, every
+reachable scenario opcode is decoded, and every prediction that was checked in
+play matched. Completed building mechanics are documented in
 [buildings](../game-details/buildings.md) and [ships](../game-details/ships.md).
 
 ## 1. Ordinary `MESSAGE.DAT` and `MESSAGE2.DAT` dialogue
 
 ### Known
 
-Both files are big-endian `u16` string-offset tables. `MESSAGE.DAT` contains
-1,000 strings and `MESSAGE2.DAT` contains 423. Their text includes ordinary
-vendor greetings, access denials, menus, rumors, reusable interactions, and
-other executable-driven dialogue.
+`MESSAGE.DAT` (1,000 strings) and `MESSAGE2.DAT` (423) form one zero-based
+namespace, 0–1422. They hold vendor greetings, access responses, menus,
+command dialogue, rumors, townsperson lines, and other executable-driven text.
+The entry greeting or access response and the main menu of all twelve building
+types are mapped, as is every ordinary command handler through its prompts,
+branches, and return path.
 
-Scenario dialogue is already handled separately through `SNR*.MES`. The
-save-aware query selects protagonist and shared-scenario transcripts and now
-reports the ordinary building entry separately. Consequently, “no story
-dialogue” can still be followed by an ordinary greeting and menu.
+The save-aware query reports this ordinary dialogue separately from story
+dialogue. It applies building hours, admission and hostile-country gates, story
+routes that suppress entry or the greeting, and the Lodge's `F8` exception. It
+resolves every command of every building type from supplied inputs. It reports
+executable-side random outcomes as probabilities with their exact draws,
+because the general RNG cannot be recovered from a save (Section 3). The query
+is read-only.
 
-The loading and lookup layer is now decoded. `MESSAGE.DAT` and `MESSAGE2.DAT`
-use handles `DS:0x05DC` and `DS:0x05DE`, with readers at `MAIN.EXE 0x3929E`
-and `0x392EA`. Callers address one combined namespace: `0–999` selects
-`MESSAGE.DAT`, while `1000–1422` selects `MESSAGE2.DAT` after subtracting
-1,000. A generated inventory resolves 487 direct call sites to their bank,
-raw index, entry number, and text.
+### Resolved
 
-The entry greetings and access responses for all twelve building types are
-also mapped. Non-Palace greetings share the upper vendor panel with the menu.
-The Palace alone acknowledges its initial greeting before showing its menu.
-Church/Mosque and Market greetings demonstrate that some handlers compute the
-message index instead of embedding a literal operand.
+- **Substitutions** match the executable's format calls, including the
+  cartographer and collector greetings, collector discovery lines, the Pub
+  Treat Fame label, the Market specialty line, and Guild Country Info.
+- **Speakers** follow the executable. Rulers come from the named-character
+  records, crew lines from the Bookkeeper-first or First-Mate-first roster
+  choice, and some lines from the protagonist. Named speakers use a lower
+  panel of their own. Lines spoken over the Palace image are labelled
+  `Palace guard`.
+- **Cartographer Locate** reproduces the full sequence and location phrase. The
+  Old Map, which cannot be obtained in normal play, always reports
+  discovery 0.
+- **Guild Job Assignment** reports an active job, the royal-invitation
+  reminder, and the royal special search's hint port and coordinates.
+- **Mission patrons**: during the royal special search the named Pub patron
+  sells the treasure's map, and during Collect Debt the patron is the debtor;
+  Treat, Gossip, and Hire all lead there.
+- **Market purchases** refuse only below half the price, and Buy Goods stops
+  at once without gold.
+- **Menu graying** at entry covers Moor, Used Ship, and the cartographer and
+  collector commands.
+- **The Pub attendant table** starts at `0x1BA2` with 30 records, record 0
+  being Carlotta.
 
-The ordinary command handlers are mapped through their nested prompts and
-return behavior. Their unresolved portions are concentrated in dynamically
-assembled text, helper-selected speakers and screens, explicit interactive
-handoffs, and random branches.
-
-Palace and special-residence commands, both Harbor variants, and the
-capital-only Moor menu gate are mapped. The save-aware query covers their
-deterministic routes and reports unsaved random branches as ambiguous.
-
-For building actions, the save-aware query now selects the decoded ordinary
-greeting or access response and lists the visible main menu. It respects
-building hours and availability, Church/Mosque and Palace admission, story
-routes that certainly suppress ordinary entry, and the Lodge's caller-side
-`F8` exception. It also reports hostile-country interception as unresolved
-when the continuously advancing general RNG prevents an exact result.
-
-The query now accepts colon-separated command paths. It predicts Harbor Sail
-through its Yes/No departure choice; resolves Supply load/dump limits and
-quantities; reports Moor as disabled away from national capitals and follows
-Moor Store, Commission, and Exchange selections where enabled; selects
-and validates supply-port names; executes Item Shop purchases and deterministic
-sales; executes every Bank transaction and House of Fortune reading; executes
-Lodge Check In and Port Info; and resolves Church/Mosque Pray and Donate
-amounts. It reports the Item Shop counteroffer as probabilistic because the
-general gameplay RNG state is not saved. Unsupported commands are identified
-explicitly in the result. The query remains read-only: reported effects
-describe what the game would do and do not modify the supplied save.
-
-Guild queries reconstruct the three persistent assignment rows, including
-duplicates, and route a selected row through the corresponding SNR0 offer
-table. Country Info renders the cached Profit, Friendship, Relations,
-alliance/blockade markers, target, and merchant-fleet destination. Special
-residence queries cover collector contracts, discovery turn-ins and Rumor;
-cartographer contracts, lessons, reports and treasure-map analysis; and both
-skill teachers. Collector Rumor remains probabilistic because it uses the
-general gameplay RNG.
+Screenshots and saves confirmed each of these that was checked: Carlotta's
+Pub greeting, the `|Henry VIII|`, `|Old Guild Worker|`, and `|Head Trader|`
+plates, the Bookkeeper's gold lines, the separate named-speaker panel, Used
+Ship graying, the Market half-price rule, the Guild's “You'll find Venice
+around 45°N 13°E.”, both Locate results and its gold check, the map-selling
+patron, and the night-time townspeople. The query reproduces all of them.
 
 ### Remaining query coverage
 
-All ordinary building command groups have save-aware resolvers. The remaining
-coverage work is to audit each resolver's exact visible output and next screen:
+- **Multi-command visits.** The query resolves one command per visit.
+  Per-visit state, such as the cartographer's single Report, is reported as a
+  note.
+- **Interactive controls** such as crew assignment, investigation, gambling,
+  and ship design are identified at their handoff rather than simulated.
+- **Supply-port prices** for Food, Lumber, and Shot reuse the last regular
+  port's metadata pointer held by the running program, which the save does not
+  contain. Water and every Dump operation remain exactly predictable.
+- **Pub attendant quirk.** With protagonist bit `0x10` set, the attendant
+  check reads the previously stored attendant, which the save does not hold.
 
-- Verify computed substitutions (names, ports, goods, nations, prices, and
-  other assembled text) against the executable's formatting helpers.
-- Trace caller-selected speakers for rulers, patrons, guards, sailors, and
-  residence occupants where the message itself does not identify the speaker.
-- Trace panel placement, menu continuation, and explicit handoffs to
-  crew-assignment, investigation, gambling, naming, and other interactive
-  controls. Extend the query when the next screen is determined by supplied
-  player input.
-- Keep future Used Ship stock generation, rare Figurehead/Gun selection,
-  non-Accounting Bookkeeper estimates, low-offer refusal versus ejection,
-  Item Shop counteroffers, and similar RNG outcomes conditional until the
-  general generator's state at the call site is known.
-
-The cartographer Locate result includes an executable-assembled location
-phrase after its ordinary messages. The query identifies the selected map,
-payment, and persistence effect, but does not yet reproduce that rendered
-phrase.
-
-Food, Lumber, and Shot prices at supply ports are a special process-state
-limitation. These ports reuse the last regular-port metadata pointer retained
-by the running executable. That previous pointer is not in the save; Water and
-every Dump operation remain exactly predictable.
-
-### Next work
-
-1. Audit one command at a time for computed text, speaker, panel, and
-   continuation behavior. Begin with cartographer Locate's assembled phrase
-   and the Shipyard controls whose menus change after a purchase or sale.
-2. Extend deterministic interactive handoffs with explicit user inputs, and
-   add regression cases for their cancellation and return paths.
-3. Trace the general gameplay RNG lifecycle in Section 3 before attempting
-   exact future stock rolls, recommendations, refusals, or rare selections.
-
-This phase is primarily static. Runtime captures are useful only when speaker
-placement, menu continuation, or a conditional branch remains ambiguous after
-tracing. Save pairs are not needed merely to revalidate decoded thresholds.
-
-## 2. Remaining scenario-VM state and effects
+## 2. Scenario-VM state and effects
 
 ### Known
 
-The four instruction families, control flow, dialogue presentation, choices,
-scenario flags, arithmetic, comparisons, route transitions, music, event art,
-duels, forced exits, and several game-state operations are decoded. In
-particular:
+Every reachable action opcode and `D0`/`DC` record group is decoded; the
+details are in the
+[reverse-engineering notes](./scripts/REVERSE_ENGINEERING.md#remaining-action-opcodes).
+In brief:
 
-- `C3` closes the most recently opened dialogue panel, while `C4` closes all
-  open panels;
-- `D0` resolves an indexed game-record reference and `DC` resolves a direct
-  game-record reference;
-- `D4` expands an MES entry into the scenario string buffer;
-- `E2` loads goods and `E3` counts or transfers carried goods;
-- `E6` adds gold;
-- `E7` deducts gold;
-- `EA` reads displayed gold ingots;
-- `EB` performs a bounded scenario-RNG draw;
-- `EC` restores the scenario RNG state from a scenario-variable checkpoint;
-- `ED` saves a scenario-RNG checkpoint into a scenario variable; and
-- `EE` reads fleet free-cargo capacity.
+- `C3` closes the most recently opened dialogue panel and `C4` closes all
+  panels.
+- `C9 <var> <mes>` shows a forced menu built from the lines of an MES entry and
+  stores the zero-based choice in the variable.
+- `D0`/`DC` resolve references into twenty record groups: nations, Fame,
+  gold and bank, sailors, collectors and cartographers, Pub attendants, the
+  roster and inventory block, ship slots, fleets, supplies, ship instances,
+  ship models, ports, port metadata, market definitions, Used Ship stock,
+  discoveries, items, `COLONY.DAT` text, and goods names.
+- `D1 <var>` recomputes a fleet's course from its order fields; scripts use it
+  to send story fleets after a protagonist or to a port.
+- `D4 <mes>` expands an MES entry into the string buffer, and system value 0
+  copies it, usually to rename a sailor.
+- `D9 00 <selector>` closes all panels and shows one of nine formatted Guild or
+  royal-mission messages from `MESSAGE.DAT` (941–957).
+- `E2`/`E3` load, count, or transfer goods; `E4` sets gold; `E6`/`E7` add and
+  deduct gold; `EA` reads Gold Ingots; `EE` reads free cargo space.
+- `EB` draws from the scenario RNG, `EC` restores it from a variable, and `ED`
+  saves it into one.
+- `F4 <ending>` plays a protagonist's ending and exits to `END.EXE`.
+- `F9 <type>` starts a pending ship, `FA <mes>` commissions and names it, and
+  `FB <sailor>` adds a sailor to the party.
+- Variable 63 is a control word: a nonzero value after an entry route skips
+  the ordinary greeting and, for the shared route, the protagonist route.
+- Variable 60 holds the opposing captain before and after a naval battle. The
+  after-battle hook runs after every battle except a defeat; scripts tell a
+  victory from an escape by whether that captain still commands a fleet.
 
-`EC <variable>` reads that 16-bit scenario variable, shifts it left by eight,
-and writes the resulting 32-bit value to the scenario RNG state. All six
-reachable occurrences are `EC 08` in shared Guild-assignment setup routes.
-`ED <variable>` is the inverse: its handler at `0x38EA9` calls `0x37FC1`,
-which stores the RNG state at `DS:0xBC94`/`DS:0xBC96` shifted right by eight.
-Its five reachable uses are in SNR0's idle Guild-preparation code.
-
-`D4 <message>` is largely decoded. Its handler at `0x38DD5` calls `0x383A5`,
-which expands the MES entry, including `$d`, `$n`, `$r`, and `$s`
-placeholders, into the string buffer at `DS:0x0620`. System-value selector 0
-then copies that buffer through a reference variable. Seventeen of the 18
-reachable uses follow the sailor-renaming pattern
-`D4 <message>; DC 00 03 <sailor> 00|09; 1F 00 00`, for example giving sailor
-`0x47` the names “Prince” and “Alberto”. The remaining use, `SNR1.DAT 0x2B35`,
-copies the string through an unnamed group-`0x0C` reference
-(`DC 00 0C 4A 04`).
-
-The system-value selector table has eight entries:
-
-| Selector | Runtime source | Meaning                            |
-| -------: | -------------- | ---------------------------------- |
-|        0 | `DS:0x0620`    | copy string buffer via reference   |
-|        1 | `DS:0xC76E`    | chart-cell index of position       |
-|        2 | `DS:0x0734`    | stored year offset from 1501       |
-|        3 | `DS:0x0735`    | zero-based current month           |
-|        4 | `DS:0x0736`    | zero-based current day of month    |
-|        5 | `DS:0x0E32`    | current port ID                    |
-|        6 | `DS:0xA0A4`    | post-duel balance/result meter     |
-|        7 | `DS:0x0737`    | time of day in twenty-minute ticks |
-
-Selector 0 is reachable 18 times, always after `D4`; selector 1 has no
-reachable use. Selector 6 is transient duel state rather than a saved calendar
-or location field. The duel engine keeps it in the range `0–200` and treats
-the endpoints as terminal outcomes.
+The save-aware query models all of these. Record references are resolved as
+save addresses with per-path writes, so later branches see earlier writes.
+Play confirmed the `D9` speaker plates, `E4` setting gold, and Catalina's fleet
+being sent to Seville and removed from the sea after Ali's decoy encounter.
 
 ### Unknown
 
-Eight reachable action opcodes still lack gameplay names:
+Only field meanings remain, and none of them changes which dialogue is shown:
 
-| Opcode | Reachable occurrences | Initial lead                                 |
-| -----: | --------------------: | -------------------------------------------- |
-|   `C9` |                     3 | presentation or named-character setup        |
-|   `D1` |                    22 | game-record or roster operation              |
-|   `D9` |                    16 | shared-mission/national state                |
-|   `E4` |                     2 | item or contract operation                   |
-|   `F4` |                     6 | one protagonist-specific use per scenario    |
-|   `F9` |                     7 | paired story-entity setup                    |
-|   `FA` |                     7 | paired story-entity setup                    |
-|   `FB` |                     9 | party, roster, or story-character transition |
-
-Several `D0`/`DC` record groups are only partly named. Known groups cover
-nations, Fame, sailors, cartographer contracts, inventory, fleets, and ports;
-remaining references appear around discoveries, party membership, rewards,
-and story-fleet setup. Until those groups are mapped, the query must discard
-some indirect values and may branch ambiguously at a later comparison.
-
-### Next work
-
-Trace `D1` and `D9` first. They account for 38 reachable instructions and are
-the most likely to change persistent quest state. Then treat
-`F9`/`FA`/`FB` as one cluster because they occur together in protagonist setup
-and recruitment sequences. For each decoded operation:
-
-1. name its operands and side effects in the disassembler;
-2. map its runtime addresses to save structures where applicable;
-3. implement the effect in the save-aware query; and
-4. add a regression drawn from a naturally reachable scenario path.
-
-Before/after saves are useful only if a handler's writes cannot be mapped
-statically. Broad opcode-audition recordings are not needed.
+- the gameplay meaning of port-table bit `0x20`, which João's and Ernst's
+  scripts set on Changan, Sakai, and Nagasaki;
+- sailor duty codes 4 and 5 (probably Bookkeeper and Navigator);
+- Fame-record bytes `+6` and `+7`;
+- fleet fields `+0x0C`, `+0x21`, and `+0x22`, and the names of fleet order
+  types other than 7 (pursue) and `0x0A` (follow).
 
 ## 3. General gameplay RNG lifecycle
 
-### Known
-
-The scenario `EB` generator is separate and already reproducible. Before each
-protagonist-scenario dispatch, its seed is reconstructed from saved calendar,
-clock, navigation-level, and navigation-experience fields.
-
-Executable-side choices use a different continuously advancing 32-bit state at
-`DS:0xC1CC`/`DS:0xC1CE`:
+Executable-side choices use a 32-bit state at `DS:0xC1CC`/`DS:0xC1CE`:
 
 ```text
 state = state * 0x41C64E6D + 0x3039    # modulo 2^32
@@ -252,52 +150,52 @@ value = (state >> 16) & 0x7FFF
 result = value % bound
 ```
 
-Every successful building visit uses this generator for
-`2 + random(3)` twenty-minute ticks, producing a duration of 40, 60, or 80
-minutes. Hostile-building encounters and other ordinary handlers consume the
-same general generator.
+### Known
+
+- The state lies in `DS:0xBF32–0xC790`, which the C startup code clears
+  (`0x89C7–0x89D1`), so it starts at 0 when the program is launched.
+- Nothing reseeds it. The only direct writes are the generator itself
+  (`0x0A181`) and an `srand`-style setter (`0x0A18E`) that has no caller, and
+  the executable's time-of-day helper has no caller either.
+- It is not stored in the save, and loading a save does not change it.
+- In daytime every town frame moves the walking townspeople, which costs 8–12
+  draws plus one per visible fixed townsperson, whether or not the player moves
+  (see [Townspeople](../game-details/townspeople.md#general-rng-consumption)).
+  At night the routine makes none.
+- The clock advances only through building visits, arrival, battles, and
+  loading, so town frames do not trigger time-based world updates.
+
+Random results driven by this generator therefore cannot be predicted from a
+save, and the query reports them as probabilities.
 
 ### Unknown
 
-- How the state is initialized at program startup.
-- Whether it is serialized in a save or reconstructed when a save is loaded.
-- Which loading, town, and transition paths consume draws before the next
-  player-visible result.
-- Whether exact executable-side randomness can be predicted from a save alone
-  or requires process-history state.
-
-### Next work
-
-Trace every write to `DS:0xC1CC`/`DS:0xC1CE`, especially startup and load-game
-paths. If static analysis does not settle persistence, compare the first
-building duration under three controlled conditions:
-
-1. repeatedly reload one save without restarting the program;
-2. restart the program before each load; and
-3. perform one known random-consuming action before entering the building.
-
-This runtime test is not yet needed; loader tracing should come first.
-
-One lead is already identified. The only direct writes to `DS:0xC1CC` are in
-the generator at `MAIN.EXE 0x0A181` and in an `srand`-style setter at
-`0x0A18E`, which stores `AX` as the low state word and zeroes the high word.
-No direct call to `0x0A18E` has yet been found, so its caller and seed source
-remain uncertain.
+In play, relaunching the program, loading the same save, and entering the same
+building at night gave different visit lengths. Some routine other than the
+townspeople must therefore draw a number of values that depends on elapsed real
+time before the building is entered, perhaps in the start-up menus or another
+frame loop. A quick way to narrow it down is to relaunch and load the same
+save twice, entering the building immediately the first time and after
+waiting a minute on the title or load screen the second time.
 
 ## Closed investigations
 
 The following no longer need entries in this tracker:
 
 - general-message bank loading, combined indices, and direct-call inventory;
-- static entry greetings and command-dialogue maps for all twelve building
+- entry greetings, access gates, and command dialogue for all twelve building
   types, including regular- and supply-port Harbor variants;
-- building-entry precedence, the Lodge `F8` exception, and access gates;
+- building-entry precedence, the Lodge `F8` exception, and variable 63;
 - menu-command selectors for `Job Assignment`, `Treat`, and `Meet Ruler`;
 - ordinary building, voyage-day, battle, and Palace-audience route contexts;
 - shared `SNR0` message invocation and save-aware transcript selection;
-- ordinary-building dialogue-panel positions, portrait lifetime, and `C4`;
-- music IDs and selection through scenario action `CA`; and
-- event-art selection through scenario action `CB`.
+- dialogue-panel positions, portrait lifetime, and `C4`;
+- music IDs and selection through scenario action `CA`;
+- event-art selection through scenario action `CB`;
+- every reachable scenario action opcode and `D0`/`DC` record group;
+- the general RNG's initialization, persistence, and unpredictability from a
+  save; and
+- townsperson movement and the lines shown when walking into a townsperson.
 
 Their evidence and implementation details remain in the dialog-system guide,
 reverse-engineering notes, generated analysis, and relevant game-detail pages.

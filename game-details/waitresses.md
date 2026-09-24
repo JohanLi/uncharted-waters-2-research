@@ -1,7 +1,8 @@
 # Waitresses
 
 The game defines 29 named Pub-attendant records used by the **Waitress**
-command, each attached to one Pub. Most ports do not have one. Selecting
+command, each attached to one Pub. Most ports do not have one. They share a
+30-record table with Carlotta, the owner of the Lisbon Pub. Selecting
 **Waitress** at a Pub with such an attendant and paying the 10-gold tip opens
 four commands: **Tell Stories**, **Give Gift**, **Investigation**, and **Ask
 Info**.
@@ -10,41 +11,50 @@ Each waitress has her own favor value. All 29 values start at **0**, are stored
 independently, and are capped at **100**. Raising one waitress's favor does not
 affect another.
 
-The saved table begins at slot-relative `0x1BB2` and contains 29 records of 16
-bytes. Each record stores the waitress's null-terminated name at `+0x00`, port
-ID at `+0x0B`, favor at `+0x0C`, and preference/eligibility flags at `+0x0F`.
+The saved table begins at slot-relative `0x1BA2` (`MAIN.EXE 0:5972` returns
+`DS:0x29CA + index × 16`) and contains 30 records of 16 bytes. Each record
+stores the name at `+0x00`, port ID at `+0x0B`, favor at `+0x0C`, and
+preference/eligibility flags at `+0x0F`. A record's portrait code is
+`0x61 + record index`, the same code scenario dialogue uses.
 
-|  ID | Name      | Port           | Preference  | Investigation threshold | House of Fortune |
-| --: | --------- | -------------- | ----------- | ----------------------: | :--------------: |
-| 100 | Lucia     | Lisbon         | Everything  |                      40 |        No        |
-| 101 | Ladia     | Istanbul       | Everything  |                      40 |       Yes        |
-| 102 | Leticia   | Barcelona      | Treasure    |                      40 |        No        |
-| 103 | Mathilde  | Marseille      | Accessories |                      80 |       Yes        |
-| 104 | Theresa   | Genoa          | Treasure    |                      40 |       Yes        |
-| 105 | Francesca | Venice         | Accessories |                      80 |       Yes        |
-| 106 | Helen     | Athens         | Stories     |                      40 |       Yes        |
-| 107 | Layla     | Alexandria     | Everything  |                      40 |       Yes        |
-| 108 | Jamila    | Ceuta          | Treasure    |                      80 |        No        |
-| 109 | Elaine    | Bordeaux       | Treasure    |                      80 |        No        |
-| 110 | Lillian   | London         | Treasure    |                      40 |       Yes        |
-| 111 | Johanna   | Antwerp        | Stories     |                      80 |       Yes        |
-| 112 | Melanie   | Amsterdam      | Everything  |                      40 |        No        |
-| 113 | Claudia   | Hamburg        | Stories     |                      40 |        No        |
-| 114 | Viveka    | Stockholm      | Everything  |                      40 |       Yes        |
-| 115 | Natasha   | Riga           | Accessories |                      40 |       Yes        |
-| 116 | Isabella  | Havana         | Treasure    |                      80 |       Yes        |
-| 117 | Lupe      | Margarita      | Everything  |                      40 |        No        |
-| 118 | Silvia    | Rio de Janeiro | Treasure    |                      40 |       Yes        |
-| 119 | Tobia     | San Jorge      | Everything  |                      80 |        No        |
-| 120 | Tisa      | Argin          | Treasure    |                      40 |        No        |
-| 121 | Shani     | Sofala         | Everything  |                      40 |       Yes        |
-| 122 | Hadi      | Cairo          | Stories     |                      40 |       Yes        |
-| 123 | Salma     | Mecca          | Accessories |                      80 |       Yes        |
-| 124 | Aruna     | Goa            | Stories     |                      40 |        No        |
-| 125 | Rukia     | Malacca        | Treasure    |                      80 |       Yes        |
-| 126 | Titis     | Banda          | Accessories |                      80 |       Yes        |
-| 127 | Mei-Yi    | Changan        | Everything  |                      40 |       Yes        |
-| 128 | Onatsu    | Nagasaki       | Stories     |                      40 |        No        |
+Record 0 is Carlotta (Lisbon, flags `0x6F`). Her flag `0x40` excludes her from
+the Waitress command and the Love reading; instead, while protagonist byte
+`+0x29` bit `0x10` is clear, entering a Pub whose port has a record with flags
+`0x08` and `0x40` shows raw 17, “Hello [first name], would you like some
+[drink]?”, spoken by Carlotta (`MAIN.EXE 0x2D332`, `0x2D443`). Records 1–29 are
+the waitresses below.
+
+| Record | Portrait | Name      | Port           | Preference  | Investigation threshold | House of Fortune |
+| -----: | -------: | --------- | -------------- | ----------- | ----------------------: | :--------------: |
+|      1 |   `0x62` | Lucia     | Lisbon         | Everything  |                      40 |        No        |
+|      2 |   `0x63` | Ladia     | Istanbul       | Everything  |                      40 |       Yes        |
+|      3 |   `0x64` | Leticia   | Barcelona      | Treasure    |                      40 |        No        |
+|      4 |   `0x65` | Mathilde  | Marseille      | Accessories |                      80 |       Yes        |
+|      5 |   `0x66` | Theresa   | Genoa          | Treasure    |                      40 |       Yes        |
+|      6 |   `0x67` | Francesca | Venice         | Accessories |                      80 |       Yes        |
+|      7 |   `0x68` | Helen     | Athens         | Stories     |                      40 |       Yes        |
+|      8 |   `0x69` | Layla     | Alexandria     | Everything  |                      40 |       Yes        |
+|      9 |   `0x6A` | Jamila    | Ceuta          | Treasure    |                      80 |        No        |
+|     10 |   `0x6B` | Elaine    | Bordeaux       | Treasure    |                      80 |        No        |
+|     11 |   `0x6C` | Lillian   | London         | Treasure    |                      40 |       Yes        |
+|     12 |   `0x6D` | Johanna   | Antwerp        | Stories     |                      80 |       Yes        |
+|     13 |   `0x6E` | Melanie   | Amsterdam      | Everything  |                      40 |        No        |
+|     14 |   `0x6F` | Claudia   | Hamburg        | Stories     |                      40 |        No        |
+|     15 |   `0x70` | Viveka    | Stockholm      | Everything  |                      40 |       Yes        |
+|     16 |   `0x71` | Natasha   | Riga           | Accessories |                      40 |       Yes        |
+|     17 |   `0x72` | Isabella  | Havana         | Treasure    |                      80 |       Yes        |
+|     18 |   `0x73` | Lupe      | Margarita      | Everything  |                      40 |        No        |
+|     19 |   `0x74` | Silvia    | Rio de Janeiro | Treasure    |                      40 |       Yes        |
+|     20 |   `0x75` | Tobia     | San Jorge      | Everything  |                      80 |        No        |
+|     21 |   `0x76` | Tisa      | Argin          | Treasure    |                      40 |        No        |
+|     22 |   `0x77` | Shani     | Sofala         | Everything  |                      40 |       Yes        |
+|     23 |   `0x78` | Hadi      | Cairo          | Stories     |                      40 |       Yes        |
+|     24 |   `0x79` | Salma     | Mecca          | Accessories |                      80 |       Yes        |
+|     25 |   `0x7A` | Aruna     | Goa            | Stories     |                      40 |        No        |
+|     26 |   `0x7B` | Rukia     | Malacca        | Treasure    |                      80 |       Yes        |
+|     27 |   `0x7C` | Titis     | Banda          | Accessories |                      80 |       Yes        |
+|     28 |   `0x7D` | Mei-Yi    | Changan        | Everything  |                      40 |       Yes        |
+|     29 |   `0x7E` | Onatsu    | Nagasaki       | Stories     |                      40 |        No        |
 
 The waitress records and `ZA_DAT.DAT` building coordinates disprove a simple
 one-to-one relationship with the House of Fortune. Every waitress port has a
@@ -179,7 +189,8 @@ Request an immediate rumor. The useful choices are:
 The House of Fortune's **Love** command looks for an eligible waitress record
 at the current port and reads its favor byte directly. Eligibility requires a
 matching port, bit `0x08` set in record byte `+0x0F`, and bit `0x40` clear in
-that byte. Hadi is the sole initialized attendant without `0x08`, so Cairo's
+that byte. The Pub's Waitress command uses the same test when the Pub is
+entered (`MAIN.EXE 0x2D372`) and is grayed out when no record passes it. Hadi is the sole initialized attendant without `0x08`, so Cairo's
 Love reading treats the port as having no eligible waitress despite its Pub and
 House of Fortune. The four results are:
 

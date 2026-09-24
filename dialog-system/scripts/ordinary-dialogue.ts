@@ -148,15 +148,34 @@ const PLAYER_SUPPLY_RECORDS = 0x423e;
 const SUPPLY_RECORD_SIZE = 0x1e;
 const RESERVE_SHIP_SLOTS = 0x46ee;
 const RESERVE_SHIP_COUNT = 30;
+// Current-port used-ship cache: five model bytes, then the port ID.
+const USED_SHIP_STOCK = 0x6e5c;
+const USED_SHIP_STOCK_COUNT = 5;
 const MATE_ROSTER = 0x1d85;
 const MATE_ROSTER_COUNT = 30;
 const BANK_ACCOUNT_HUNDREDS = 0x60e;
 const BANK_ACCOUNT_REMAINDER = 0x610;
 const BANK_SAVINGS_LIMIT = 1_000_000;
 const GOLD_CARRYING_LIMIT = 600_000_000;
-const WAITRESS_TABLE = 0x1bb2;
-const WAITRESS_COUNT = 29;
+// MAIN.EXE 0:5972 returns DS:0x29CA + index * 16 (slot 0x1BA2). Record 0 is
+// Carlotta (Lisbon, flags 0x6F); records 1-29 are the Waitress-command staff.
+const WAITRESS_TABLE = 0x1ba2;
+const WAITRESS_COUNT = 30;
 const WAITRESS_RECORD_SIZE = 0x10;
+// MAIN.EXE 0:5962 returns DS:0x27EA + index * 24 (slot 0x19C2): records 0-9
+// are the collectors and cartographers, 10-15 the rulers indexed by port
+// controller, and 16-19 Paula, Sapha, Professor Juliano, and Dr. Wolf.
+const NAMED_CHARACTER_TABLE = 0x19c2;
+const NAMED_CHARACTER_SIZE = 24;
+const NAMED_CHARACTER_NAME_SIZE = 19;
+const RULER_RECORD = 10;
+const JULIANO = 18;
+const WOLF = 19;
+const SAILOR_DUTY = 0x26;
+// Crew-spokesman duty preferences passed to MAIN.EXE 0:8ED9 by 0:8F3F
+// (Bookkeeper first) and 0:8F64 (First Mate first).
+const BOOKKEEPER_FIRST = [4, 3, 5, 2, 6] as const;
+const FIRST_MATE_FIRST = [3, 4, 5, 2, 6] as const;
 // Records naturally begin at 0x5968 (MAIN.EXE's current-port pointer is
 // DS:0x6790 + port * 0x25). Offsets from this table are therefore two bytes
 // larger than the executable's record-relative offsets.
@@ -188,7 +207,7 @@ const NATION_NAMES = [
   "Italy",
   "Holland",
 ] as const;
-const GOODS_NAMES = [
+export const GOODS_NAMES = [
   "Clove",
   "Cinnamon",
   "Pepper",
@@ -278,6 +297,8 @@ const PUB_SPECIALTIES = [
 const PUB_SPECIALTY_PRICES = [
   3, 4, 5, 6, 3, 3, 2, 2, 1, 1, 3, 2, 3, 2,
 ] as const;
+// MENU.DAT entry 10, indexed by Fame category.
+const PUB_FAME_TITLES = ["Merchant", "Pirate", "Adventurer"] as const;
 const SAILOR_ABILITY_NAMES = [
   "Leadership",
   "Seamanship",
@@ -389,6 +410,73 @@ function protagonistNames(
     first: cstring(save.subarray(start, start + 9)),
     last: cstring(save.subarray(start + 9, start + 18)),
   };
+}
+
+// DS:0xB991/0xB995 (and the collector copy at 0xB978/0xB97C): "Ms." for
+// protagonist 1 (Catalina), otherwise "Sir".
+function honorific(protagonistId: number): string {
+  return protagonistId === 1 ? "Ms." : "Sir";
+}
+
+function namedCharacter(save: Buffer, slot: number, index: number): string {
+  const record =
+    slotOffset(slot) + NAMED_CHARACTER_TABLE + index * NAMED_CHARACTER_SIZE;
+  return cstring(save.subarray(record, record + NAMED_CHARACTER_NAME_SIZE));
+}
+
+function portController(save: Buffer, slot: number, portId: number): number {
+  return (
+    save[
+      slotOffset(slot) +
+        PORT_TABLE +
+        portId * PORT_RECORD_SIZE +
+        PORT_CONTROLLER
+    ]! & 7
+  );
+}
+
+// MAIN.EXE 0x309B0 selects the ruler portrait/name as record 10 + the
+// current port's controller.
+function rulerName(save: Buffer, slot: number, portId: number): string {
+  const controller = portController(save, slot, portId);
+  return (
+    namedCharacter(save, slot, RULER_RECORD + controller) ||
+    `${NATION_NAMES[controller] ?? `nation ${controller}`} ruler`
+  );
+}
+
+// MAIN.EXE 0:8ED9 walks the duty preference list; for each duty it scans the
+// 30-entry mate roster, remembering every nonempty entry, and stops at the
+// first mate whose sailor duty byte matches. Without a match the last
+// nonempty roster entry speaks; an empty roster selects no mate portrait.
+function crewSpokesman(
+  save: Buffer,
+  slot: number,
+  preference: readonly number[],
+): string {
+  const base = slotOffset(slot);
+  const roster = Array.from(
+    save.subarray(base + MATE_ROSTER, base + MATE_ROSTER + MATE_ROSTER_COUNT),
+  ).filter((id) => id !== 0xff);
+  for (const duty of preference)
+    for (const id of roster)
+      if (
+        save[base + SAILOR_TABLE + id * SAILOR_RECORD_SIZE + SAILOR_DUTY] ===
+        duty
+      )
+        return sailorName(save, slot, id);
+  const last = roster.at(-1);
+  return last === undefined
+    ? "crew (no mate portrait)"
+    : sailorName(save, slot, last);
+}
+
+function bookkeeper(save: Buffer, slot: number): string {
+  return crewSpokesman(save, slot, BOOKKEEPER_FIRST);
+}
+
+function firstMate(save: Buffer, slot: number): string {
+  return crewSpokesman(save, slot, FIRST_MATE_FIRST);
 }
 
 function substitute(
@@ -822,7 +910,7 @@ function sailorHireCommand(
   const selectedMenu = pub
     ? ["Treat", "Gossip", "Hire", "Duel"]
     : ["Gossip", "Hire", "Duel"];
-  const prompt = line(data, 48, sailor.name);
+  const prompt = line(data, 48, sailorName(save, slot, protagonistId));
   const duty = save[sailor.record + 0x26]!;
   if (duty !== 0)
     return result(path, {
@@ -984,7 +1072,7 @@ function harborSailCommand(
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
-      dialogue: [line(data, 57, "Harbor vendor")],
+      dialogue: [line(data, 57, firstMate(save, slot))],
       menu: [],
       effects: [],
       uncertainties: [],
@@ -999,7 +1087,7 @@ function harborSailCommand(
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
-      dialogue: [line(data, 59, "Harbor vendor")],
+      dialogue: [line(data, 59, firstMate(save, slot))],
       menu: [],
       effects: [],
       uncertainties: [],
@@ -1007,7 +1095,7 @@ function harborSailCommand(
     });
 
   const message = days < 10 ? 60 : days <= 180 ? 61 : 58;
-  const prompt = line(data, message, "Harbor vendor", [days]);
+  const prompt = line(data, message, firstMate(save, slot), [days]);
   const choice = path[1] && normalizedCommand(path[1]);
   if (!choice)
     return result(path, {
@@ -1082,7 +1170,7 @@ function churchCommand(
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
-      dialogue: [line(data, 28, "system")],
+      dialogue: [line(data, 28, bookkeeper(save, slot))],
       menu: [],
       effects: [],
       uncertainties: [],
@@ -1321,6 +1409,8 @@ function localWaitress(
 }
 
 interface PubWaitress {
+  readonly investigationTarget: number;
+  readonly investigationDays: number;
   readonly record: number;
   readonly name: string;
   readonly favor: number;
@@ -1328,6 +1418,9 @@ interface PubWaitress {
   readonly preference: number;
 }
 
+// MAIN.EXE 0x2D372 stores the Pub's attendant pointer at DS:0xB4DE: the first
+// record at this port with flag 0x08 set and 0x40 clear. The Waitress command
+// is grayed out without one.
 function pubWaitress(
   save: Buffer,
   slot: number,
@@ -1338,15 +1431,36 @@ function pubWaitress(
     const record = base + index * WAITRESS_RECORD_SIZE;
     if (save[record + 0x0b] !== portId) continue;
     const flags = save[record + 0x0f]!;
+    if ((flags & 0x08) === 0 || (flags & 0x40) !== 0) continue;
     return {
       record,
       name: cstring(save.subarray(record, record + 0x0b)),
       favor: save[record + 0x0c]!,
       flags,
       preference: (flags & 0x30) >>> 4,
+      investigationTarget: save[record + 0x0d]!,
+      investigationDays: save[record + 0x0e]!,
     };
   }
   return undefined;
+}
+
+// MAIN.EXE 0x2D332: Carlotta's greeting (raw 17) is selected when protagonist
+// byte +0x29 bit 0x10 is clear and a record at this port has flags 0x08 and
+// 0x40 set. Only record 0 (Carlotta, Lisbon) has flag 0x40 initially.
+function pubHostess(save: Buffer, slot: number, portId: number): boolean {
+  const base = slotOffset(slot) + WAITRESS_TABLE;
+  for (let index = 0; index < WAITRESS_COUNT; index++) {
+    const record = base + index * WAITRESS_RECORD_SIZE;
+    const flags = save[record + 0x0f]!;
+    if (
+      save[record + 0x0b] === portId &&
+      (flags & 0x08) !== 0 &&
+      (flags & 0x40) !== 0
+    )
+      return true;
+  }
+  return false;
 }
 
 function pubSpecialty(
@@ -1566,7 +1680,7 @@ function supplyCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "blocked",
-        dialogue: [line(data, 28, "Harbor vendor")],
+        dialogue: [line(data, 28, bookkeeper(save, slot))],
         menu: [],
         effects: [],
         uncertainties: [],
@@ -1669,7 +1783,7 @@ function moorCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "blocked",
-        dialogue: [...opening, line(data, 279, "Harbor vendor")],
+        dialogue: [...opening, line(data, 279, firstMate(save, slot))],
         menu: [],
         effects: [],
         uncertainties: [],
@@ -1758,7 +1872,7 @@ function moorCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "blocked",
-        dialogue: [...opening, line(data, 285, "Harbor vendor")],
+        dialogue: [...opening, line(data, 285, firstMate(save, slot))],
         menu: [],
         effects: [],
         uncertainties: [],
@@ -1964,7 +2078,7 @@ function bankCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "blocked",
-        dialogue: [line(data, 100, speaker)],
+        dialogue: [line(data, 100, bookkeeper(save, slot))],
         menu: ["Deposit", "Withdraw", "Borrow", "Repay"],
         effects: [],
         uncertainties: [],
@@ -1991,6 +2105,10 @@ function bankCommand(
         notes: [`Outstanding debt: ${-balance}.`],
       });
     const maximum = Math.min(gold, BANK_SAVINGS_LIMIT - balance);
+    const depositPrompt = [
+      line(data, balance === 0 ? 104 : 103, speaker, [balance]),
+      line(data, 105, speaker, [maximum]),
+    ];
     const amount = bankAmount(path, maximum);
     if (typeof amount !== "number")
       return (
@@ -1998,10 +2116,7 @@ function bankCommand(
         result(path, {
           confidence: "decoded",
           disposition: "shown",
-          dialogue: [
-            line(data, balance === 0 ? 104 : 103, speaker, [balance]),
-            line(data, 105, speaker, [maximum]),
-          ],
+          dialogue: depositPrompt,
           menu: [`Amount: 0–${maximum}`],
           effects: [],
           uncertainties: [],
@@ -2012,7 +2127,7 @@ function bankCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "completed",
-        dialogue: [line(data, 105, speaker, [maximum])],
+        dialogue: depositPrompt,
         menu: ["Deposit", "Withdraw", "Borrow", "Repay"],
         effects: ["return to the Bank menu without depositing"],
         uncertainties: [],
@@ -2022,7 +2137,7 @@ function bankCommand(
       confidence: "decoded",
       disposition: "completed",
       dialogue: [
-        line(data, 105, speaker, [maximum]),
+        ...depositPrompt,
         line(data, 106, speaker, [amount]),
         line(data, 103, speaker, [balance + amount]),
       ],
@@ -2296,6 +2411,113 @@ function lodgePortInfoCommand(
   });
 }
 
+// MAIN.EXE 0x2C116 (Treat), 0x2C283 (Gossip), and 0x2C4EE (Hire) hand the
+// patron named by shared variable 17 to a mission handler instead of the
+// ordinary interaction: the royal special search's map seller (shared
+// variable 6 = 11, 0x2BF2A) or the Collect Debt debtor (6 = 5, 0x2C021).
+// Treat also requires shared variable 18 to be nonzero for the map seller.
+function patronAssignmentCommand(
+  save: Buffer,
+  slot: number,
+  protagonistId: number,
+  sailor: LocalSailor,
+  action: "treat" | "gossip" | "hire",
+  path: readonly string[],
+  data: OrdinaryDialogueData,
+): OrdinaryCommandResult | undefined {
+  const base = slotOffset(slot);
+  if (save[base + SHARED_SCENARIO_START] === 0) return undefined;
+  const sharedVariable = (index: number) =>
+    save.readUInt16LE(base + SHARED_VARIABLES_START + index * 2);
+  const mission = sharedVariable(6);
+  const target = sharedVariable(18);
+  if ((sharedVariable(17) & 0xff) !== sailor.id) return undefined;
+  const menu = ["Treat", "Gossip", "Hire", "Duel"];
+  const protagonist = protagonistNames(save, slot, protagonistId);
+  const done = (
+    dialogue: OrdinaryDialogueLine[],
+    effects: string[] = [],
+    uncertainties: string[] = [],
+    notes: string[] = [],
+  ): OrdinaryCommandResult =>
+    result(path, {
+      confidence: uncertainties.length > 0 ? "ambiguous" : "decoded",
+      disposition: "completed",
+      dialogue,
+      menu,
+      effects,
+      uncertainties,
+      notes,
+    });
+
+  if (mission === 11 && (action !== "treat" || target !== 0)) {
+    const map = (target - 10) & 0xff;
+    const items = inspectItems(save, slot);
+    if (items.includes(map)) return done([line(data, 879, sailor.name)]);
+    const itemName = (id: number) =>
+      cstring(
+        save.subarray(
+          base + ITEM_DEFINITION_TABLE + id * ITEM_DEFINITION_SIZE,
+          base +
+            ITEM_DEFINITION_TABLE +
+            id * ITEM_DEFINITION_SIZE +
+            ITEM_NAME_SIZE,
+        ),
+      );
+    const offer = [
+      line(data, 604, sailor.name, [itemName(target)]),
+      line(data, 605, sailor.name),
+    ];
+    const choice = path[3] && normalizedCommand(path[3]);
+    if (!choice)
+      return result(path, {
+        confidence: "decoded",
+        disposition: "shown",
+        dialogue: offer,
+        menu: ["Yes", "No"],
+        effects: [],
+        uncertainties: [],
+        notes: [],
+      });
+    if (choice === "no") return done(offer);
+    if (choice !== "yes")
+      return unavailableCommand(path, `Unknown map-sale choice: ${path[3]}.`);
+    if (inspectGold(save, slot) < 1_000)
+      return done([...offer, line(data, 607, sailor.name)]);
+    const accepted = [...offer, line(data, 606, sailor.name)];
+    const emptySlot = items.indexOf(0xff);
+    if (emptySlot < 0) return done([...accepted, line(data, 880, sailor.name)]);
+    const discovery =
+      save[base + ITEM_DEFINITION_TABLE + map * ITEM_DEFINITION_SIZE + 0x14]!;
+    return done(accepted, [
+      `put ${itemName(map)} (item ${map}) in inventory slot ${emptySlot + 1}`,
+      `set flag 0x20 on discovery ${discovery}`,
+      "deduct 1000 gold",
+    ]);
+  }
+
+  if (mission === 5 && target !== 0) {
+    const luck =
+      save[base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE + 0x1b]!;
+    const amount = sharedVariable(19);
+    // The debtor pays unless random(100) exceeds Luck and random(3) is 0.
+    const flee = ((100 - Math.min(100, luck + 1)) / 100) * (1 / 3);
+    const debtorNames = [
+      cstring(save.subarray(sailor.record, sailor.record + 9)),
+      cstring(save.subarray(sailor.record + 9, sailor.record + 0x14)),
+    ];
+    return done(
+      [line(data, 608, protagonist.first, debtorNames)],
+      [],
+      [
+        `With probability ${(1 - flee).toFixed(3)} the debtor pays: raw 609 (${amount * 5} gold ingots) and 614, add ${amount * 50_000} gold, and clear shared variable 18.`,
+        `With probability ${flee.toFixed(3)} the debtor escapes: raw 610 and 613, and the debtor moves to a random port in the same half of the world.`,
+      ],
+    );
+  }
+  return undefined;
+}
+
 function sailorTreatCommand(
   save: Buffer,
   slot: number,
@@ -2322,28 +2544,21 @@ function sailorTreatCommand(
     });
 
   const base = slotOffset(slot);
-  // After payment, active shared state with variable 6 equal to 11 or 5 and
-  // variable 17 naming this patron replaces the ordinary Treat response.
-  const sharedVariable = (index: number) =>
-    save.readUInt16LE(base + SHARED_VARIABLES_START + index * 2);
-  const sharedJob = sharedVariable(6);
-  if (
-    save[base + SHARED_SCENARIO_START] !== 0 &&
-    (sharedJob === 11 || sharedJob === 5) &&
-    (sharedVariable(17) & 0xff) === sailor.id &&
-    sharedVariable(18) !== 0
-  )
-    return result(path, {
-      confidence: "decoded",
-      disposition: "unsupported",
-      dialogue: [],
-      menu,
-      effects: [`deduct ${specialty.price} gold`],
-      uncertainties: [
-        `Shared assignment handler ${sharedJob === 11 ? "0x2BF2A" : "0x2C021"} replaces the ordinary Treat response and Loyalty change.`,
-      ],
-      notes: [`${specialty.name} costs ${specialty.price} gold.`],
-    });
+  // After payment, a shared-mission patron replaces the ordinary response.
+  const assignment = patronAssignmentCommand(
+    save,
+    slot,
+    protagonistId,
+    sailor,
+    "treat",
+    path,
+    data,
+  );
+  if (assignment)
+    return {
+      ...assignment,
+      effects: [`deduct ${specialty.price} gold`, ...assignment.effects],
+    };
 
   const protagonist = base + SAILOR_TABLE + protagonistId * SAILOR_RECORD_SIZE;
   const personality = save[sailor.record + 0x27]!;
@@ -2466,6 +2681,27 @@ function sailorInteractionCommand(
       path,
       `${path[2]} is not available for ${sailor.name}.`,
     );
+  const assignment =
+    action === "hire" || action === "gossip"
+      ? patronAssignmentCommand(
+          save,
+          slot,
+          protagonistId,
+          sailor,
+          action,
+          path,
+          data,
+        )
+      : undefined;
+  if (assignment)
+    return {
+      ...assignment,
+      dialogue: [...introduction.dialogue, ...assignment.dialogue],
+      uncertainties: [
+        ...introduction.uncertainties,
+        ...assignment.uncertainties,
+      ],
+    };
   if (action === "hire") {
     const hired = sailorHireCommand(
       save,
@@ -2549,7 +2785,7 @@ function pubRecruitCrewCommand(
   path: readonly string[],
   data: OrdinaryDialogueData,
 ): OrdinaryCommandResult {
-  const speaker = "First mate";
+  const speaker = firstMate(save, slot);
   const ships = harborShips(save, slot, protagonistId);
   const freeCapacity = ships.reduce(
     (sum, ship) => sum + Math.max(0, ship.configuredCrew - ship.crew),
@@ -2621,7 +2857,7 @@ function pubRecruitCrewCommand(
   );
   const price = Math.floor(economy / 20) + 5;
   const maximum = Math.min(available, freeCapacity, Math.floor(gold / price));
-  const offer = [line(data, 33, speaker)];
+  const offer = [line(data, 33, sailorName(save, slot, protagonistId))];
   if (available >= 20) offer.push(line(data, 121, speaker, [available]));
   else if (available > 0)
     offer.push(
@@ -2638,10 +2874,9 @@ function pubRecruitCrewCommand(
       uncertainties: [],
       notes: [`Current Pub enthusiasm: ${atmosphere}.`],
     });
-  offer.push(
-    line(data, 124, speaker, [price]),
-    line(data, 125, speaker, [maximum]),
-  );
+  // MAIN.EXE 0x2B308-0x2B371 switches to the Pub portrait and asks with
+  // MESSAGE2 raw 374; entries 124 and 125 have no direct caller.
+  offer.push(line(data, 1374, "Pub vendor", [price, maximum]));
   const rawAmount = path[amountIndex];
   if (rawAmount === undefined)
     return result(path, {
@@ -2699,7 +2934,7 @@ function pubTreatCommand(
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
-      dialogue: [prompt, line(data, 28, "First mate")],
+      dialogue: [prompt, line(data, 28, bookkeeper(save, slot))],
       menu: MENUS[0x01]!,
       effects: [],
       uncertainties: [],
@@ -2733,17 +2968,16 @@ function pubTreatCommand(
     });
   const names = protagonistNames(save, slot, protagonistId);
   const fame = inspectFame(save, slot, protagonistId);
-  const highest = Math.max(fame.trade, fame.piracy, fame.adventure);
-  const rank = inspectRank(save, slot, protagonistId);
+  // MAIN.EXE 0x2BB15-0x2BB50 keeps the first strictly highest Fame in the
+  // order Trade, Piracy, Adventure and titles it from MENU.DAT entry 10.
+  const fameValues = [fame.trade, fame.piracy, fame.adventure];
+  const highest = Math.max(...fameValues);
+  const fameTitle = PUB_FAME_TITLES[fameValues.indexOf(highest)]!;
   const response =
     highest < 1_000
       ? line(data, 36, "Pub patron")
       : highest < 5_000
-        ? line(data, 132, "Pub patron", [
-            RANK_NAMES[rank] ?? `Rank ${rank}`,
-            names.first,
-            names.last,
-          ])
+        ? line(data, 132, "Pub patron", [fameTitle, names.first, names.last])
         : line(data, 133, "Pub patron", [names.first, names.last]);
   const base = slotOffset(slot);
   const sharedFlags = save.readUInt32LE(base + 0xbc);
@@ -2826,7 +3060,7 @@ function pubWaitressCommand(
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
-      dialogue: [introduction, line(data, 147, "First mate")],
+      dialogue: [introduction, line(data, 147, bookkeeper(save, slot))],
       menu: MENUS[0x01]!,
       effects: [],
       uncertainties: [],
@@ -3126,6 +3360,21 @@ function goodsCategory(goodsId: number): number {
   return category < 0 ? GOODS_CATEGORY_LIMITS.length - 1 : category;
 }
 
+// MAIN.EXE 0x2A3E7-0x2A42A: the verb is "are" for the goods IDs listed at
+// DS:0xB478 (Glass Beads and Arms) and "is" otherwise.
+const PLURAL_SPECIALTY_GOODS = new Set([40, 44]);
+
+function specialtyLine(
+  data: OrdinaryDialogueData,
+  speaker: string,
+  good: MarketGood,
+): OrdinaryDialogueLine {
+  return line(data, 5, speaker, [
+    good.name,
+    PLURAL_SPECIALTY_GOODS.has(good.id) ? "are" : "is",
+  ]);
+}
+
 function marketGoodLabel(good: MarketGood, index: number): string {
   return `${index + 1}: ${good.name} (${good.buyPrice} gold/lot)`;
 }
@@ -3204,11 +3453,22 @@ function marketBuyCommand(
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
-      dialogue: [line(data, 26, speaker)],
+      dialogue: [line(data, 26, firstMate(save, slot))],
       menu: MENUS[0x00]!,
       effects: [],
       uncertainties: [],
       notes: ["The active fleet contains no ship that can carry goods."],
+    });
+  // The pre-check at MAIN.EXE 0x29E79 stops Buy Goods when no gold is carried.
+  if (inspectGold(save, slot) === 0)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "blocked",
+      dialogue: [line(data, 28, bookkeeper(save, slot))],
+      menu: MENUS[0x00]!,
+      effects: [],
+      uncertainties: [],
+      notes: [],
     });
   const goods = marketGoods(save, slot, portId, data);
   const opening = line(data, 3, speaker);
@@ -3230,7 +3490,7 @@ function marketBuyCommand(
       disposition: path[2] ? "unavailable" : "shown",
       dialogue: [
         opening,
-        ...(good.specialty ? [line(data, 5, speaker, [good.name])] : []),
+        ...(good.specialty ? [specialtyLine(data, speaker, good)] : []),
       ],
       menu: ships.map(shipLabel),
       effects: [],
@@ -3244,18 +3504,37 @@ function marketBuyCommand(
   );
   const prompts = [
     opening,
-    ...(good.specialty ? [line(data, 5, speaker, [good.name])] : []),
+    ...(good.specialty ? [specialtyLine(data, speaker, good)] : []),
     line(data, 9, speaker, [good.name]),
     line(data, 150, speaker, [good.name, good.buyPrice]),
-    line(data, good.rate <= 40 ? 23 : good.rate > 60 ? 24 : 25, "First mate"),
+    line(
+      data,
+      good.rate <= 40 ? 23 : good.rate > 60 ? 24 : 25,
+      bookkeeper(save, slot),
+    ),
   ];
-  if (maximum === 0)
+  // MAIN.EXE 0x2A5E9 refuses only when gold is below half the price.
+  // Otherwise the quantity input opens even if its maximum is 0, and entering
+  // 0 returns to the goods list.
+  if (inspectGold(save, slot) < Math.floor(good.buyPrice / 2))
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
-      dialogue: [...prompts, line(data, 22, speaker)],
+      dialogue: [...prompts, line(data, 22, bookkeeper(save, slot))],
       menu: goods.map(marketGoodLabel),
       effects: [],
+      uncertainties: [],
+      notes: [
+        `On-hand gold ${inspectGold(save, slot)} is below half the ${good.buyPrice}-gold price.`,
+      ],
+    });
+  if (maximum === 0)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: prompts,
+      menu: ["Amount: 0–0"],
+      effects: ["entering 0 returns to the goods list"],
       uncertainties: [],
       notes: [
         `${ship.name} has ${freeCapacity} cargo space; on-hand gold is ${inspectGold(save, slot)}.`,
@@ -3361,7 +3640,7 @@ function marketSellCommand(
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
-      dialogue: [line(data, 21, speaker)],
+      dialogue: [line(data, 21, bookkeeper(save, slot))],
       menu: MENUS[0x00]!,
       effects: [],
       uncertainties: [],
@@ -3526,7 +3805,7 @@ function portInvestCommand(
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
-      dialogue: [prompt, line(data, 28, "First mate")],
+      dialogue: [prompt, line(data, 28, bookkeeper(save, slot))],
       menu: MENUS[industrial ? 0x02 : 0x00]!,
       effects: [],
       uncertainties: [],
@@ -3965,6 +4244,65 @@ function shipyardNewShipExchangeCommand(
   });
 }
 
+// MAIN.EXE 0x319AE-0x319D5: an offer below the minimum draws random(5). Zero
+// (1/5) shows raw 197, sets save byte 0x0C bit 0x02, and ends the visit; any
+// other value (4/5) shows raw 198 and returns to the Shipyard menu.
+function shipyardLowOfferResult(
+  path: readonly string[],
+  outcomeIndex: number,
+  priceDialogue: readonly OrdinaryDialogueLine[],
+  endEffect: string,
+  uncertainties: readonly string[],
+  notes: readonly string[],
+  speaker: string,
+  data: OrdinaryDialogueData,
+): OrdinaryCommandResult {
+  const outcome = path[outcomeIndex] && normalizedCommand(path[outcomeIndex]);
+  const rng =
+    "An unsaved general-RNG random(5) draw selects the outcome: Ejected with probability 1/5 (draw 0), Refused with probability 4/5.";
+  if (!outcome)
+    return result(path, {
+      confidence: "ambiguous",
+      disposition: "shown",
+      dialogue: priceDialogue,
+      menu: ["Ejected", "Refused"],
+      effects: [
+        `Ejected (1/5): raw 197, ${endEffect}, set the same-day Shipyard ejection flag, and leave the Shipyard`,
+        `Refused (4/5): raw 198, ${endEffect}, and return to the Shipyard menu`,
+      ],
+      uncertainties: [...uncertainties, rng],
+      notes,
+    });
+  if (outcome === "ejected")
+    return result(path, {
+      confidence: "ambiguous",
+      disposition: "completed",
+      dialogue: [...priceDialogue, line(data, 197, speaker)],
+      menu: [],
+      effects: [
+        endEffect,
+        "set the same-day Shipyard ejection flag (save byte 0x0C bit 0x02)",
+        "leave the Shipyard",
+      ],
+      uncertainties: [...uncertainties, rng],
+      notes,
+    });
+  if (outcome === "refused")
+    return result(path, {
+      confidence: "ambiguous",
+      disposition: "completed",
+      dialogue: [...priceDialogue, line(data, 198, speaker)],
+      menu: MENUS[0x02]!,
+      effects: [endEffect, "return to the Shipyard menu"],
+      uncertainties: [...uncertainties, rng],
+      notes,
+    });
+  return unavailableCommand(
+    path,
+    `Unknown low-offer outcome: ${path[outcomeIndex]}; use ejected or refused.`,
+  );
+}
+
 function shipyardNewShipCommand(
   save: Buffer,
   slot: number,
@@ -4222,21 +4560,16 @@ function shipyardNewShipCommand(
         `The offer must be an integer from 0 to ${maximumOffer} gold.`,
       );
     if (price < minimumOffer)
-      return result(path, {
-        confidence: "ambiguous",
-        disposition: "blocked",
-        dialogue: priceDialogue,
-        menu: [],
-        effects: ["end the New Ship negotiation without placing an order"],
-        uncertainties: [
-          ...negotiationUncertainties,
-          "A random(5) roll selects raw refusal 198, or raw 197 and a temporary Shipyard ejection flag on zero.",
-        ],
-        notes: [
-          ...notes,
-          `Offer ${price} is below the minimum ${minimumOffer}.`,
-        ],
-      });
+      return shipyardLowOfferResult(
+        path,
+        6,
+        priceDialogue,
+        "end the New Ship negotiation without placing an order",
+        negotiationUncertainties,
+        [...notes, `Offer ${price} is below the minimum ${minimumOffer}.`],
+        speaker,
+        data,
+      );
     priceDialogue = [...priceDialogue, line(data, 863, speaker, [price])];
   }
 
@@ -4448,7 +4781,7 @@ function shipyardRepairCommand(
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
-      dialogue: [prompt, line(data, 207, speaker)],
+      dialogue: [prompt, line(data, 207, bookkeeper(save, slot))],
       menu: ships.map(shipLabel),
       effects: [],
       uncertainties: [],
@@ -4569,7 +4902,10 @@ function shipyardUsedShipCommand(
       const flagshipConfirmation = path[next]
         ? normalizedCommand(path[next]!)
         : undefined;
-      const flagshipDialogue = [...exchangeDialogue, line(data, 209, speaker)];
+      const flagshipDialogue = [
+        ...exchangeDialogue,
+        line(data, 209, firstMate(save, slot)),
+      ];
       if (!flagshipConfirmation)
         return result(path, {
           confidence: "decoded",
@@ -4595,7 +4931,7 @@ function shipyardUsedShipCommand(
           path,
           `Unknown flagship exchange confirmation: ${path[next]}.`,
         );
-      exchangeDialogue.push(line(data, 209, speaker));
+      exchangeDialogue.push(line(data, 209, firstMate(save, slot)));
       next++;
       const eligibleFlagships = activeShips.filter(
         (ship) => ship.recordIndex !== tradeIn!.recordIndex,
@@ -4605,7 +4941,10 @@ function shipyardUsedShipCommand(
         return result(path, {
           confidence: "decoded",
           disposition: path[next] ? "unavailable" : "shown",
-          dialogue: [...flagshipDialogue, line(data, 210, speaker)],
+          dialogue: [
+            ...flagshipDialogue,
+            line(data, 210, firstMate(save, slot)),
+          ],
           menu: eligibleFlagships.map(shipLabel),
           effects: [],
           uncertainties: [],
@@ -4613,14 +4952,14 @@ function shipyardUsedShipCommand(
             ? [`Unknown replacement flagship: ${path[next]}.`]
             : [],
         });
-      exchangeDialogue.push(line(data, 210, speaker));
+      exchangeDialogue.push(line(data, 210, firstMate(save, slot)));
       next++;
     }
     stockPathOffset = next;
   }
 
-  const stock = base + 0x6e5c;
-  if (save[stock + 5] !== portId)
+  const stock = base + USED_SHIP_STOCK;
+  if (save[stock + USED_SHIP_STOCK_COUNT] !== portId)
     return result(path, {
       confidence: "ambiguous",
       disposition: "shown",
@@ -4632,7 +4971,9 @@ function shipyardUsedShipCommand(
       ],
       notes: [],
     });
-  const stockEntries = Array.from(save.subarray(stock, stock + 5))
+  const stockEntries = Array.from(
+    save.subarray(stock, stock + USED_SHIP_STOCK_COUNT),
+  )
     .map((id, index) => ({ slot: index + 1, model: data.shipModels[id] }))
     .filter((entry): entry is { slot: number; model: ShipModel } =>
       Boolean(entry.model),
@@ -4803,21 +5144,16 @@ function shipyardUsedShipCommand(
         `The offer must be an integer from 0 to ${maximumOffer} gold.`,
       );
     if (price < minimumOffer)
-      return result(path, {
-        confidence: "ambiguous",
-        disposition: "blocked",
-        dialogue: priceDialogue,
-        menu: [],
-        effects: ["end the Used Ship negotiation without buying the ship"],
-        uncertainties: [
-          ...negotiationUncertainties,
-          "A random(5) roll selects raw refusal 198, or raw 197 and a same-day Shipyard ejection flag on zero.",
-        ],
-        notes: [
-          ...notes,
-          `Offer ${price} is below the minimum ${minimumOffer}.`,
-        ],
-      });
+      return shipyardLowOfferResult(
+        path,
+        stockPathOffset + 4,
+        priceDialogue,
+        "end the Used Ship negotiation without buying the ship",
+        negotiationUncertainties,
+        [...notes, `Offer ${price} is below the minimum ${minimumOffer}.`],
+        speaker,
+        data,
+      );
     priceDialogue = [...priceDialogue, line(data, 863, speaker, [price])];
   }
 
@@ -4965,7 +5301,7 @@ function shipyardSellCommand(
   const effects: string[] = [];
   if (flagship) {
     const flagshipChoice = path[next] && normalizedCommand(path[next]!);
-    dialogue.push(line(data, 209, speaker));
+    dialogue.push(line(data, 209, firstMate(save, slot)));
     if (!flagshipChoice)
       return result(path, {
         confidence: "decoded",
@@ -4992,7 +5328,7 @@ function shipyardSellCommand(
         `Unknown flagship-sale confirmation: ${path[next]}.`,
       );
     next++;
-    dialogue.push(line(data, 210, speaker));
+    dialogue.push(line(data, 210, firstMate(save, slot)));
     const replacementShips = ships.filter(
       (candidate) => candidate.recordIndex !== ship.recordIndex,
     );
@@ -5017,7 +5353,7 @@ function shipyardSellCommand(
 
   if (hasCargo) {
     const cargoChoice = path[next] && normalizedCommand(path[next]!);
-    dialogue.push(line(data, 211, speaker));
+    dialogue.push(line(data, 211, firstMate(save, slot)));
     if (!cargoChoice)
       return result(path, {
         confidence: "decoded",
@@ -5049,7 +5385,7 @@ function shipyardSellCommand(
 
   if (ship.crew > 0) {
     const crewChoice = path[next] && normalizedCommand(path[next]!);
-    dialogue.push(line(data, 212, speaker));
+    dialogue.push(line(data, 212, firstMate(save, slot)));
     if (!crewChoice)
       return result(path, {
         confidence: "decoded",
@@ -5218,7 +5554,7 @@ function remodelFigureheadCommand(
     return result(path, {
       confidence: uncertainty.length ? "ambiguous" : "decoded",
       disposition: "blocked",
-      dialogue: [...offered, line(data, 207, "Shipyard vendor")],
+      dialogue: [...offered, line(data, 207, bookkeeper(save, slot))],
       menu: possibleChoices.map((name, index) => `${index + 1}: ${name}`),
       effects: [],
       uncertainties: uncertainty,
@@ -5393,7 +5729,7 @@ function remodelGunsCommand(
     return result(path, {
       confidence: rareEligible ? "ambiguous" : "decoded",
       disposition: "blocked",
-      dialogue: [...offered, line(data, 207, "Shipyard vendor")],
+      dialogue: [...offered, line(data, 207, bookkeeper(save, slot))],
       menu: possibleChoices.map((name, index) => `${index + 1}: ${name}`),
       effects: [],
       uncertainties: rareEligible ? rareUncertainties : [],
@@ -5548,7 +5884,7 @@ function shipyardRemodelCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "blocked",
-        dialogue: [...dialogue, line(data, 207, "Shipyard vendor")],
+        dialogue: [...dialogue, line(data, 207, bookkeeper(save, slot))],
         menu: ships.map(shipLabel),
         effects: [],
         uncertainties: [],
@@ -5735,10 +6071,6 @@ function palaceNation(save: Buffer, slot: number, portId: number): number {
   return controller;
 }
 
-function palaceRuler(nation: number): string {
-  return `${NATION_NAMES[nation] ?? `nation ${nation}`} ruler`;
-}
-
 function sphereOfInfluence(
   save: Buffer,
   slot: number,
@@ -5789,7 +6121,7 @@ function palaceMeetRulerCommand(
   data: OrdinaryDialogueData,
 ): OrdinaryCommandResult {
   const nation = palaceNation(save, slot, portId);
-  const speaker = palaceRuler(nation);
+  const speaker = rulerName(save, slot, portId);
   const menu = ["Sphere of Influence", "Letter of Marque", "Tax Free Permit"];
   const subcommand = path[1] && normalizedCommand(path[1]);
   if (!subcommand)
@@ -5802,16 +6134,53 @@ function palaceMeetRulerCommand(
       uncertainties: [],
       notes: [],
     });
-  if (subcommand === "sphereofinfluence")
+  if (subcommand === "sphereofinfluence") {
+    // MAIN.EXE 0x3013C: greet with raw 1073, count the ports sharing the
+    // current port's controller, and stop at raw 1048 when only one exists.
+    const rank = inspectRank(save, slot, protagonistId);
+    const names = protagonistNames(save, slot, protagonistId);
+    const welcome = line(data, 1073, speaker, [
+      RANK_NAMES[rank] ?? `Rank ${rank}`,
+      names.last,
+    ]);
+    const controller = portController(save, slot, portId);
+    let allied = 0;
+    for (let port = 0; port < 100; port++)
+      if (portController(save, slot, port) === controller) allied++;
+    const rankUncertainty =
+      rank === 0
+        ? [
+            "Raw 1073 prints the rank-0 row of the runtime title table at DS:0xC710; the displayed title for an unranked protagonist is not decoded.",
+          ]
+        : [];
+    if (allied === 1)
+      return result(path, {
+        confidence: rank === 0 ? "ambiguous" : "decoded",
+        disposition: "completed",
+        dialogue: [welcome, line(data, 1048, speaker)],
+        menu,
+        effects: [],
+        uncertainties: rankUncertainty,
+        notes: ["Only the capital itself shares the controller."],
+      });
     return result(path, {
-      confidence: "decoded",
+      confidence: rank === 0 ? "ambiguous" : "decoded",
       disposition: "completed",
-      dialogue: [line(data, 453, speaker), line(data, 454, speaker)],
+      dialogue: [
+        welcome,
+        line(data, 453, speaker),
+        line(data, 883, speaker, [allied]),
+        line(data, 454, speaker),
+      ],
       menu,
       effects: ["display the current Sphere of Influence report"],
-      uncertainties: [],
-      notes: [...sphereOfInfluence(save, slot, nation)],
+      uncertainties: rankUncertainty,
+      notes: [
+        "Raw 883 repeats with a region chooser until it is canceled; raw 454 closes the report.",
+        ...sphereOfInfluence(save, slot, nation),
+      ],
     });
+  }
 
   const inventory = inspectItems(save, slot);
   const emptySlot = inventory.indexOf(0xff);
@@ -5821,7 +6190,7 @@ function palaceMeetRulerCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "blocked",
-        dialogue: [line(data, 864, "Palace attendant")],
+        dialogue: [line(data, 864, bookkeeper(save, slot))],
         menu,
         effects: [],
         uncertainties: [],
@@ -5831,7 +6200,7 @@ function palaceMeetRulerCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "blocked",
-        dialogue: [line(data, 865, "Palace attendant")],
+        dialogue: [line(data, 865, bookkeeper(save, slot))],
         menu,
         effects: [],
         uncertainties: [],
@@ -5843,8 +6212,8 @@ function palaceMeetRulerCommand(
         confidence: "decoded",
         disposition: "blocked",
         dialogue: [
-          line(data, 866, "Palace attendant"),
-          line(data, 867, "Palace attendant"),
+          line(data, 866, "Palace guard"),
+          line(data, 867, "Palace guard"),
         ],
         menu,
         effects: [],
@@ -5856,8 +6225,8 @@ function palaceMeetRulerCommand(
         confidence: "decoded",
         disposition: "blocked",
         dialogue: [
-          line(data, 866, "Palace attendant"),
-          line(data, 868, "Palace attendant"),
+          line(data, 866, "Palace guard"),
+          line(data, 868, "Palace guard"),
         ],
         menu,
         effects: [],
@@ -5870,8 +6239,8 @@ function palaceMeetRulerCommand(
       confidence: "decoded",
       disposition: "completed",
       dialogue: [
-        line(data, 866, "Palace attendant"),
-        line(data, 869, "Palace attendant"),
+        line(data, 866, "Palace guard"),
+        line(data, 869, "Palace guard"),
         line(data, 870, speaker),
         line(data, 871, speaker),
       ],
@@ -5890,7 +6259,7 @@ function palaceMeetRulerCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "blocked",
-        dialogue: [line(data, 872, "Palace attendant")],
+        dialogue: [line(data, 872, bookkeeper(save, slot))],
         menu,
         effects: [],
         uncertainties: [],
@@ -5900,7 +6269,7 @@ function palaceMeetRulerCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "blocked",
-        dialogue: [line(data, 865, "Palace attendant")],
+        dialogue: [line(data, 865, bookkeeper(save, slot))],
         menu,
         effects: [],
         uncertainties: [],
@@ -5914,9 +6283,9 @@ function palaceMeetRulerCommand(
     const units = ownNation ? (rank >= 6 ? 0 : 7 - rank) : 11 - rank;
     const price = units * 10_000;
     const introduction = [
-      line(data, 873, "Palace attendant"),
-      ...(save[base + 7]! % 6 < 3 ? [line(data, 874, "Palace attendant")] : []),
-      line(data, 875, "Palace attendant"),
+      line(data, 873, "Palace guard"),
+      ...(save[base + 7]! % 6 < 3 ? [line(data, 874, "Palace guard")] : []),
+      line(data, 875, "Palace guard"),
     ];
     const firstChoice = path[2] && normalizedCommand(path[2]);
     if (!firstChoice)
@@ -5946,7 +6315,7 @@ function palaceMeetRulerCommand(
       );
     const offer = [
       ...introduction,
-      line(data, 869, "Palace attendant"),
+      line(data, 869, "Palace guard"),
       line(data, 876, speaker),
       ...(units > 0 ? [line(data, 877, speaker, [units])] : []),
     ];
@@ -5980,7 +6349,7 @@ function palaceMeetRulerCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "blocked",
-        dialogue: [...offer, line(data, 878, speaker)],
+        dialogue: [...offer, line(data, 878, bookkeeper(save, slot))],
         menu,
         effects: [],
         uncertainties: [],
@@ -6042,7 +6411,7 @@ function palaceDefectCommand(
       notes: [`Defect is disabled because ${reasons.join(" and ")}.`],
     });
 
-  const speaker = palaceRuler(nation);
+  const speaker = rulerName(save, slot, portId);
   const prompt = line(data, 458, speaker);
   const choice = path[1] && normalizedCommand(path[1]);
   if (!choice)
@@ -6114,7 +6483,8 @@ function palaceGoldCommand(
       notes: ["Gold aid is disabled at a foreign Palace."],
     });
 
-  const speaker = palaceRuler(nation);
+  // The aid lines keep the Palace image rather than a ruler portrait.
+  const speaker = "Palace guard";
   const record = base + NATION_RECORDS + nation * NATION_RECORD_SIZE;
   const units = save[record + 5]!;
   if (units === 0)
@@ -6175,7 +6545,8 @@ function palaceShipCommand(
       notes: ["Ship aid is disabled at a foreign Palace."],
     });
 
-  const speaker = palaceRuler(nation);
+  // The aid lines keep the Palace image rather than a ruler portrait.
+  const speaker = "Palace guard";
   const record = base + NATION_RECORDS + nation * NATION_RECORD_SIZE;
   const shipType = save[record + 7]!;
   const remaining = save[record + 8]!;
@@ -6300,25 +6671,59 @@ function guildJobCommand(
 ): OrdinaryCommandResult {
   const base = slotOffset(slot);
   const section = save[base + SHARED_SCENARIO_START]!;
-  if (section !== 0 && section !== 0xff) {
-    const origin = save.readUInt16LE(base + SHARED_VARIABLES_START + 17 * 2);
-    const samePort = origin === portId;
-    return result(path, {
-      confidence: "decoded",
+  const sharedVariable = (index: number) =>
+    save.readUInt16LE(base + SHARED_VARIABLES_START + index * 2);
+  const menu = ["Job Assignment", "Country Info"];
+  const worker = "Old Guild Worker";
+  const blocked = (
+    dialogue: OrdinaryDialogueLine[],
+    notes: string[],
+    uncertainties: string[] = [],
+  ) =>
+    result(path, {
+      confidence: uncertainties.length > 0 ? "ambiguous" : "decoded",
       disposition: "blocked",
-      dialogue: [
-        samePort
-          ? line(data, 931, "Old Guild Worker")
-          : line(data, 338, "Old Guild Worker", [portName(save, slot, origin)]),
-      ],
-      menu: ["Job Assignment", "Country Info"],
+      dialogue,
+      menu,
       effects: [],
-      uncertainties: [],
-      notes: [
-        `Shared assignment section ${section} is already active.`,
-        "The origin-port comparison uses shared variable 17, the common assignment origin field.",
-      ],
+      uncertainties,
+      notes,
     });
+  // MAIN.EXE 0x32E90: an active shared mission replaces the job list.
+  if (section !== 0 && section !== 0xff) {
+    const mission = sharedVariable(6);
+    const target = sharedVariable(16);
+    if (mission < 6)
+      return blocked(
+        [
+          target === portId
+            ? line(data, 931, worker)
+            : line(data, 338, worker, [portName(save, slot, target)]),
+        ],
+        [
+          `Shared assignment ${mission} is active; its port is shared variable 16.`,
+        ],
+      );
+    return guildRoyalSearchHint(save, slot, portId, data, blocked);
+  }
+  // MAIN.EXE 0x32ED8: an armed royal invitation (shared flags 16 and 17) is
+  // mentioned instead of the job list for the six nations.
+  const sharedFlags = save.readUInt32LE(base + SHARED_SCENARIO_START + 2);
+  if ((sharedFlags & 0x30000) === 0x30000) {
+    const affiliation =
+      save[
+        base +
+          SAILOR_TABLE +
+          protagonistIdOf(save, slot) * SAILOR_RECORD_SIZE +
+          SAILOR_AFFILIATION
+      ]! & 0x0f;
+    if (affiliation < 4)
+      return blocked([line(data, 410 + affiliation, worker)], []);
+    if (affiliation < 6)
+      return blocked(
+        [line(data, 932, worker, [ROYAL_INVITATION_SENDERS[affiliation - 4]!])],
+        [],
+      );
   }
 
   const selectors = Array.from({ length: 3 }, (_, index) =>
@@ -6362,6 +6767,119 @@ function guildJobCommand(
       "The mission-specific offer is scenario dialogue; the command resolver identifies its exact shared route table rather than duplicating that transcript as ordinary dialogue.",
     ],
   });
+}
+
+const ROYAL_INVITATION_SENDERS = [
+  "The Governor-General of Italy",
+  "The Governor-General of Holland",
+] as const;
+
+function protagonistIdOf(save: Buffer, slot: number): number {
+  return save[1 + (slot - 1) * 15 + 13]!;
+}
+
+// Whole-degree latitude and longitude of map coordinates (MAIN.EXE 0x2B08C):
+// "\n%d@N" or "\n%d@S", a space, "%d@E" or "%d@W", and a period.
+function coordinatePhrase(
+  data: OrdinaryDialogueData,
+  x: number,
+  y: number,
+): string {
+  let longitude = (x + 1_981) % 2_160;
+  let east = true;
+  if (longitude > 1_080) {
+    east = false;
+    longitude = 2_160 - longitude;
+  }
+  const latitudeOffset = 640 - y;
+  const latitude = substitute(
+    data.messages.get(latitudeOffset >= 0 ? 126 : 127)!.text,
+    [String(Math.trunc((Math.abs(latitudeOffset) * 8) / 57))],
+  );
+  const longitudeText = substitute(data.messages.get(east ? 128 : 129)!.text, [
+    String(Math.trunc(longitude / 6)),
+  ]);
+  return `${latitude} ${longitudeText}.`;
+}
+
+// MAIN.EXE 0x32D25: during the royal special search (shared variable 6 = 11)
+// the Guild names the port whose Guild knows a sailor with information about
+// the treasure (shared variables 16 and 17, drawn once from the general RNG).
+function guildRoyalSearchHint(
+  save: Buffer,
+  slot: number,
+  portId: number,
+  data: OrdinaryDialogueData,
+  blocked: (
+    dialogue: OrdinaryDialogueLine[],
+    notes: string[],
+    uncertainties?: string[],
+  ) => OrdinaryCommandResult,
+): OrdinaryCommandResult {
+  const base = slotOffset(slot);
+  const sharedVariable = (index: number) =>
+    save.readUInt16LE(base + SHARED_VARIABLES_START + index * 2);
+  const worker = "Old Guild Worker";
+  const treasure = sharedVariable(18);
+  const carried = inspectItems(save, slot).some(
+    (item) => item === treasure || item === treasure - 10,
+  );
+  if (sharedVariable(6) !== 11 || carried)
+    return blocked([line(data, 595, worker)], []);
+  const itemName = cstring(
+    save.subarray(
+      base + ITEM_DEFINITION_TABLE + treasure * ITEM_DEFINITION_SIZE,
+      base +
+        ITEM_DEFINITION_TABLE +
+        treasure * ITEM_DEFINITION_SIZE +
+        ITEM_NAME_SIZE,
+    ),
+  );
+  const hintPort = sharedVariable(16);
+  if (hintPort === 0xff)
+    return blocked(
+      [],
+      [
+        "The hint port is chosen now with random(42) and stored in shared variable 16.",
+      ],
+      ["The hint port comes from the unsaved general gameplay RNG."],
+    );
+  if (hintPort !== portId) {
+    const port = base + PORT_TABLE + hintPort * PORT_RECORD_SIZE;
+    const name = portName(save, slot, hintPort);
+    const around = line(data, 600, worker, [name]);
+    return blocked(
+      [
+        line(data, 598, worker, [itemName, name]),
+        {
+          ...around,
+          text: `${around.text}${coordinatePhrase(data, save.readInt16LE(port), save.readInt16LE(port + 2))}`,
+        },
+      ],
+      [],
+    );
+  }
+  const informant = sharedVariable(17);
+  if (informant === 0xff)
+    return blocked(
+      [],
+      [
+        "The informant is chosen now from sailors 79–119 and stored in shared variable 17.",
+      ],
+      ["The informant comes from the unsaved general gameplay RNG."],
+    );
+  const record = base + SAILOR_TABLE + informant * SAILOR_RECORD_SIZE;
+  return blocked(
+    [
+      line(data, 596, worker, [
+        cstring(save.subarray(record, record + 9)),
+        cstring(save.subarray(record + 9, record + 0x14)),
+        itemName,
+      ]),
+      line(data, 597, worker),
+    ],
+    [],
+  );
 }
 
 function guildNationSelector(value: string | undefined): number | undefined {
@@ -6440,17 +6958,17 @@ function guildCountryInfoCommand(
   const target = save[record + 2]!;
   const destination = save[record + 4]!;
   const selectedName = NATION_NAMES[nation]!;
+  // MAIN.EXE 0x33260-0x332D3: target 6 selects raw 1367, targets 0-5 raw
+  // 88, and larger values raw 853; raw 89 then always names byte +4's port.
   const targetLine =
-    target <= 6
-      ? line(data, 88, speaker, [
-          selectedName,
-          target === 6 ? "pirates" : NATION_NAMES[target]!,
-        ])
-      : line(data, 853, speaker, [selectedName]);
-  const destinationLine =
-    destination < PORT_COUNT
-      ? [line(data, 89, speaker, [portName(save, slot, destination)])]
-      : [];
+    target === 6
+      ? line(data, 1367, speaker, [selectedName])
+      : target < 6
+        ? line(data, 88, speaker, [selectedName, NATION_NAMES[target]!])
+        : line(data, 853, speaker, [selectedName]);
+  const destinationLine = line(data, 89, speaker, [
+    portName(save, slot, destination),
+  ]);
   const friendship =
     save[base + FAME_START + protagonistId * FAME_RECORD_SIZE + 6 + nation]! -
     100;
@@ -6467,20 +6985,20 @@ function guildCountryInfoCommand(
     ];
   });
   return result(path, {
-    confidence: "decoded",
+    confidence: destination < PORT_COUNT ? "decoded" : "ambiguous",
     disposition: "completed",
-    dialogue: [
-      line(data, 162, speaker),
-      question,
-      targetLine,
-      ...destinationLine,
-    ],
+    dialogue: [line(data, 162, speaker), question, targetLine, destinationLine],
     menu: ["Job Assignment", "Country Info"],
     effects: [
       "deduct 100 gold",
       `display the cached ${selectedName} intelligence report`,
     ],
-    uncertainties: [],
+    uncertainties:
+      destination < PORT_COUNT
+        ? []
+        : [
+            `Merchant-fleet destination byte ${destination} is not a port; raw 89 still prints the name read from that out-of-range port record.`,
+          ],
     notes: [
       `Profit: ${save.readUInt16LE(record)}.`,
       `Player Friendship: ${friendship}.`,
@@ -6520,6 +7038,12 @@ function discoveries(
     };
   });
 }
+
+// Discovery IDs listed at DS:0xB3B2 (tested by MAIN.EXE 1E5F:5DF0) take no
+// article in the collector's reaction.
+const ARTICLELESS_DISCOVERIES = new Set([
+  0, 5, 8, 9, 16, 17, 21, 22, 23, 25, 26, 28, 33, 40, 44, 60, 72, 77, 89,
+]);
 
 function lessonPrice(charm: number): number {
   return Math.min(
@@ -6613,7 +7137,7 @@ function collectorCommand(
       return result(path, {
         confidence: "decoded",
         disposition: "blocked",
-        dialogue: [line(data, 484, speaker)],
+        dialogue: [line(data, 484, speaker), line(data, 1078, speaker)],
         menu: ["Contract", "Discovery", "Rumor"],
         effects: [],
         uncertainties: [],
@@ -6647,13 +7171,21 @@ function collectorCommand(
     const gold = Math.floor((baseGold * (5 - modifier)) / 5);
     const fame =
       discovery.difficulty === 100 ? 1_500 : discovery.difficulty * 8;
-    const reaction = 486 + Math.min(4, Math.floor(discovery.difficulty / 25));
+    // MAIN.EXE 0x3374E-0x337CD: q = floor(difficulty / 25) selects raw
+    // 486+q with (article, name) and raw 1081+q with the payment.
+    const tier = Math.floor(discovery.difficulty / 25);
+    const article = ARTICLELESS_DISCOVERIES.has(discovery.index)
+      ? ""
+      : tier === 0
+        ? "The "
+        : "the ";
     return result(path, {
       confidence: "decoded",
       disposition: "completed",
       dialogue: [
         line(data, 485, speaker),
-        line(data, reaction, speaker, [discovery.name, ""]),
+        line(data, 486 + tier, speaker, [article, discovery.name]),
+        line(data, 1081 + tier, speaker, [gold]),
       ],
       menu: ["Contract", "Discovery", "Rumor"],
       effects: [
@@ -6707,6 +7239,208 @@ function collectorCommand(
     });
   }
   return unavailableCommand(path, `Unknown collector command: ${path[0]}.`);
+}
+
+const LOCATE_PRICE = 20_000;
+const FIRST_TREASURE_MAP = 80;
+const LAST_LOCATABLE_MAP = 88;
+const OLD_MAP = 89;
+
+interface TreasureMapLocation {
+  readonly discoveryIndex: number;
+  readonly latitudeDegrees: number;
+  readonly longitudeDegrees: number;
+  readonly latitudeChoices: readonly [number, number];
+  readonly longitudeChoices: readonly [number, number];
+  readonly phrase: string;
+}
+
+// MAIN.EXE 0x33E32-0x33F0B. The map item's byte +0x14 indexes the discovery
+// table; its signed X/Y words become whole degrees, each rounded down to a
+// multiple of five and then raised by random(2) * 5 (longitude drawn first).
+function treasureMapLocation(
+  save: Buffer,
+  slot: number,
+  data: OrdinaryDialogueData,
+  itemId: number,
+): TreasureMapLocation {
+  const base = slotOffset(slot);
+  // Item 0xFF's byte +0x14 lies at DS:0x9556, beyond the item table. Nothing
+  // writes that byte and it is 0 in the executable image, so it selects
+  // discovery 0.
+  const discoveryIndex =
+    itemId === 0xff
+      ? 0
+      : save[
+          base + ITEM_DEFINITION_TABLE + itemId * ITEM_DEFINITION_SIZE + 0x14
+        ]!;
+  const record =
+    base + DISCOVERY_TABLE + discoveryIndex * DISCOVERY_RECORD_SIZE;
+  const x = save.readInt16LE(record);
+  const y = save.readInt16LE(record + 2);
+  let longitude = (x + 1_981) % 2_160;
+  let east = true;
+  if (longitude > 1_080) {
+    east = false;
+    longitude = 2_160 - longitude;
+  }
+  const latitudeOffset = 640 - y;
+  const north = latitudeOffset >= 0;
+  const latitudeDegrees = Math.trunc((Math.abs(latitudeOffset) * 8) / 57);
+  const longitudeDegrees = Math.trunc(longitude / 6);
+  const choices = (degrees: number): [number, number] => {
+    const lower = Math.trunc(degrees / 5) * 5;
+    return [lower, lower + 5];
+  };
+  const latitudeChoices = choices(latitudeDegrees);
+  const longitudeChoices = choices(longitudeDegrees);
+  const format = (message: number, values: readonly [number, number]) =>
+    substitute(data.messages.get(message)!.text, [`[${values.join("|")}]`]);
+  // Each value is followed by MAIN.EXE 0:4991, which prints a space while
+  // the cursor is away from the left margin, and then DS:0xB98F ".".
+  return {
+    discoveryIndex,
+    latitudeDegrees,
+    longitudeDegrees,
+    latitudeChoices,
+    longitudeChoices,
+    phrase: `${format(north ? 126 : 127, latitudeChoices)} ${format(east ? 128 : 129, longitudeChoices)} .`,
+  };
+}
+
+function cartographerLocateCommand(
+  save: Buffer,
+  slot: number,
+  speaker: string,
+  menu: readonly string[],
+  path: readonly string[],
+  data: OrdinaryDialogueData,
+): OrdinaryCommandResult {
+  // MAIN.EXE 0x33D59: raw 785, then raw 1419's Yes/No prompt.
+  const opening = [line(data, 785, speaker), line(data, 1419, speaker)];
+  const choice = path[1] && normalizedCommand(path[1]);
+  if (!choice)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "shown",
+      dialogue: opening,
+      menu: ["Yes", "No"],
+      effects: [],
+      uncertainties: [],
+      notes: [],
+    });
+  if (choice === "no")
+    return result(path, {
+      confidence: "decoded",
+      disposition: "completed",
+      dialogue: opening,
+      menu,
+      effects: ["return to the cartographer menu without charge"],
+      uncertainties: [],
+      notes: [],
+    });
+  if (choice !== "yes")
+    return unavailableCommand(path, `Unknown Locate confirmation: ${path[1]}.`);
+
+  const gold = inspectGold(save, slot);
+  if (gold <= LOCATE_PRICE)
+    return result(path, {
+      confidence: "decoded",
+      disposition: "blocked",
+      dialogue: [...opening, line(data, 239, speaker)],
+      menu,
+      effects: [],
+      uncertainties: [],
+      notes: [
+        `Locate requires more than 20,000 on-hand gold; carried ${gold}.`,
+      ],
+    });
+
+  // The handler counts only items 80-88 in inventory order, although the
+  // menu enables Locate for items 80-89.
+  const maps = inspectItems(save, slot)
+    .filter((id) => id >= FIRST_TREASURE_MAP && id <= LAST_LOCATABLE_MAP)
+    .map((id) => shopItem(save, slot, id));
+  const locateEffects = [`deduct ${LOCATE_PRICE} gold`];
+  if (maps.length === 0) {
+    // With only the Old Map (item 89), which enables Locate in the menu but
+    // is not counted here, the handler charges the fee and analyzes item 0xFF.
+    const location = treasureMapLocation(save, slot, data, 0xff);
+    const report = line(data, 783, speaker);
+    return result(path, {
+      confidence: "ambiguous",
+      disposition: "completed",
+      dialogue: [
+        ...opening,
+        line(data, 786, speaker),
+        { ...report, text: `${report.text}${location.phrase}` },
+      ],
+      menu,
+      effects: locateEffects,
+      uncertainties: [
+        "The displayed latitude and longitude each depend on a random(2) draw from the unsaved general gameplay RNG.",
+      ],
+      notes: [
+        "No item 80–88 is carried, so the handler analyzes item 0xFF, whose out-of-range discovery link is always 0.",
+      ],
+    });
+  }
+
+  let dialogue = opening;
+  let selected = maps[0]!;
+  if (maps.length > 1) {
+    const chooser = [...opening, line(data, 335, speaker)];
+    const selector = path[2];
+    if (selector && ["cancel", "none"].includes(normalizedCommand(selector)))
+      return result(path, {
+        confidence: "decoded",
+        disposition: "completed",
+        dialogue: [...chooser, line(data, 1421, speaker)],
+        menu,
+        effects: ["return to the cartographer menu without charge"],
+        uncertainties: [],
+        notes: [],
+      });
+    const map = selectedItem(maps, selector);
+    if (!map)
+      return result(path, {
+        confidence: "decoded",
+        disposition: selector ? "unavailable" : "shown",
+        dialogue: chooser,
+        menu: [...maps.map(itemLabel), "Cancel"],
+        effects: [],
+        uncertainties: [],
+        notes: selector ? [`Unknown treasure-map selector: ${selector}.`] : [],
+      });
+    dialogue = chooser;
+    selected = map;
+  }
+
+  const location = treasureMapLocation(save, slot, data, selected.id);
+  const report = line(data, 783, speaker);
+  const discovery =
+    data.colonyNames[location.discoveryIndex] ??
+    `discovery ${location.discoveryIndex}`;
+  return result(path, {
+    confidence: "ambiguous",
+    disposition: "completed",
+    dialogue: [
+      ...dialogue,
+      line(data, 786, speaker),
+      { ...report, text: `${report.text}${location.phrase}` },
+    ],
+    menu,
+    effects: [
+      ...locateEffects,
+      `analyze ${selected.name} without consuming it`,
+    ],
+    uncertainties: [
+      "Two unsaved general-RNG random(2) draws choose each displayed value: the first adds 0 or 5 to the longitude, the second to the latitude.",
+    ],
+    notes: [
+      `${selected.name} points to ${discovery} (discovery ${location.discoveryIndex}) at ${location.latitudeDegrees}° latitude and ${location.longitudeDegrees}° longitude before rounding.`,
+    ],
+  });
 }
 
 function cartographerCommand(
@@ -6930,56 +7664,8 @@ function cartographerCommand(
     });
   }
 
-  if (command === "locate") {
-    const maps = inspectItems(save, slot)
-      .filter((id) => id >= 80 && id <= 88)
-      .map((id) => shopItem(save, slot, id));
-    if (maps.length === 0)
-      return result(path, {
-        confidence: "decoded",
-        disposition: "blocked",
-        dialogue: [],
-        menu,
-        effects: [],
-        uncertainties: [],
-        notes: ["No treasure-map item (IDs 80–88) is carried."],
-      });
-    if (inspectGold(save, slot) <= 20_000)
-      return result(path, {
-        confidence: "decoded",
-        disposition: "blocked",
-        dialogue: [line(data, 785, speaker)],
-        menu,
-        effects: [],
-        uncertainties: [],
-        notes: ["Locate requires more than 20,000 on-hand gold."],
-      });
-    const selected = selectedItem(maps, path[1]);
-    if (!selected)
-      return result(path, {
-        confidence: "decoded",
-        disposition: path[1] ? "unavailable" : "shown",
-        dialogue: [line(data, 785, speaker)],
-        menu: maps.map(itemLabel),
-        effects: [],
-        uncertainties: [],
-        notes: path[1] ? [`Unknown treasure-map selector: ${path[1]}.`] : [],
-      });
-    return result(path, {
-      confidence: "decoded",
-      disposition: "completed",
-      dialogue: [line(data, 785, speaker), line(data, 786, speaker)],
-      menu,
-      effects: [
-        "deduct 20,000 gold",
-        `analyze ${selected.name} without consuming it`,
-      ],
-      uncertainties: [],
-      notes: [
-        "The following location phrase is assembled by the map renderer rather than stored as another ordinary message line.",
-      ],
-    });
-  }
+  if (command === "locate")
+    return cartographerLocateCommand(save, slot, speaker, menu, path, data);
   return unavailableCommand(path, `Unknown cartographer command: ${path[0]}.`);
 }
 
@@ -6992,7 +7678,7 @@ function skillTeacherCommand(
   data: OrdinaryDialogueData,
 ): OrdinaryCommandResult {
   const celestial = portId === CELESTIAL_NAVIGATION_TEACHER_PORT;
-  const speaker = celestial ? "Professor Juliano" : "Dr. Wolf";
+  const speaker = namedCharacter(save, slot, celestial ? JULIANO : WOLF);
   const skillName = celestial ? "Celestial Navigation" : "Gunnery";
   const skillBit = celestial ? 0x10 : 0x04;
   const questionIndex = celestial ? 750 : 743;
@@ -7317,7 +8003,10 @@ function itemShopSellCommand(
       uncertainties: [],
       notes: [],
     });
-  if (item.appeal === 0)
+  // MAIN.EXE 0x2FB80-0x2FBA3 refuses with raw 929 when byte +0x14 is zero or
+  // when floor(price units / 2) * 100 is zero.
+  const baseOffer = Math.floor(item.price / 200) * 100;
+  if (item.appeal === 0 || baseOffer === 0)
     return result(path, {
       confidence: "decoded",
       disposition: "blocked",
@@ -7326,10 +8015,11 @@ function itemShopSellCommand(
       effects: [],
       uncertainties: [],
       notes: [
-        "Item Shops accept only items with a nonzero stored appeal rating.",
+        item.appeal === 0
+          ? "Item Shops accept only items with a nonzero stored appeal rating."
+          : "Item Shops refuse items whose computed offer is 0 gold.",
       ],
     });
-  const baseOffer = Math.floor(item.price / 200) * 100;
   const offer = line(data, 245, speaker, [item.name, baseOffer]);
   const choice = path[2] && normalizedCommand(path[2]);
   if (!choice)
@@ -7694,12 +8384,18 @@ function specialResidence(
   const cartographer = inspectCartographers(save, slot).find(
     (record) => record.portId === portId,
   );
+  // MAIN.EXE 0x33F44 and 0x339AA: cartographers greet with raw 493/494 and
+  // collectors with raw 477/478; the contract greeting takes the honorific
+  // and the protagonist's last name.
   if (cartographer)
     return {
       dialogue: [
         cartographer.activeContract
-          ? line(data, 478, cartographer.name, [names.first, names.last])
-          : line(data, 477, cartographer.name),
+          ? line(data, 494, cartographer.name, [
+              honorific(protagonistId),
+              names.last,
+            ])
+          : line(data, 493, cartographer.name),
       ],
       menu: ["Contract", "Learn Skills", "Report", "Locate"],
       uncertainties: [],
@@ -7711,7 +8407,10 @@ function specialResidence(
     return {
       dialogue: [
         collector.activeContract
-          ? line(data, 478, collector.name, [names.first, names.last])
+          ? line(data, 478, collector.name, [
+              honorific(protagonistId),
+              names.last,
+            ])
           : line(data, 477, collector.name),
       ],
       menu: ["Contract", "Discovery", "Rumor"],
@@ -7719,18 +8418,18 @@ function specialResidence(
     };
   if (portId === CELESTIAL_NAVIGATION_TEACHER_PORT)
     return {
-      dialogue: [line(data, 750, "Professor Juliano")],
+      dialogue: [line(data, 750, namedCharacter(save, slot, JULIANO))],
       menu: [],
       uncertainties: [],
     };
   if (portId === GUNNERY_TEACHER_PORT)
     return {
-      dialogue: [line(data, 743, "Dr. Wolf")],
+      dialogue: [line(data, 743, namedCharacter(save, slot, WOLF))],
       menu: [],
       uncertainties: [],
     };
   return {
-    dialogue: [line(data, 933, "residence")],
+    dialogue: [line(data, 933, firstMate(save, slot))],
     menu: [],
     uncertainties: [],
   };
@@ -7836,9 +8535,51 @@ export function ordinaryBuildingEntry(
         : line(data, 1, "Market vendor", [names.first, names.last]),
     ];
   } else if (context === 0x01) {
+    // MAIN.EXE 0x2D410-0x2D4A8.
+    const specialty = pubSpecialty(save, slot, portId).name;
+    const regular =
+      (save[
+        slotOffset(slot) +
+          SAILOR_TABLE +
+          protagonistId * SAILOR_RECORD_SIZE +
+          SAILOR_AFFILIATION
+      ]! &
+        0x10) !==
+      0;
+    const hostess = !regular && pubHostess(save, slot, portId);
     dialogue = [
-      line(data, 18, "Pub vendor", [pubSpecialty(save, slot, portId).name]),
+      hostess
+        ? line(
+            data,
+            17,
+            cstring(
+              save.subarray(
+                slotOffset(slot) + WAITRESS_TABLE,
+                slotOffset(slot) + WAITRESS_TABLE + 0x0b,
+              ),
+            ),
+            [names.first, specialty],
+          )
+        : line(data, 18, "Pub vendor", [specialty]),
     ];
+    const waitress = pubWaitress(save, slot, portId);
+    if (regular && waitress) {
+      // MAIN.EXE 0x2D3BF: raw 307 reports a finished investigation (byte
+      // +0x0D set and byte +0x0E zero); otherwise raw 308.
+      dialogue.push(
+        line(
+          data,
+          waitress.investigationTarget !== 0xff &&
+            waitress.investigationDays === 0
+            ? 307
+            : 308,
+          waitress.name,
+        ),
+      );
+      uncertainties.push(
+        "With protagonist byte +0x29 bit 0x10 set, MAIN.EXE 0x2D3A6 also tests flag 0x01 of the previously stored waitress pointer, so the attendant lookup may fail.",
+      );
+    }
   } else if (context === 0x05) {
     const base = slotOffset(slot);
     const rank = inspectRank(save, slot, protagonistId);
@@ -7940,6 +8681,88 @@ export function ordinaryBuildingEntry(
       "Moor is grayed out outside the six national capitals.",
     );
     commandMenu = menu.filter((item) => normalizedCommand(item) !== "moor");
+  }
+  const disable = (item: string, note: string) => {
+    if (!commandMenu.includes(item)) return;
+    disabledMenuNotes.push(note);
+    commandMenu = commandMenu.filter((entry) => entry !== item);
+  };
+  if (context === 0x01 && !pubWaitress(save, slot, portId))
+    // MAIN.EXE 0x2D4C6 grays out Waitress when DS:0xB4DE is empty.
+    disable(
+      "Waitress",
+      "Waitress is grayed out because this Pub has no eligible attendant record.",
+    );
+  if (context === 0x02) {
+    // MAIN.EXE 0x32A03-0x32A2E grays out Used Ship when all five cached
+    // stock bytes are empty.
+    const stock = slotOffset(slot) + USED_SHIP_STOCK;
+    if (
+      save
+        .subarray(stock, stock + USED_SHIP_STOCK_COUNT)
+        .every((id) => id === 0xff)
+    )
+      disable(
+        "Used Ship",
+        "Used Ship is grayed out because the cached used-ship stock is empty.",
+      );
+  }
+  if (context === 0x07 && menu[0] === "Contract") {
+    const cartographer = inspectCartographers(save, slot).find(
+      (entry) => entry.portId === portId,
+    );
+    const collector = inspectCollectors(save, slot).find(
+      (entry) => entry.portId === portId,
+    );
+    const active = (cartographer ?? collector)!.activeContract;
+    // MAIN.EXE 0x33F98-0x33FCA (cartographer) and 0x33A07-0x33A18 (collector).
+    if (active)
+      disable(
+        "Contract",
+        "Contract is grayed out while this contract is active.",
+      );
+    else if (cartographer)
+      disable(
+        "Report",
+        "Report is grayed out without this cartographer's contract.",
+      );
+    else {
+      disable(
+        "Discovery",
+        "Discovery is grayed out without this collector's contract.",
+      );
+      disable(
+        "Rumor",
+        "Rumor is grayed out without this collector's contract.",
+      );
+    }
+    if (cartographer) {
+      const skills =
+        save[
+          slotOffset(slot) +
+            SAILOR_TABLE +
+            protagonistId * SAILOR_RECORD_SIZE +
+            0x28
+        ]!;
+      if ((skills & 0x08) !== 0)
+        disable(
+          "Learn Skills",
+          "Learn Skills is grayed out because the protagonist knows Cartography.",
+        );
+      if (
+        !inspectItems(save, slot).some(
+          (id) => id >= FIRST_TREASURE_MAP && id <= OLD_MAP,
+        )
+      )
+        disable(
+          "Locate",
+          "Locate is grayed out without a map item (IDs 80–89).",
+        );
+      if (active)
+        disabledMenuNotes.push(
+          "After one Report, Report stays grayed out for the rest of the visit.",
+        );
+    }
   }
 
   const conditional = uncertainties.length > 0;

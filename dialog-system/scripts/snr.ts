@@ -12,6 +12,11 @@ export interface DialogueLine {
   readonly characterVariable?: number;
   readonly speakerMessageId?: number;
   readonly messageId: number;
+  /**
+   * Present for executable text shown by a scenario action such as `D9`; the
+   * combined general-message index replaces the `SNR*.MES` message.
+   */
+  readonly generalMessageIndex?: number;
   readonly body: string;
   readonly speakerLabel?: string;
   readonly presentation?: "choice-prompt";
@@ -605,15 +610,19 @@ const ACTION_MNEMONICS = new Map<number, string>([
   [0xc4, "close-all-dialogue-panels"],
   [0xc7, "present-dialogue"],
   [0xc8, "select-message"],
+  [0xc9, "show-forced-menu"],
   [0xca, "play-music"],
   [0xcb, "show-event-art"],
   [0xcc, "select-character"],
   [0xcd, "select-character-indirect"],
   [0xd0, "resolve-indexed-game-field-reference"],
+  [0xd1, "recompute-fleet-course"],
   [0xd4, "load-message-string"],
+  [0xd9, "show-general-message"],
   [0xdc, "resolve-game-field-reference"],
   [0xe2, "load-goods"],
   [0xe3, "transfer-goods"],
+  [0xe4, "set-gold"],
   [0xe6, "add-gold"],
   [0xe7, "deduct-gold"],
   [0xe8, "start-duel"],
@@ -626,7 +635,11 @@ const ACTION_MNEMONICS = new Map<number, string>([
   [0xf0, "advance-subsection-on-return"],
   [0xf1, "advance-section-on-return"],
   [0xf2, "stop"],
+  [0xf4, "play-ending"],
   [0xf8, "force-building-exit"],
+  [0xf9, "start-pending-ship"],
+  [0xfa, "commission-pending-ship"],
+  [0xfb, "add-party-member"],
   [0xfe, "jump"],
   [0xff, "nop"],
 ]);

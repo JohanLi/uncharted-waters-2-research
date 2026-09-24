@@ -161,6 +161,10 @@ save-metadata offsets are framed from `0x5966`), and its price. Collector,
 cartographer, skill-teacher, and locked story residences are selected by port,
 including their persistent contract-dependent greetings.
 
+The `townsperson:NAME` action prints the line shown when walking into a
+townsperson (`market-woman`, `pub-man`, `shipyard-woman`, `lodge-man`,
+`waving-man`, `dog`, `guard`, or `old-man`) at the saved port and date.
+
 Run `pnpm run query-dialog -- --help` for all actions.
 
 ## Canonical documentation

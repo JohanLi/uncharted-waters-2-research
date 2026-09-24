@@ -387,7 +387,9 @@ changes the next refreshed result; changing navigation level or experience can
 change it too. Merely visiting the Palace at a different time on the same day
 does not refresh or alter the cached candidate.
 
-An Adventure-tie example illustrates the calculation:
+An Adventure-tie example illustrates the calculation. It evaluates the two
+formulas above for a protagonist whose navigation level plus navigation
+experience is 220:
 
 | Date         |         Seed |                       Random value(s) | Resulting section              |
 | ------------ | -----------: | ------------------------------------: | ------------------------------ |
@@ -395,9 +397,9 @@ An Adventure-tie example illustrates the calculation:
 | May 20, 1522 | `0x00484300` | `25455 % 3 = 0`, then `22614 % 2 = 0` | Deliver Documents (7)          |
 | May 21, 1522 | `0x00484400` |                       `28372 % 3 = 1` | Discoveries for the ruler (10) |
 
-These were the candidates cached by section 0 on the listed dates and later
-consumed by the Palace. This explains why repeating the sequence from the same
-state on the same in-game day produces the same mission. The date is part of
+Section 0 caches the resulting candidate, and the Palace later consumes it.
+Repeating the sequence from the same state on the same in-game day therefore
+produces the same mission. The date is part of
 the seed, rather than a direct calendar-to-quest lookup.
 
 ## Acceptance, completion, and refusal

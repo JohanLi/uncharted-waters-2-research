@@ -13,9 +13,13 @@ Each fleet has ten 9-byte ship slots beginning at `fleet + 0x2b`. A slot is
 occupied when its status byte satisfies `slot[0x08] & 0x30 == 0x10`, as
 described in [Fleet Info](fleet-info.md#which-ships-appear-and-where). The
 new-game template marks every empty slot with a leading `0xff`
-(`ff00ffffffffffff00`), but in played saves a vacated slot can keep stale bytes,
-such as `0000ffffffffff`, a ship-instance ID, and `00`, so the first byte alone
-does not identify an empty slot. The ship-instance reference is slot byte
+(`ff00ffffffffffff00`). A slot vacated later is different: the shared
+ship-removal routine at `MAIN.EXE` file offset `0xB13F` (runtime `0000:5B3F`),
+which Sell reaches through `0x314D3`, writes `0000` to bytes `+0x00..+0x01`,
+`0xff` to `+0x02..+0x06`, and `0` to status byte `+0x08`, but leaves byte
+`+0x07` unchanged. Such a slot reads `0000ffffffffff`, the former
+ship-instance ID, and `00`, so the first byte alone does not identify an empty
+slot. The ship-instance reference is slot byte
 `+0x07`:
 
 ```text

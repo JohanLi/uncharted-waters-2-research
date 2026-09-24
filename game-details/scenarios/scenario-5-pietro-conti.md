@@ -31,7 +31,11 @@ not read by this route.
 
 The seller initially asks 2,000 gold. Refusing produces a 1,000-gold
 counteroffer, so 2,000 is neither an activation threshold nor necessarily the
-final price. Harbor possession checks later advance the section.
+final price. After the purchase, the section's Harbor route
+(`SNR5.DAT 0x07B0–0x0832`) scans all twenty inventory slots for item `0x61`,
+the Gold Medallion. At any Harbor where Pietro carries it, the scene plays,
+1,000 Adventure Fame is added (capped at 50,000), and the section advances.
+Without the Medallion in any slot, the Harbor behaves normally.
 
 At 9,999 gold the Pub behaves normally; at 10,000 it reaches message 109,
 “Ye’re $n, the adventurer, right?”, and begins the Golden Medallion dialogue.
@@ -61,7 +65,6 @@ ports, South America, Raul Franco, and the Lisbon ending.
 | Return destination differs     | This is expected: the scenario stores randomized port values                        |
 | Finale                         | Reach 40,000 and follow both Japanese-port and South American stages                |
 
-## Highest-value validation
+## Open decoding items
 
 - A mapping from each randomized destination value to its port.
-- Controlled item-presence boundaries in the Harbor handoff.

@@ -18,8 +18,10 @@ import {
   loadOrdinaryDialogueData,
   ordinaryBuildingEntry,
 } from "./ordinary-dialogue.js";
+import { type Townsperson, townspersonLines } from "./townspeople.js";
 import {
   inspectSharedScenario,
+  loadGeneralText,
   isBuildingOpen,
   loadProtagonistScenario,
   loadSharedScenario,
@@ -238,7 +240,15 @@ test("selects destination and home ruler document-mission transcripts", async ()
     home.sharedScenario.outcomes.map((outcome) =>
       outcome.dialogue.map((line) => line.messageId),
     ),
-    [[166]],
+    [[166, 0]],
+  );
+  // D9 selector 4 presents the promotion from MESSAGE.DAT after the rank
+  // increment, as recorded in q04-snr0-diplomatic-return.mp4.
+  const promotion = home.sharedScenario.outcomes[0]!.dialogue[1]!;
+  assert.equal(promotion.generalMessageIndex, 945);
+  assert.equal(
+    promotion.body,
+    "From this day forth, you shall be known as Page Franco.",
   );
 });
 
@@ -793,7 +803,7 @@ test("resolves all deterministic Bank transaction paths", async () => {
   ]);
   assert.deepEqual(
     deposit.command?.dialogue.map((dialogue) => dialogue.rawIndex),
-    [105, 106, 103],
+    [104, 105, 106, 103],
   );
   assert.ok(deposit.command?.effects.includes("set savings balance to 2500"));
 
@@ -1023,7 +1033,7 @@ test("resolves collector contracts and discovery turn-ins", async () => {
   assert.equal(discovery.command?.disposition, "completed");
   assert.deepEqual(
     discovery.command?.dialogue.map((entry) => entry.rawIndex),
-    [485, 486],
+    [485, 486, 81],
   );
   assert.match(discovery.command?.effects[0] ?? "", /2500 gold/);
   assert.match(discovery.command?.effects[1] ?? "", /80 Adventure Fame/);
@@ -1434,7 +1444,7 @@ test("resolves Shipyard model lists, repairs, remodeling, and investment", async
     data,
     ["new-ship", "1", "Beech", "yes", "no", "971"],
   );
-  assert.equal(rejectedOffer.command?.disposition, "blocked");
+  assert.equal(rejectedOffer.command?.disposition, "shown");
   assert.equal(rejectedOffer.command?.confidence, "ambiguous");
   assert.match(
     rejectedOffer.command?.uncertainties.at(-1) ?? "",
@@ -1698,7 +1708,7 @@ test("resolves Shipyard model lists, repairs, remodeling, and investment", async
     data,
     ["used-ship", "5", "yes", "no", "51839"],
   );
-  assert.equal(rejectedUsed.command?.disposition, "blocked");
+  assert.equal(rejectedUsed.command?.disposition, "shown");
   assert.match(rejectedUsed.command?.uncertainties[0] ?? "", /random\(5\)/);
   const namedUsed = ordinaryBuildingEntry(save, 1, 0x02, true, [], [], data, [
     "used-ship",
@@ -2439,4 +2449,113 @@ test("skips greetings after a story route sets control variable 63", async () =>
   // The Shipyard does not test variable 63.
   const shipyard = ordinaryBuildingEntry(save, 1, 0x02, true, [skip], [], data);
   assert.equal(shipyard.dialogue.length, 1);
+});
+
+async function storySave(
+  protagonistId: number,
+  portId: number,
+  section: number,
+  flags: number,
+): Promise<Buffer> {
+  const save = await originalSave();
+  const base = slotOffset(1);
+  save[14] = protagonistId;
+  save[base + 0x0a] = portId;
+  save[base + 0x30] = section;
+  save.writeUInt32LE(flags, base + 0x32);
+  save[base + 9] = 36;
+  return save;
+}
+
+test("forks the scenario C9 forced menu into its options", async () => {
+  // João's Lisbon Church scene with flags 0 and 2 set reaches C9 01 0067.
+  const result = await queryScenario(
+    await storySave(0, 0, 0, 0x5),
+    1,
+    parseQueryAction("church"),
+  );
+  assert.deepEqual(
+    result.outcomes.map((outcome) => outcome.effects[0]),
+    [
+      'choose menu option "Accept"',
+      'choose menu option "Donate"',
+      'choose menu option "Refuse"',
+    ],
+  );
+  assert.ok(result.outcomes[0]!.effects.includes("add 1000 gold"));
+});
+
+test("applies scenario gold, party, and ship actions", async () => {
+  // Ernst's opening at Mercator's home uses E4, FB, F9, and FA.
+  const result = await queryScenario(
+    await storySave(3, 33, 0, 0),
+    1,
+    parseQueryAction("special-building"),
+  );
+  const effects = result.outcomes[0]!.effects;
+  assert.deepEqual(effects.slice(0, 5), [
+    "set gold to 5000",
+    "Hans (sailor 77) joins the party as an unassigned mate",
+    "start a pending Caravela Latina (ship type 5) in the player's fleet and clear this port's construction timer",
+    'commission the pending ship as "Mercator" and clear this port\'s Shipyard order',
+    "activate Mercator cartographer contract",
+  ]);
+});
+
+test("resolves story-fleet orders over every sailor record", async () => {
+  // Once Catalina is a pirate with Piracy Fame, her section-1 route outside
+  // Seville places fleets 15–19 near Seville and sends them after her. The
+  // loop reads all 120 sailor records without forking.
+  let save = await storySave(1, 26, 1, 0);
+  const affiliation = slotOffset(1) + 0x612 + 42 + 0x29;
+  save[affiliation] = (save[affiliation]! & 0xf0) | 6;
+  save = setFame(save, 1, 1, "piracy", 0, 1);
+  const result = await queryScenario(save, 1, parseQueryAction("harbor"));
+  assert.equal(result.outcomes.length, 1);
+  const orders = result.outcomes[0]!.effects.filter((effect) =>
+    effect.startsWith("set fleet"),
+  );
+  assert.deepEqual(
+    orders,
+    [15, 16, 17, 18, 19].map(
+      (fleet) => `set fleet ${fleet} to pursue Catalina (sailor 1)`,
+    ),
+  );
+});
+
+test("selects the line of each townsperson", async () => {
+  const save = await originalSave();
+  const base = slotOffset(1);
+  save[base + 0x0a] = 29;
+  save[base + 6] = 21;
+  save[base + 8] = 13;
+  const { messages } = await loadGeneralText();
+  const line = (who: Townsperson) =>
+    townspersonLines(save, 1, who, messages).map(
+      (entry) => entry.combinedIndex,
+    );
+  assert.deepEqual(line("market-woman"), [642 + 29]);
+  assert.deepEqual(line("pub-man"), [1274 + 3]);
+  assert.deepEqual(line("dog"), [619 + (29 % 3)]);
+  // After 1522 the tip families use their second set in ports 0–41.
+  save[base + 6] = 22;
+  assert.deepEqual(line("lodge-man"), [1264 + 3 + 30]);
+  save[base + 0x0a] = 0xff;
+  assert.deepEqual(line("guard"), []);
+});
+
+test("sets the opposing captain and leaves the post-battle fleet unknown", async () => {
+  // Catalina's section-6 after-battle route plays only when the opposing
+  // captain no longer commands a fleet, as after a victory.
+  const save = await storySave(1, 0xff, 6, 0);
+  save[slotOffset(1) + 0x31] = 1;
+  const result = await queryScenario(
+    save,
+    1,
+    parseQueryAction("after-battle:60"),
+  );
+  assert.equal(result.confidence, "ambiguous");
+  assert.equal(result.outcomes[0]!.dialogue[0]!.messageId, 604);
+  assert.match(result.outcomes[0]!.uncertainties[0]!, /0x1EA3/);
+  assert.ok(result.notes.some((note) => /sailor 60/.test(note)));
 });

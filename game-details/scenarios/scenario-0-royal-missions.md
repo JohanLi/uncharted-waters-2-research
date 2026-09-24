@@ -24,8 +24,21 @@ On a later Palace visit:
 One failure/progress path can temporarily close the relevant Marketplace while
 its head trader recovers from plague (message 154).
 
-The exact relationship between the 1,000/5,000/20,000 values, local price, and
-the generated number of lots still needs a worked runtime example.
+The quantity is computed at `SNR0` `0x16A5–0x16FB`. Variable 23 selects the
+target value and the commodity range: 1,000 with goods ID `32 + random(6)`,
+5,000 with goods ID `26 + random(6)`, or 20,000 with goods ID `random(10)`
+(zero-based goods IDs). The script reads the current port's Market ID
+(executable port-record `+0x21`, saved metadata `+0x23`), resolves that
+regional Market definition, and reads the commodity's little-endian sale base
+price `B` from the goods-indexed word array at the start of the record (see
+[Market definitions](../buildings.md#market-command-dialogue)). The request is:
+
+```text
+lots = min(floor(target / B), 250)
+```
+
+It uses the regional base price, not the port's current category-adjusted
+price.
 
 ## Deliver documents (section 7)
 
