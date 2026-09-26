@@ -91,6 +91,22 @@ const PLAYER_SUPPLY_RECORDS = 0x423e;
 const SUPPLY_RECORD_SIZE = 0x1e;
 const SUPPLY_WATER = 0;
 const SUPPLY_FOOD = 2;
+// Crew assignment percentages; combat receives the remainder.
+const SUPPLY_LOOKOUT_PERCENT = 0x08;
+const SUPPLY_NAVIGATION_PERCENT = 0x09;
+const EDITED_LOOKOUT_PERCENT = 4;
+const EDITED_NAVIGATION_PERCENT = 20;
+const SUPPLY_LUMBER = 4;
+const SUPPLY_SHOT = 6;
+// Five cargo slots: quantity words at +0x0C, goods IDs at +0x16 (0xFF empty).
+const SUPPLY_CARGO_QUANTITIES = 0x0c;
+const SUPPLY_CARGO_GOODS = 0x16;
+const SUPPLY_CARGO_SLOTS = 5;
+const EMPTY_CARGO = 0xff;
+const SUPPLY_FIGUREHEAD = 0x1d;
+const GODDESS_FIGUREHEAD = 10;
+const SHIP_NAME_SIZE = 0x11;
+const EDITED_SHIP_NAME = "Edited";
 
 const BUILDINGS_PER_TOWN = 12;
 const BUILDING_SIZE = 2;
@@ -436,12 +452,13 @@ export function setPlayerShipToTekkousen(data: Buffer, slot: number): Buffer {
     SHIP_INSTANCE_TABLE +
     TEKKOUSEN_TEMPLATE_INSTANCE * SHIP_INSTANCE_SIZE;
   const result = Buffer.from(data);
-  // Preserve the existing 17-byte ship name, while copying Tekkousen's model
-  // data.
+  // Copy Tekkousen's model data, then mark the ship as edited by name.
   result.set(
     data.subarray(template + SHIP_TYPE_OFFSET, template + SHIP_INSTANCE_SIZE),
     instance + SHIP_TYPE_OFFSET,
   );
+  result.fill(0, instance, instance + SHIP_NAME_SIZE);
+  result.write(EDITED_SHIP_NAME, instance, "latin1");
   // The instance stores the configured crew maximum separately from the
   // slot's current crew. Configure both to the model's maximum crew.
   result.writeUInt16LE(
@@ -455,6 +472,24 @@ export function setPlayerShipToTekkousen(data: Buffer, slot: number): Buffer {
   );
   result.writeUInt16LE(3000, supply + SUPPLY_WATER);
   result.writeUInt16LE(5000, supply + SUPPLY_FOOD);
+  // Carry nothing else, so the load cannot exceed the new cargo capacity.
+  result.writeUInt16LE(0, supply + SUPPLY_LUMBER);
+  result.writeUInt16LE(0, supply + SUPPLY_SHOT);
+  result.fill(
+    0,
+    supply + SUPPLY_CARGO_QUANTITIES,
+    supply + SUPPLY_CARGO_QUANTITIES + SUPPLY_CARGO_SLOTS * 2,
+  );
+  result.fill(
+    EMPTY_CARGO,
+    supply + SUPPLY_CARGO_GOODS,
+    supply + SUPPLY_CARGO_GOODS + SUPPLY_CARGO_SLOTS,
+  );
+  result[supply + SUPPLY_FIGUREHEAD] = GODDESS_FIGUREHEAD;
+  // Assign Crew: 20% navigation, 4% lookout, 76% combat. 4% of 300 crew
+  // reaches the maximum lookout range of 12.
+  result[supply + SUPPLY_LOOKOUT_PERCENT] = EDITED_LOOKOUT_PERCENT;
+  result[supply + SUPPLY_NAVIGATION_PERCENT] = EDITED_NAVIGATION_PERCENT;
   // Slot state: maximum crew and full Tekkousen model stats.
   result.writeUInt16LE(TEKKOUSEN_MAXIMUM_CREW, shipSlot);
   result[shipSlot + 2] = TEKKOUSEN_DURABILITY;

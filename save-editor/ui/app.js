@@ -19,16 +19,29 @@ const fameInputs = Object.fromEntries(
     document.querySelector(`#${category}`),
   ]),
 );
+const goldInput = document.querySelector("#gold");
+const goldHint = document.querySelector("#gold-hint");
+const DEFAULT_GOLD = 1_000_000;
+const COINS_PER_INGOT = 10_000;
 const warning = document.querySelector("#warning");
 const saveButton = document.querySelector("#save");
 const status = document.querySelector("#status");
-const API_VERSION = 9;
+const API_VERSION = 10;
 
 let file;
 let directoryHandle;
 let saveFileHandle;
 let save;
 let fame;
+let gold;
+
+function renderGoldHint() {
+  const coins = Number(goldInput.value);
+  goldHint.textContent =
+    goldInput.value !== "" && Number.isInteger(coins) && coins >= 0
+      ? `In-game: ${Math.floor(coins / COINS_PER_INGOT).toLocaleString()} Gold Ingots, ${(coins % COINS_PER_INGOT).toLocaleString()} Gold Coins · currently ${gold.toLocaleString()} coins`
+      : "";
+}
 
 timeSelect.replaceChildren(
   ...Array.from({ length: 72 }, (_, tick) => {
@@ -56,6 +69,8 @@ function renderSave() {
   saveButton.disabled = false;
   for (const [category, input] of Object.entries(fameInputs))
     input.value = fame[category];
+  goldInput.value = DEFAULT_GOLD;
+  renderGoldHint();
   warning.textContent = usable
     ? "Teleporting resets friendly NPCs around the destination buildings. Hostile harbor guards are not yet generated."
     : "This save is at sea, so its port cannot be changed. Fame can still be edited.";
@@ -77,6 +92,7 @@ async function inspectFile() {
     );
   save = result.save;
   fame = result.fame;
+  gold = result.gold;
   rankSelect.replaceChildren(
     ...result.ranks.map((name, rank) => {
       const option = document.createElement("option");
@@ -159,6 +175,10 @@ for (const input of Object.values(fameInputs))
     "input",
     () => (status.textContent = "Unsaved change"),
   );
+goldInput.addEventListener("input", () => {
+  renderGoldHint();
+  status.textContent = "Unsaved change";
+});
 for (const input of [...Object.values(dateInputs), timeSelect])
   input.addEventListener(
     "input",
@@ -172,6 +192,7 @@ saveButton.addEventListener("click", async () => {
     for (const input of [
       ...Object.values(dateInputs),
       ...Object.values(fameInputs),
+      goldInput,
     ]) {
       if (!input.reportValidity()) throw new Error("Enter valid field values.");
     }
@@ -190,6 +211,7 @@ saveButton.addEventListener("click", async () => {
       piracy: fameInputs.piracy.value,
       expectedAdventure: String(fame.adventure),
       adventure: fameInputs.adventure.value,
+      gold: goldInput.value,
     });
     const response = await fetch(`/api/save?${query}`, {
       method: "POST",
