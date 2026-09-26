@@ -294,6 +294,19 @@ The following ordinary-building command groups are now traced:
   `6 × (patron +0x27 bit 0x40 ? 2 : 1) × (matching low two personality bits
 ? 3 : 1)` Loyalty, capped at 100. A hostile fleet captain (`DS:0xB4E0 = 1`)
   answers with raw message 861 instead of 44 or 45.
+- Per-visit command state lives in data-segment variables that are never
+  saved. Pub entry stores `floor(Charm / 3)` in the enthusiasm byte
+  `DS:0xB4D8` (`0x2D417–0x2D424`); Treat writes it (`0x2BDAD`), Recruit Crew
+  reads it (`0x2B1BE`, `0x2B25F`), and an empty Meet list compares it with 50
+  (`0x2C687`): at 50 or more raw message 38 appears under a random patron
+  portrait (`0:7B36`), otherwise raw 39. Religious-building entry sets the Pray
+  guard `DS:0xC76C` to 1 (`0x32CD0`); Pray adds `random(2)` Luck, capped at
+  100, only while it is set and then clears it (`0x32AB9–0x32AE4`). Buy Goods
+  loads into the first of the ship's five cargo slots that is empty or already
+  holds the same goods, and with neither buys nothing (`0x2A056–0x2A0B4`); Sell
+  Goods marks a slot sold down to zero lots empty (`0x2AA39–0x2AA44`). Item
+  Shop Sell caps gold at 600,000,000 and empties the first inventory slot
+  holding the item without compacting the list (`0x2FC1A–0x2FC6D`).
 - The Shipyard main handler is at `0x329B0`. New Ship begins at `0x31D16`; its
   model-selection and order routine at `0x31B2E` calls the hull-material
   selector at `0x31A70` and writes the construction-day count. Used Ship begins

@@ -315,6 +315,14 @@ regular port processed by that running game. This history is not stored in the
 save. Water loading and every Dump operation remain independent of that
 pointer.
 
+The pointer (`DS:0xC776`, written only at `0xDCA2`) lies in the data the
+program clears at launch. Until the town of a regular port has been set up in
+the current run, which includes loading a save made inside a supply port or
+at sea and sailing straight to one, it is 0. The price code then reads offsets
+`+0x10` and `+0x17` of the data segment itself, the letters “i” (105) and “r”
+(114) of the C library's “MS Run-Time Library” copyright string. Every supply
+port then charges Food 31, Lumber 147, and Shot 186.
+
 #### Moor and docked ships
 
 The Moor submenu is reachable through the ordinary Harbor menu only at a
@@ -1401,10 +1409,10 @@ at slot `0x1D85` and takes the first mate whose sailor duty byte `+0x26`
 matches. Without a match the last nonempty roster entry speaks, and an empty
 roster selects no mate portrait.
 
-| Helper   | Duty order    | Raw lines                                         |
-| -------- | ------------- | ------------------------------------------------- |
-| `0:8F3F` | 4, 3, 5, 2, 6 | 21–25, 28, 100, 147, 207, 864, 865, 872, 878      |
-| `0:8F64` | 3, 4, 5, 2, 6 | 26, 29–32, 57–61, 121–123, 209–212, 279, 285, 933 |
+| Helper   | Duty order    | Raw lines                                             |
+| -------- | ------------- | ----------------------------------------------------- |
+| `0:8F3F` | 4, 3, 5, 2, 6 | 21–25, 28, 100, 147, 207, 864, 865, 872, 878          |
+| `0:8F64` | 3, 4, 5, 2, 6 | 26, 29–32, 39, 57–61, 121–123, 209–212, 279, 285, 933 |
 
 Duty 3 is the First Mate, 4 the Bookkeeper, and 5 the Chief Navigator. Raw 33 and 48 are spoken by
 the protagonist.

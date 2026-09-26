@@ -32,8 +32,14 @@ placeholders and its `$dNN` and `$rNN` variable placeholders.
 ## Query a save
 
 ```sh
-pnpm run query-dialog -- FILE SLOT ACTION[:COMMAND[:SELECTION]]
+pnpm run query-dialog -- FILE SLOT ACTION[:COMMAND[:SELECTION]] [COMMAND...]
 ```
+
+Extra `COMMAND` arguments continue the same building visit, for example
+`pub:treat:10 treat:10 recruit-crew:20`. Each command sees the save writes and
+per-visit state left by the commands before it. Append `@success` or
+`@failure` to choose an unsaved random outcome; see
+[Multi-command visits](../README.md#multi-command-visits).
 
 The repository's only tracked save, `raw/KOUKAI2.DAT`, is a blank new-game
 template whose slot 1 is at sea, so it supports only the at-sea action:

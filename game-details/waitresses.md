@@ -24,6 +24,13 @@ the Waitress command and the Love reading; instead, while protagonist byte
 [drink]?”, spoken by Carlotta (`MAIN.EXE 0x2D332`, `0x2D443`). Records 1–29 are
 the waitresses below.
 
+No protagonist ever has byte `+0x29` bit `0x10` set: it is clear in the
+starting data, and neither the executable nor any scenario script sets it. The
+branches that depend on it are therefore unreachable in normal play: Carlotta
+always greets in Lisbon, the attendant never adds raw 307 or 308, and the
+attendant lookup never consults the previous Pub's attendant record
+(`0x2D3A6–0x2D3B8`).
+
 | Record | Portrait | Name      | Port           | Preference  | Investigation threshold | House of Fortune |
 | -----: | -------: | --------- | -------------- | ----------- | ----------------------: | :--------------: |
 |      1 |   `0x62` | Lucia     | Lisbon         | Everything  |                      40 |        No        |

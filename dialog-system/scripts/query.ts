@@ -27,8 +27,12 @@ import {
   CONTROL_VARIABLE_EFFECT,
   GOODS_NAMES,
   loadOrdinaryDialogueData,
+  NEW_ORDINARY_VISIT,
   ordinaryBuildingEntry,
   type OrdinaryBuildingEntry,
+  type OrdinaryCommandResult,
+  ordinaryVisitTransition,
+  type OrdinaryVisitState,
 } from "./ordinary-dialogue.js";
 import {
   TOWNSPEOPLE,
@@ -101,6 +105,24 @@ export interface ScenarioQueryResult {
   readonly outcomes: readonly ScenarioQueryOutcome[];
   readonly sharedScenario: SharedScenarioStatus;
   readonly ordinaryBuilding?: OrdinaryBuildingEntry;
+  // Present only when a building visit runs more than one command.
+  readonly visit?: readonly VisitStep[];
+  readonly notes: readonly string[];
+}
+
+// The caller's assumption about a command's unsaved general-RNG roll.
+export type RandomAssumption = "success" | "failure";
+
+export interface VisitCommand {
+  readonly path: readonly string[];
+  readonly assume?: RandomAssumption;
+}
+
+export interface VisitStep {
+  readonly path: readonly string[];
+  readonly assume?: RandomAssumption;
+  // Absent when the command cannot be selected during this visit.
+  readonly command?: OrdinaryCommandResult;
   readonly notes: readonly string[];
 }
 
@@ -437,6 +459,61 @@ export function parseQueryAction(value: string): ScenarioQueryAction {
   throw new Error(
     `Unknown action ${value}. Use a building name, context:ID, at-sea, before-battle:CAPTAIN_ID, or after-battle:CAPTAIN_ID.`,
   );
+}
+
+const ASSUMPTION_SUFFIX = /@(success|failure)$/i;
+
+function splitAssumption(value: string): {
+  text: string;
+  assume?: RandomAssumption;
+} {
+  const match = ASSUMPTION_SUFFIX.exec(value);
+  if (!match) return { text: value };
+  return {
+    text: value.slice(0, match.index),
+    assume: match[1]!.toLowerCase() as RandomAssumption,
+  };
+}
+
+// Parses ACTION[:COMMAND...][@success|@failure] followed by the visit's
+// later commands. A later command may repeat the building name.
+export function parseQueryVisit(values: readonly string[]): {
+  action: ScenarioQueryAction;
+  commands: VisitCommand[];
+} {
+  const [first, ...rest] = values;
+  if (first === undefined) throw new Error("Missing action.");
+  const head = splitAssumption(first);
+  const parsed = parseQueryAction(head.text);
+  if (parsed.type !== "building") {
+    if (rest.length > 0 || head.assume)
+      throw new Error("Only a building action accepts a command sequence.");
+    return { action: parsed, commands: [] };
+  }
+  const { commandPath, ...action } = parsed;
+  const commands: VisitCommand[] = [];
+  if (commandPath)
+    commands.push({
+      path: commandPath,
+      ...(head.assume ? { assume: head.assume } : {}),
+    });
+  else if (head.assume)
+    throw new Error(`@${head.assume} must follow a command.`);
+  for (const value of rest) {
+    const { text, assume } = splitAssumption(value);
+    let path = text.split(":");
+    const building = path[0]!.toLowerCase();
+    if (
+      path.length > 1 &&
+      Object.hasOwn(BUILDING_CONTEXTS, building) &&
+      BUILDING_CONTEXTS[building as keyof typeof BUILDING_CONTEXTS] ===
+        action.context
+    )
+      path = path.slice(1);
+    if (path[0] === "") throw new Error(`Missing command in ${value}.`);
+    commands.push({ path, ...(assume ? { assume } : {}) });
+  }
+  return { action, commands };
 }
 
 function actionSelectorAndQualifier(
@@ -1983,11 +2060,229 @@ export async function queryScenario(
   };
 }
 
+function percent(probability: number): string {
+  return new Intl.NumberFormat("en", {
+    style: "percent",
+    maximumFractionDigits: 2,
+  }).format(probability);
+}
+
+// Effects that only return to a menu change nothing that later commands see.
+const MENU_RETURN_EFFECT = /^(?:return|decline)\b/;
+
+// Runs a building visit as a sequence of ordinary commands. The first
+// command is resolved exactly as queryScenario resolves a single command
+// path; each later command sees a working copy of the save with the earlier
+// commands' modeled writes applied, plus the unsaved per-visit state
+// (Pub enthusiasm, the Pray guard, the cartographer's Report). Random
+// outcomes stay unresolved unless the caller assumes one with @success or
+// @failure; an unassumed roll is carried forward as not having happened.
+export async function queryVisit(
+  save: Buffer,
+  slot: number,
+  action: ScenarioQueryAction,
+  commands: readonly VisitCommand[],
+  scenario?: DisassembledScenario,
+  sharedScenario?: DisassembledScenario,
+): Promise<ScenarioQueryResult> {
+  const first = commands[0];
+  if (action.type !== "building") {
+    if (commands.length > 0)
+      throw new Error("Only a building action accepts a command sequence.");
+    return queryScenario(save, slot, action, scenario, sharedScenario);
+  }
+  const result = await queryScenario(
+    save,
+    slot,
+    first ? { ...action, commandPath: first.path } : action,
+    scenario,
+    sharedScenario,
+  );
+  if (commands.length <= 1) return result;
+
+  const data = await loadOrdinaryDialogueData();
+  const entry = result.ordinaryBuilding;
+  const menuReached =
+    entry !== undefined &&
+    (entry.disposition === "shown" || entry.disposition === "conditional") &&
+    entry.menu.length > 0;
+  const working = Buffer.from(save);
+  let visit: OrdinaryVisitState = NEW_ORDINARY_VISIT;
+  let unresolvedRandom = false;
+  // Notes about earlier commands that every later command depends on.
+  const carried: string[] = [];
+  if (entry?.disposition === "conditional")
+    carried.push(
+      "Ordinary entry is conditional; later commands assume the menu was reached.",
+    );
+  if (
+    [...result.outcomes, ...result.sharedScenario.outcomes].some(
+      (outcome) => outcome.effects.length > 0,
+    )
+  )
+    carried.push(
+      "Story and shared-scenario effects at entry are not applied to the working save.",
+    );
+
+  const steps = commands.map((visitCommand, index): VisitStep => {
+    const number = index + 1;
+    const label = `command ${number} (${visitCommand.path.join(":")})`;
+    const step = {
+      path: visitCommand.path,
+      ...(visitCommand.assume ? { assume: visitCommand.assume } : {}),
+    };
+    const notes = index === 0 ? [] : [...carried];
+    if (index > 0 && !menuReached)
+      return {
+        ...step,
+        notes: [
+          ...notes,
+          "The ordinary building menu is not reached, so this command cannot be selected.",
+        ],
+      };
+    if (visit.ended)
+      return {
+        ...step,
+        notes: [
+          ...notes,
+          "An earlier command ended the visit, so this command cannot be selected.",
+        ],
+      };
+    const laterEntry =
+      index === 0
+        ? undefined
+        : ordinaryBuildingEntry(
+            working,
+            slot,
+            action.context,
+            true,
+            [],
+            [],
+            data,
+            visitCommand.path,
+            visit,
+          );
+    const command = index === 0 ? entry?.command : laterEntry?.command;
+    if (!command) return { ...step, notes };
+    // Explain why the selected command is grayed out, such as a
+    // cartographer's Report after one use.
+    const normalized = (text: string) =>
+      text.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (laterEntry && command.disposition === "unavailable")
+      notes.push(
+        ...laterEntry.notes.filter(
+          (note) =>
+            note.includes("grayed out") &&
+            normalized(note).startsWith(normalized(visitCommand.path[0]!)),
+        ),
+      );
+    const last = index === commands.length - 1;
+    const transition = ordinaryVisitTransition(command);
+    const ignored = `${label} has no random save effect, so @${visitCommand.assume} is ignored.`;
+    if (transition) {
+      for (const write of transition.writes) write(working);
+      visit = { ...visit, ...transition.visit };
+      if (transition.unmodeled && transition.unmodeled.length > 0)
+        carried.push(
+          `Not applied from ${label}: ${transition.unmodeled.join("; ")}.`,
+        );
+      const random = transition.random;
+      if (random) {
+        const chance =
+          random.probability === undefined
+            ? "unknown probability"
+            : `probability ${percent(random.probability)}`;
+        if (visitCommand.assume === "success") {
+          for (const write of random.writes) write(working);
+          notes.push(
+            `Assumed roll success: ${random.description} (${chance}).`,
+          );
+          carried.push(
+            `Assumes the roll in ${label} succeeded: ${random.description} (${chance}).`,
+          );
+        } else if (visitCommand.assume === "failure") {
+          notes.push(
+            `Assumed roll failure (${chance} that ${random.description}).`,
+          );
+          carried.push(
+            `Assumes the roll in ${label} failed (${chance} that ${random.description}).`,
+          );
+        } else if (!last) {
+          unresolvedRandom = true;
+          notes.push(
+            `Later commands assume this roll fails (${chance} that ${random.description}); append @success or @failure to choose.`,
+          );
+          carried.push(
+            `Depends on an unresolved roll in ${label}, assumed to fail (${chance} that ${random.description}).`,
+          );
+        }
+      } else if (visitCommand.assume) notes.push(ignored);
+    } else {
+      if (visitCommand.assume) notes.push(ignored);
+      const effects = command.effects.filter(
+        (effect) => !MENU_RETURN_EFFECT.test(effect),
+      );
+      if (command.disposition === "completed" && effects.length > 0)
+        carried.push(
+          `No save writes are modeled for ${label}; not applied: ${effects.join("; ")}.`,
+        );
+      else if (
+        (command.disposition === "shown" ||
+          command.disposition === "unavailable" ||
+          command.disposition === "unsupported") &&
+        !last
+      )
+        notes.push(
+          "The next command assumes the player backs out of this incomplete selection to the building menu.",
+        );
+    }
+    return { ...step, command, notes };
+  });
+
+  return {
+    ...result,
+    confidence: mergeConfidence(
+      result.confidence,
+      ...steps.map((step) => step.command?.confidence ?? "none"),
+      unresolvedRandom ? "ambiguous" : "none",
+    ),
+    visit: steps,
+  };
+}
+
 function formatAction(action: ScenarioQueryAction): string {
   if (action.type === "building")
     return `${action.name}${action.commandPath ? `:${action.commandPath.join(":")}` : ""} (context ${hex(action.context, 2)})`;
   if (action.type === "at-sea") return "at-sea day event";
   return `${action.type}, opposing captain ${action.opposingCaptainId}`;
+}
+
+function formatOrdinaryCommand(
+  title: string,
+  command: OrdinaryCommandResult,
+): string[] {
+  const lines = [
+    title,
+    `  Path: ${command.path.join(" → ")}`,
+    `  Disposition: ${command.disposition}`,
+    `  Confidence: ${command.confidence}`,
+  ];
+  if (command.dialogue.length === 0)
+    lines.push("  No fixed command dialogue is displayed.");
+  for (const dialogue of command.dialogue)
+    lines.push(
+      `  ${dialogue.bank} raw ${dialogue.rawIndex} (entry ${dialogue.entryNumber}) · ${dialogue.speaker}: ${dialogue.text}`,
+    );
+  lines.push(
+    command.menu.length > 0
+      ? `  Next selection: ${command.menu.join("; ")}`
+      : "  Next selection: none",
+  );
+  for (const effect of command.effects) lines.push(`  Effect: ${effect}`);
+  for (const uncertainty of command.uncertainties)
+    lines.push(`  Unresolved: ${uncertainty}`);
+  for (const note of command.notes) lines.push(`  Note: ${note}`);
+  return lines;
 }
 
 export function formatQueryResult(result: ScenarioQueryResult): string {
@@ -1996,6 +2291,16 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
     `Scenario ${result.scenarioId}: ${result.protagonist}`,
     `Save state: section ${result.section}, subsection ${result.subsection}, flags ${result.flagsHex}`,
     `Location: ${result.portName} (${result.portId}); action: ${formatAction(result.action)}`,
+    ...(result.visit
+      ? [
+          `Visit sequence: ${result.visit
+            .map(
+              (step) =>
+                `${step.path.join(":")}${step.assume ? `@${step.assume}` : ""}`,
+            )
+            .join(" → ")}`,
+        ]
+      : []),
     ...(result.buildingOpen === undefined
       ? []
       : [`Building hours: ${result.buildingOpen ? "open" : "closed"}`]),
@@ -2061,31 +2366,24 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
       lines.push(`  Unresolved: ${uncertainty}`);
     for (const note of ordinary.notes) lines.push(`  Note: ${note}`);
     lines.push("");
-    if (ordinary.command) {
-      const command = ordinary.command;
+    if (ordinary.command)
       lines.push(
-        "Selected ordinary command",
-        `  Path: ${command.path.join(" → ")}`,
-        `  Disposition: ${command.disposition}`,
-        `  Confidence: ${command.confidence}`,
+        ...formatOrdinaryCommand("Selected ordinary command", ordinary.command),
+        ...(result.visit?.[0]?.notes ?? []).map((note) => `  Visit: ${note}`),
+        "",
       );
-      if (command.dialogue.length === 0)
-        lines.push("  No fixed command dialogue is displayed.");
-      for (const dialogue of command.dialogue)
-        lines.push(
-          `  ${dialogue.bank} raw ${dialogue.rawIndex} (entry ${dialogue.entryNumber}) · ${dialogue.speaker}: ${dialogue.text}`,
-        );
-      lines.push(
-        command.menu.length > 0
-          ? `  Next selection: ${command.menu.join("; ")}`
-          : "  Next selection: none",
-      );
-      for (const effect of command.effects) lines.push(`  Effect: ${effect}`);
-      for (const uncertainty of command.uncertainties)
-        lines.push(`  Unresolved: ${uncertainty}`);
-      for (const note of command.notes) lines.push(`  Note: ${note}`);
-      lines.push("");
-    }
+  }
+  for (const [index, step] of (result.visit ?? []).entries()) {
+    if (index === 0) continue;
+    const title = `Visit command ${index + 1}`;
+    lines.push(
+      ...(step.command
+        ? formatOrdinaryCommand(title, step.command)
+        : [title, `  Path: ${step.path.join(" → ")}`, "  Not selectable"]),
+      ...(step.assume ? [`  Assumed roll: ${step.assume}`] : []),
+      ...step.notes.map((note) => `  Visit: ${note}`),
+      "",
+    );
   }
   for (const [index, outcome] of result.outcomes.entries()) {
     const chance =
@@ -2112,7 +2410,7 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
 
 const help = `Query story dialogue and shared scenario state from a UW2 DOS save
 
-pnpm run query-dialog -- FILE SLOT ACTION[:COMMAND[:SELECTION]]
+pnpm run query-dialog -- FILE SLOT ACTION[:COMMAND[:SELECTION]] [COMMAND...]
 
 Actions:
   market, pub, shipyard, harbor, arrival, lodge, palace, guild, special-building,
@@ -2177,6 +2475,18 @@ Ordinary command examples:
   house-of-fortune:love:yes
   house-of-fortune:mates:yes:1
 
+Multi-command visits:
+  Further arguments are later commands in the same building visit, resolved in
+  order against the save as changed by the earlier commands. Per-visit state
+  such as Pub enthusiasm, the one Luck roll per Pray visit, and the
+  cartographer's single Report is carried between them. Append @success or
+  @failure to a command to choose its unsaved random outcome; otherwise later
+  commands assume the roll did not change the save.
+  pub:treat:10 treat:10 recruit-crew:20
+  church:pray@success pray
+  market:buy-goods:1:1:20:yes buy-goods:2:1:5:yes
+  special-building:report report
+
 The tool never modifies the save. It symbolically executes protagonist story
 routes and reports the shared SNR0 route, royal-invitation state, and cached
 mission. Ambiguous results show each possible protagonist path and the undecoded
@@ -2188,7 +2498,7 @@ next ordinary command dialogue without modifying the save.`;
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args[0] === "--") args.shift();
-  const [file, slotText, actionText] = args;
+  const [file, slotText, actionText, ...laterCommands] = args;
   if (!file || !slotText || !actionText || process.argv.includes("--help")) {
     console.log(help);
     return;
@@ -2221,10 +2531,12 @@ async function main(): Promise<void> {
     );
     return;
   }
-  const result = await queryScenario(
+  const visit = parseQueryVisit([actionText, ...laterCommands]);
+  const result = await queryVisit(
     await readFile(file),
     slot,
-    parseQueryAction(actionText),
+    visit.action,
+    visit.commands,
   );
   console.log(formatQueryResult(result));
 }
