@@ -56,14 +56,17 @@ Collect Debt is unusual: timely completion adds the same 150 or 500 points to bo
 not award Adventure Fame. Some guides incorrectly list 300 or 1,000 Adventure Fame; those figures are the combined Trade
 and Piracy increases.
 
-The fixed gold payment for Deliver Letter is 700. The other assignments use rank-dependent payments, and Buy Goods also
-calculates an advance from the goods, quantity, and local price. Gold therefore should not be inferred from the Fame
+The fixed gold payment for Deliver Letter is 700. The other assignments use rank-dependent payments. Buy Goods also
+pays an advance, which is always 10,000 gold because its cap compares against the low byte of 10,000
+(`SNR0.DAT 0x0D99`). Gold therefore should not be inferred from the Fame
 column.
 
 ### Deadlines and failure
 
-The full Fame award is made only on timely completion. A late completion can pay half the promised gold but adds no
-Fame.
+The full Fame award is made only on timely completion. A late Deliver Letter or Defeat Pirates pays half the gold and
+adds no Fame. A late Transport Goods or Buy Goods pays nothing and cuts the affected Fame to 80%, and a Transport Goods
+job that has expired when checked at its origin simply lapses without a penalty. See
+[Scenario 0](../scenarios/scenario-0-common-quests-and-royal-missions.md).
 
 Giving up before the deadline generally leaves approximately 90% of the affected Fame, rounded down to a multiple of
 ten. For Transport Goods, the exact integer calculation is:
@@ -92,16 +95,19 @@ Ali receives the following one-time Trade Fame awards from his scenario:
 | Story event                                     |   Trade Fame |
 | ----------------------------------------------- | -----------: |
 | Each of the four Istanbul debt repayments       |     500 each |
+| Lending Pietro 10,000 at the Istanbul Harbor    |          500 |
 | First reunion with Sapha                        |        1,000 |
-| Pietro and the Marco Polo Bank loan sequence    | 500 or 1,000 |
+| Pietro's repayment at Sakai                     | 500 or 1,000 |
+| The Venice Bank settlement (Likely)             | 500 or 1,000 |
 | Sultan's allied-port and 100-ingot reward scene |        1,000 |
 
-The debt repayments are in `SNR6` section 1. The Pub (`0x085D`), Harbor (`0x0951` or `0x0A47`, one for each branch of
-Pietro's loan request), Bank (Istanbul context `0x08`, `0x0B69`), and Shipyard (`0x0C81`) routes each add 500 Trade
-Fame when that debt is paid, for 2,000 in total.
+The debt repayments are in `SNR6` section 1. The Pub (`0x085D`), Harbor (`0x0951`), Bank (Istanbul context `0x08`,
+`0x0B69`), and Shipyard (`0x0C81`) routes each add 500 Trade Fame when that debt is paid, for 2,000 in total. At the
+Harbor, lending Pietro another 10,000 adds a further 500 (`0x0A47`).
 
-The Pietro sequence depends on Ali's earlier choice at the Istanbul Harbor. Lending Pietro 10,000 Gold Coins selects the
-1,000-Fame route; refusing him selects the 500-Fame route.
+Pietro's repayment at Sakai and the later Venice Bank settlement depend on that choice: 1,000 each if Ali lent the
+money, 500 each if he refused. The Venice award reuses a value left in a scenario variable by the Sakai scene, so it is
+labelled Likely; see [Ali's scenario](../scenarios/scenario-6-ali-vezas.md).
 
 Every repeatable and story award is limited so that Trade Fame cannot exceed 50,000.
 

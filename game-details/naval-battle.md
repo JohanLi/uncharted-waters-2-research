@@ -48,6 +48,19 @@ Up to four fleets can take part, one per side number. Bits 6–7 of unit byte
 |   `0x00` | The main enemy fleet                                        |
 |   `0x40` | An assisting enemy fleet, fighting alongside the main enemy |
 
+### Flagship
+
+Each fleet's flagship is chosen afresh when a battle is set up (`0x144DC`).
+The player's flagship is the ship the protagonist captains. A computer fleet's
+flagship is its active ship with the highest **maximum durability**, the
+earlier slot winning a tie; crew and current durability are not compared.
+After a battle in which the old flagship lost maximum durability to critical
+hits, another ship can therefore lead the fleet next time. A ship with no crew
+can be chosen too; the side then loses as soon as its first turn comes, because
+a crewless flagship counts as defeated ([How a battle ends](#how-a-battle-ends)). The flagship
+becomes the side's first unit and moves first; the other ships follow in slot
+order.
+
 ### Officers on the flagship
 
 Several values below are **pooled** on the protagonist's own ship: the game
@@ -346,6 +359,42 @@ with the full battle-result factor of 3 and the [spoils](#spoils-of-victory).
 When the enemy flagship flees (2), the player still gains Piracy Fame, with
 factor 1, but takes no spoils (`0x15B33–0x15BBB`). The other endings give
 neither.
+
+### After the battle
+
+Unless the game is over, `MAIN.EXE 0x16126–0x16185` then checks every computer
+fleet that took part, on either side. Its captain loses the fleet (`0x15302`:
+the captain's fleet byte `+0x24` becomes `0xFF` and he is moved to a random
+port) when any of these holds:
+
+- the fleet's flagship has sunk, has no crew, or has durability 0;
+- the battle ended in a duel won by the protagonist (code 6); or
+- the captain's sailor byte `+0x29` lacks bit `0x20`.
+
+Losing the fleet empties all ten of its ship slots and marks the fleet
+inactive (`0x15302–0x15359`); the fleet record is later given a new captain by
+the ordinary fleet regeneration ([Fleets](fleets.md#fleet-regeneration)). A
+captain drawn with a generic portrait (sailor byte `+0x13` bits `0xC0`) also
+has bit `0x20` cleared (`0x1533A`), which frees his sailor record: each month it
+has a 1-in-3 chance of being reused for a new generic sailor
+([Sailors](sailors.md#temporary-vagabonds)), so such a captain can disappear
+for good.
+
+An enemy flagship that fled (code 2) or survived to nightfall (code 1) keeps its
+fleet, provided its captain has that bit. Scenario scripts test “the opponent's
+fleet byte is `0xFF`” to tell a real victory from an escape.
+
+For endings 2, 4, and 6 the defeated captain then speaks a parting line
+(`0x161BB–0x16239`), chosen by his fleet type and by whether he fled:
+
+| Fleet                     | Defeated | Fled |
+| ------------------------- | -------: | ---: |
+| Pirate (fleet IDs 60–69)  |      830 |  834 |
+| Merchant (IDs ending 1–4) |      832 |  836 |
+| Any other                 |      831 |  835 |
+
+A scenario flag set by a before- or after-battle route (`DS:0x0F6A` or
+`DS:0x0EE0`) skips this line (`0x161A7–0x161B8`); nothing else is skipped.
 
 ### Leaving the battle
 

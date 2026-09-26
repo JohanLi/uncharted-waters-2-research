@@ -1178,9 +1178,16 @@ interaction, the ruler opens a second menu:
   port's controller it ends with combined raw 1048 (“We're not allied with any
   ports in the world, just our capital city.”); otherwise raw 453 is followed
   by raw 883 with the allied-port count and a region chooser that repeats
-  until canceled, and raw 454 closes the report. It totals the visited
-  nation's allied ports by region, then displays their Industry, Economy, and
-  economic-power rating. A capital
+  until canceled, and raw 454 closes the report. For the chosen region it
+  lists every regular port whose cached controlling nation matches the
+  Palace's own, seven per page under the header raw 475, “Support Industry
+  Economy”: the port's name, its Support for that cached nation, its
+  Industry, and its Economy (`0x2FD8D`). With no such port it names the
+  region in raw 455 instead. It then shows the region's economic-power
+  rating, or “No one has sailed to %s recently” when the region's supply line
+  is inactive (`0x2FEE8`). Because the list follows the cached index rather
+  than Support, a port can appear with less than 75% Support until the next
+  midnight refreshes it ([Cached allegiance](sphere-of-influence.md#cached-allegiance)). A capital
   is included in the nation's worldwide count even when no overseas allied
   port exists. The underlying economic-power calculation is documented in
   [sphere-of-influence.md](sphere-of-influence.md).
@@ -1394,11 +1401,12 @@ complete predicate is documented under
 [Defection](friendship.md#when-the-command-is-available).
 
 The Palace's initial admission check is separate from its menu mask. After the
-Palace-specific hostile-reception check, an untitled character is rejected
-only if all four conditions hold: the Palace is foreign, the character is not
-affiliated with the Pirates, shared flag 17 is clear, and shared flag 18 is
-clear. A title, one's own capital, Pirate affiliation, an armed royal
-invitation, or an offer already in progress therefore passes this gate. The
+Palace-specific hostile-reception check, a character with a title, or one
+affiliated with the Pirates, is always admitted. An untitled character of any
+other nation is admitted only at a Palace of their own nation while shared
+flag 17 (an armed royal invitation) or 18 (an offer in progress) is set; a
+foreign capital always refuses them, and so does their own capital without
+one of those flags. The
 check occupies `MAIN.EXE 0x30A1B–0x30A68`; rejection begins at `0x30A5C`.
 
 ### Crew spokesmen

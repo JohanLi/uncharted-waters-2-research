@@ -210,8 +210,8 @@ listed above:
   a building or menu-command caller.
 - Palace handling begins at `0x309A4`. Its hostile-reception branch precedes
   the commoner-admission predicate at `0x30A1B`: an untitled, non-Pirate
-  character is rejected at a foreign capital unless shared flag 17 or 18 is
-  set. The religious-building handler begins at `0x32CD0` and applies its
+  character is admitted only at an own-nation Palace while shared flag 17 or
+  18 is set, and is otherwise rejected. The religious-building handler begins at `0x32CD0` and applies its
   Church/Mosque affiliation gate at `0x32CE9`.
 - `0x2052F` dispatches protagonist route selector `0xA0` while at sea and
   supplies the current voyage-day counter at `DS:0x2BAA` as its qualifier.
@@ -585,7 +585,9 @@ small as one lot when the capacity routine reports only two free units.
 
 Action opcodes `E6 <variable>` and `E7 <variable>` add and deduct the gold
 amount stored in the selected VM variable. Their handlers at `0x38E50` and
-`0x38E5B` call the paired money helpers. The repeated `E7` operations in Ali's
+`0x38E5B` call the paired money helpers. The deduction helper at `0x37E41`
+subtracts only an amount smaller than the gold carried and otherwise sets gold
+to 0, so gold never becomes negative. The repeated `E7` operations in Ali's
 debt scenes and the corresponding save changes confirm the subtraction side.
 
 Pietro's section-1 Pub route uses `EA 01`, rejects values below 1, rejects port
@@ -967,8 +969,9 @@ Five reachable protagonist-scenario instructions use it:
 | Catalina | South American Pub rescue       | `SNR2.DAT 0x2965: E8 3C` |
 | Otto     | London Pub meeting with Matthew | `SNR3.DAT 0x0284: E8 4B` |
 
-The four `3C` operands select sailor 60, Antonio Khan's record; João's later
-Pub scene presents that same record as Pirate Rudolph. `4B` selects sailor 75,
+The four `3C` operands select sailor 60, Antonio Khan's record. João's and
+Catalina's South American Pub scenes both first rename and redraw that record
+as Pirate Rudolph (`SNR1.DAT` before `0x32F4`, `SNR2.DAT 0x2947–0x2962`). `4B` selects sailor 75,
 Matthew Loy. After `E8` returns, the scripts read system-value selector 6,
 the duel balance at `DS:0xA0A4`, and compare it with thresholds to choose
 subsequent dialogue. The balance starts at 100, remains in the range 0–200,
@@ -1156,12 +1159,14 @@ record selector `0x05`–`0x09`, in the order Giovanni, Gerard, Diogo, Olives,
 and Mercator. Assignment opcode `05` reads through the reference and `11`
 writes through it.
 
-Ernst section 1 uses this mechanism at `SNR4.DAT 0x035F`. It reads Mercator's
-byte, masks it with `0x10`, and selects message 77 when Mercator is active. A
-clear Mercator bit selects messages 78–81, accusing Ernst of holding another
-cartographer's contract. The following writes reactivate Mercator and clear the
-other four records. Thus merely visiting Mercator during this story section
-forcibly renews his contract.
+Ernst's Mercator routes use this mechanism in every story section 1–4; the
+first is at `SNR4.DAT 0x035F`. It reads Mercator's byte, masks it with `0x10`,
+and selects message 77 when Mercator is active. A clear Mercator bit selects
+messages 78–81, accusing Ernst of holding another cartographer's contract. The
+following writes reactivate Mercator and clear the other four records, and
+`0x03EF–0x0412` then halves Ernst's Trade, Piracy, and Adventure Fame (words
+`+0`, `+2`, and `+4` of Fame record 3). Thus visiting Mercator after signing
+elsewhere forcibly renews his contract at the cost of half of Ernst's Fame.
 
 Comparison lower bounds are inclusive and upper bounds are exclusive. João's
 2,000-adventure-Fame event is armed by visiting a regular-port Harbor, not by
@@ -1170,7 +1175,7 @@ The primary `0xA303` route advances subsection 0 when its Fame check passes;
 the subsequent Pub route then selects message 227.
 
 This matches the SNR exactly. The primary `0xA303` route is the regular-port
-Harbor context. It checks João's identity and adventure fame against 2,000,
+Harbor context. It checks João's affiliation and adventure fame against 2,000,
 then executes `F0`, requesting a subsection advance when the interpreter
 returns. No time or port-call-counter test exists in the block.
 
@@ -1184,7 +1189,7 @@ into the Lodge still permits the Pub scene.
 The route's decoded SNR instructions do not themselves test navigation level or
 a port-call counter. Before the fame comparison they dereference João's sailor
 record byte `+0x29`, mask its low nibble, and require zero. The protagonists'
-low nibbles identify their nation/character values; zero is João. It then reads
+low nibble is the sailor's affiliation; zero is Portugal, João's nation. It then reads
 João's adventure-fame field and compares it with 2,000. If navigation level or
 port-call count matters, it governs whether the engine invokes the route rather
 than appearing as another condition inside this SNR block.
@@ -1254,7 +1259,8 @@ has advanced to section 2/subsection 0; reaching 8,000 early does not bypass the
 current story section.
 
 Unlike the 2,000 event, the primary trigger is `0xA3FF`: the wildcard context
-for any regular port. It checks João's identity and adventure fame and executes
+for any regular port. It checks João's affiliation (sailor `+0x29 & 0x0F == 0`, Portugal) and
+adventure fame and executes
 `F0` when fame is at least 8,000. It does not require a Harbor visit. The
 specific João-home route `0x0007` takes precedence.
 

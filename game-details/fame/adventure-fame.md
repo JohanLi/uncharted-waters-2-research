@@ -212,7 +212,9 @@ one of these cartographers:
 Ernst receives Mercator's contract automatically during his first Mercator
 scene; he does not select the ordinary Contract command first. If he later
 contracts with another cartographer, revisiting Mercator during the relevant
-story section automatically switches the active contract back to Mercator.
+story section automatically switches the active contract back to Mercator and
+halves all three of Ernst's Fame values (`SNR4.DAT 0x03EF–0x0412`); see
+[Ernst's scenario](../scenarios/scenario-4-ernst-von-bohr.md).
 
 Reporting a chart awards 5 Adventure Fame and 80 gold for each newly charted
 cell. All five cartographers pay the same amount.

@@ -12,6 +12,9 @@ Evidence labels used in these notes:
   relevant VM operation or executable field has not yet been decoded or named.
 - **Unknown**: not established by the current research.
 
+Each guide describes its story from bytecode and executable evidence and ends
+with an **Open questions** section listing what remains undecoded.
+
 ## Current coverage
 
 | Scenario | Content                                | Documentation                                                                                                         |

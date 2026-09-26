@@ -68,8 +68,31 @@ nation is targeting pirates. The destination is resolved through the normal port
 The national-state update refreshes these intelligence fields at the beginning of each month. The merchant-fleet
 destination is selected by `MAIN.EXE`
 0x1D051–0x1D131, and the monthly dispatcher at 0x1DC53–0x1DC63 runs it alongside the Guild Profit calculation. The
-fields remain cached between month boundaries; their exact destination and target-selection rules are not yet fully
-decoded.
+fields remain cached between month boundaries.
+
+The target nation is chosen by `MAIN.EXE` 0x1CD7F–0x1CEB2, reached from the same monthly chain (0x1DC53 → 0x1D132).
+Value 7 means “the player”: the report then names the protagonist's affiliation (0x1CEB8).
+
+```text
+# nations 0–5 (n)
+candidate = the m in 0..6, m ≠ n, with the lowest
+            floor(nation[m].GuildProfit × nation[n].relation[m] / 100)
+            (first strict minimum; default 6)
+T = |200 − protagonist Friendship with n|
+if 100 + random(180 − nation[n][0x09]) < T and protagonist affiliation ≠ n:
+    nation[n][0x02] = 7
+else:
+    nation[n][0x02] = candidate
+
+# pirates (record 6)
+candidate = the m in 0..5 with the highest (100 − pirate relation[m]) × nation[m].GuildProfit
+            (default 0)
+nation[6][0x02] = 7 if 100 + random(50) < |200 − protagonist Friendship with pirates| else candidate
+```
+
+Here _relation_ is the stored byte at `+0x0B + m`. The loop skips the nation's own index (0x1CDAD), so byte `+0x02` never
+names the nation itself. The only other writer is **Defect**, which changes the new nation's `+0x02` from 7 to 6
+(0x305D5–0x305E2), because the player can no longer be their own nation's target.
 
 `MESSAGE.DAT` contains the corresponding English templates at file offsets
 `0x1864` (`It seems %s is out to get %s.`) and `0x1882` (`A merchant fleet is
@@ -340,8 +363,9 @@ Exile retains the post-deduction Friendship value, subject to the normal stored-
 The messages for these branches are "You have been exiled from your mother country" and "Your name has been shamed, and
 your title has been stripped away," respectively.
 
-Both punishments also cancel the shared royal-mission state, but without using
-the mission's voluntary refusal/give-up path. The converged code at `MAIN.EXE`
+Both punishments also cancel the shared Scenario 0 state, including an active
+royal mission or Guild assignment, without using the voluntary refusal/give-up
+path. The converged code at `MAIN.EXE`
 `0x16020–0x16038`:
 
 - sets the protagonist's rank to **No Rank**;
@@ -381,6 +405,7 @@ multiplier.
 - `MAIN.EXE` `0x327C5–0x328A2`: port-controller selection and the personal-Friendship effects of a controller change.
 - `MAIN.EXE` `0x0E074–0x0E100` and `0x2E55F–0x2E643`: blockade-dependent hostile-port actor setup.
 - `MAIN.EXE` `0x1D13F–0x1D245`: national-state update that branches on both status flags.
+- `MAIN.EXE` `0x1CD7F–0x1CEB2`: monthly target-nation selection (nation record `+0x02`).
 - `MAIN.EXE` `0x33178–0x331C4`: Relations-screen alliance and blockade markers.
 - `MAIN.EXE` `0x0A198–0x0A1B1`: `random(n)`, returning `0..n−1`.
 - `SNR2.DAT` `0x07C3–0x07D7`: Catalina's section-0 day-one-at-sea route, Spain-Friendship write, and section advance.
@@ -389,8 +414,6 @@ multiplier.
 
 ## Still unresolved
 
-- The gameplay meaning and broader lifecycle of nation-record byte `+2`; its use as the class-4 strategic-foe selector
-  is established.
 - The exact behavior of every alternate battle-result state.
 - The meanings of the lower bits in the Alliance/Blockade status bytes.
 - Whether personal Friendship affects systems outside the decoded naval, hostile-building, and sphere-of-influence

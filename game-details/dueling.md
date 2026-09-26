@@ -60,11 +60,12 @@ in the shared quest script.
 | João        | The Shipyard confrontation while looking for Domingo                   | Antonio Khan, sailor 60                                      |    `SNR1.DAT 0x0CA6` |
 | João        | The confrontation at the Franco home before Duke Franco's trial        | sailor 60, although the scene presents Khan's pirate men     |    `SNR1.DAT 0x0FFF` |
 | João        | The South American Pub rescue of Lucia                                 | sailor 60, temporarily renamed and redrawn as Pirate Rudolph |    `SNR1.DAT 0x32F4` |
-| Catalina    | Returning to the successful South American Pub while looking for Lucia | Antonio Khan, sailor 60                                      |    `SNR2.DAT 0x2965` |
+| Catalina    | Returning to the successful South American Pub while looking for Lucia | sailor 60, temporarily renamed and redrawn as Pirate Rudolph |    `SNR2.DAT 0x2965` |
 | Otto        | Meeting Matthew in the London Pub near the beginning of the story      | Matthew Loy, sailor 75                                       |    `SNR3.DAT 0x0284` |
 
-João's Rudolph encounter changes sailor 60's displayed name and portrait but
-does not replace his attributes or levels. Rudolph therefore inherits the
+João's and Catalina's Rudolph encounters change sailor 60's displayed name
+and portrait (`SNR2.DAT 0x2947–0x2962` for Catalina) but do not replace his
+attributes or levels. Rudolph therefore inherits the
 current saved stats of sailor 60. The Franco-home duel similarly calls the
 engine with sailor 60 even though the dialogue shows generic pirate attackers.
 

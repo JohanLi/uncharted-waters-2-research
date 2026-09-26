@@ -85,8 +85,9 @@ dispatch command-specific executable and scenario hooks
 ```
 
 Transport Goods delivery is an entry hook at the destination Market and
-runs before its ordinary menu. Guild assignment dialogue begins only after
-`Job Assignment` and a listed job have been selected. Royal-mission dialogue
+runs before its ordinary menu. Guild assignment dialogue begins after
+`Job Assignment` and a listed job have been selected; progress checks for
+Deliver Letter and Defeat Pirates also run on Guild entry. Royal-mission dialogue
 uses the Palace's `Meet Ruler` audience hook, while a random hostile Palace
 encounter is tested on entry and can suppress the menu before that command is
 available.
@@ -264,8 +265,9 @@ by several building types. Route keys are therefore dispatch contexts, not a
 guarantee that every table lists all twelve building qualifiers.
 
 Only one menu action introduces a distinct scenario context. `Meet Ruler`
-dispatches shared Palace context `0x05`, then protagonist and shared audience
-context `0x15`. `Job Assignment` reuses Guild qualifier `0x06` after the
+dispatches shared Palace context `0x05` when the Palace belongs to the
+protagonist's nation and shared flag 17 is set (`MAIN.EXE 0x30451–0x30482`),
+then protagonist and shared audience context `0x15`. `Job Assignment` reuses Guild qualifier `0x06` after the
 executable records the selected job. `Treat` makes no scenario-dispatch call;
 its royal-invitation path is executable logic. The route matcher
 (`MAIN.EXE 0x390D9` shared, `0x3922E` protagonist) makes a single pass in table

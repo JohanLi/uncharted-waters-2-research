@@ -8,16 +8,23 @@ in `MAIN.EXE`. All addresses are `MAIN.EXE` file offsets.
 
 ## Time at sea
 
-The at-sea day loop (`0x2052F`) runs one iteration per tick. Each iteration
+The day loop (`0x2052F`) runs one iteration per tick. It is the same loop in
+port, where it skips the voyage-day story routes and the sea view. Each iteration
 reads input, updates the other fleets, moves the player's fleet once
 (`0x37479`), and adds one tick to the clock (`DS:0x0737`). The loop waits on a
 fixed timer, so a faster fleet covers more ground per tick rather than taking
 more steps. At tick 72 the day ends (`0x205DF`) and the midnight routine runs
-(`0x1E95E`).
+(`0x1E95E`), in port as well as at sea. It refreshes each port's cached
+controlling nation ([Cached allegiance](sphere-of-influence.md#cached-allegiance))
+and counts down the Balm.
+
+At the start of each month the mates' [wages](sailors.md#wages) are paid; at
+sea, outside a weather anomaly, a crew spokesman reports the amount.
 
 The **days-at-sea counter** (`DS:0x2BAA`, save-slot offset `0x1D82`) is a
 single byte. It is set to 0 when the fleet sails from a Harbor (`0x2D7B4`) and
-incremented at each midnight at sea (`0x1E979`). Story routes for voyage days
+incremented at each midnight (`0x1E979`); midnights in port also increment it,
+but sailing resets it. Story routes for voyage days
 receive this counter; see the
 [dialog system](../dialog-system/README.md#from-a-building-to-a-scenario-route).
 
@@ -197,6 +204,54 @@ the best Intuition among the commodore and the mates. Fog disables the
 long-range roll. A port found this way becomes
 [known](ports.md#known-and-visited-ports) (`0x36C41`).
 
+## Fleet sprites
+
+The sea view is redrawn by `0xC022`. It draws the map, then the fleets from
+the sprite sheet in the second half of `DATA1.011`, loaded at `0xD835`:
+32 sprites of 32 × 32 pixels, extracted as
+[`ship-tileset.png`](../scripts/tilesets/output/ship-tileset.png), eight per
+row.
+
+During a **Storm** or **Fog** only the player's fleet is drawn
+(`0xC1F6–0xC2B1`). Otherwise the routine draws every fleet in view, row by
+row so that lower fleets overlap higher ones (`0xC34B–0xC472`). A fleet is
+drawn when its record is active (`+0x29` bit `0x01`), not docked (bit `0x10`
+clear), and all four tiles under it are water.
+
+Each sprite is chosen from three values:
+
+- the **owner**: the player's fleet uses rows 0–1, every other fleet rows 2–3;
+- the **rig** of one ship, from its instance byte `+0x12` bit `0x10`: clear
+  (oared) selects the first row of the pair, set (sailing) the second. For the
+  player this is the ship the protagonist captains (`0xC209–0xC29C`); for
+  another fleet it is always the ship in slot 0, whether or not that slot is
+  occupied (`0xC3F3`);
+- the **heading**, grouped by the table at `DS:0x8F12` into four poses, each
+  with two animation frames:
+
+| Columns | Headings                   |
+| ------- | -------------------------- |
+| 0–1     | North, and stopped (8)     |
+| 2–3     | Northeast, east, southeast |
+| 4–5     | South                      |
+| 6–7     | Southwest, west, northwest |
+
+```text
+player sprite = 8 × sail + 2 × pose + frame
+other fleet   = 16 + 8 × sail + 2 × pose + frame
+frame         = (fleet number + tick) mod 2
+```
+
+`sail` is 1 for a sailing ship and 0 for an oared one; the player's frame in a
+Storm or Fog is `tick mod 2`. The frame alternates every tick, and neighbouring
+fleets alternate out of step. Nation, ship type, and fleet size play no part:
+only the one ship's rig changes the picture.
+
+A fleet whose slot 0 is empty reads instance number `0xFF`, which is not a
+real ship: the lookup lands in the port-metadata table (save slot `0x5FF6`),
+whose byte there is 0 in the new-game data. Such a fleet is therefore drawn
+with the oared computer-fleet sprite.
+
 ## Food and water
 
 ### Stores and rations
@@ -345,12 +400,12 @@ Each of the 98 discoveries has a 7-byte record (save slot `0x6E74`). Byte `+4`
 names its content, byte `+5` is its difficulty, and byte `+6` holds its type
 (low 3 bits) and four flags:
 
-| Flag   | Meaning                                 | Set by                                                                                                      |
-| ------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `0x80` | Not selected for this game              | A new game (`0x1B9A2`)                                                                                      |
-| `0x40` | Village sighted                         | The lookout (`0x36C99`), which also awards 50 Adventure Fame (`0x3663A`)                                    |
-| `0x20` | Discovery found, or treasure map bought | Village Search (`0x3A780`); buying a treasure's map from a Pub patron (`0x2BFF3`); Ali's story (`SNR5.DAT`) |
-| `0x10` | Reported, or treasure dug up            | Reporting to a collector (`0x33840`); digging up a treasure (`0x3A332`); the shared quest script            |
+| Flag   | Meaning                                 | Set by                                                                                                                          |
+| ------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `0x80` | Not selected for this game              | A new game (`0x1B9A2`)                                                                                                          |
+| `0x40` | Village sighted                         | The lookout (`0x36C99`), which also awards 50 Adventure Fame (`0x3663A`)                                                        |
+| `0x20` | Discovery found, or treasure map bought | Village Search (`0x3A780`); buying a treasure's map from a Pub patron (`0x2BFF3`); Pietro's story (`SNR5.DAT 0x06B1`, `0x0C1A`) |
+| `0x10` | Reported, or treasure dug up            | Reporting to a collector (`0x33840`); digging up a treasure (`0x3A332`); the shared quest script                                |
 
 A new game sets `0x80` on all 98 records, then clears it on 50 chosen at
 random (`random(98)` until 50 distinct records are picked). Nothing clears
@@ -366,6 +421,48 @@ has `0x80` and ordinary content (`+4` below 90), sets its content to item
 `90 + k`, and stores that record's number in treasure map item `80 + k`
 (item byte `+0x14`) (`0x1B9ED–0x1BA30`). Search on that site then finds the
 treasure once its map has been bought ([Villages](#villages)).
+
+### Treasure maps
+
+The ten treasure maps (items 80–89, the only items whose category byte
+`+0x15 & 0x0F` is `0x0C`) share one **Use** handler. The item menu
+(`MAIN.EXE 0x2F91B`) passes Use to `0x2F8C4`, which sends category `0x0C` to
+the map view at `0x2308C`. The Old Map (89) works like the others. Using a map
+does not consume it, shows no message, and returns to the item list after a
+key or click (`0x18685`).
+
+The map item's byte `+0x14` names its discovery record, whose X and Y give the
+site (`0x231AB`). The view shows a 48 × 48-tile area, four 24 × 24 cells
+drawn at 8 pixels per tile. The area snaps to the 24-tile grid rather than
+being centered on the site (`0x231C3–0x231FA`):
+
+```text
+cx = floor(X / 24), minus 1 when X mod 24 < 12   (wrapping around the world)
+cy = floor(Y / 24), minus 1 when Y mod 24 < 12 and cy > 0
+view origin = (24 × cx, 24 × cy)
+```
+
+The site therefore lies 12–35 tiles from the view's left edge and 12–35 from
+its top (0–23 in the top row of cells). No random value is involved: a map
+always shows the same view with the X in the same place, and only the offset
+differs from site to site. For example, the Map of Staff's site (254, 688)
+lies 14 tiles in from the left and 16 from the top, and the Medallion Map's
+site (484, 784) lies 28 and 16 tiles in.
+
+The view is drawn from the world-map data with the whole area shown, charted
+or not (`0x22A7E` with mode 1). Port markers are replaced by sea, and no ports,
+fleets, or player ship are drawn (`0x286A6`). The X is the village tile
+itself: before drawing, the routine repaints the four village-icon tiles
+`0x7C–0x7F` as a diagonal cross on sea texture (`0x230BD–0x231A8`, masks at
+`DS:0xAC78`). **Every** discovery site inside the view therefore shows an X,
+whatever its flags, including sites already found or unrelated to the map.
+The tiles are shrunk to 8 × 8 pixels and limited to colors 8–15, and the view
+fades in to the same sepia palette (`DS:0xAB3E`) as the world-map overview at
+sea, with the X in orange-red (`0x22C1A`, `0x2325F`).
+
+The cartographer's **Locate** uses the same discovery coordinates but reports
+them as rounded latitude and longitude with a small random error
+([Collector and cartographer dialogue](buildings.md#collector-and-cartographer-dialogue)).
 
 ### Finding water
 
@@ -540,7 +637,8 @@ ship keep moving. It ends with message 362 when `random(20)` is 0 and the
 region's base wind speed is not 0. Leaving the region does not end it.
 
 **Fog** (`0x1F168`) freezes the wind, hides other fleets, and disables the
-long-range lookout roll. It ends with message 364 when `random(30)` is 0 or the
+long-range lookout roll. A Storm also hides other fleets from the sea view
+([Fleet sprites](#fleet-sprites)). It ends with message 364 when `random(30)` is 0 or the
 fleet has left the anomaly region.
 
 On average after its first day, a Storm lasts about 8 checks (32 hours), No Wind
@@ -697,6 +795,8 @@ Each epilogue begins with the in-game date and the protagonist's name.
   lookup, and season tables.
 - `MAIN.EXE 0x36FFB–0x371C2`, `0x3723A`, `0x374E0`: fleet speed and movement.
 - `MAIN.EXE 0x36AD9`, `0xD3FC`: lookout and discovery.
+- `MAIN.EXE 0xC022`, `0xC1F6–0xC472`, `0x7A8C`, `0xD835`, `DS:0x8F12`: fleet
+  sprites.
 - `MAIN.EXE 0x1E764`, `0x1E1CE`, `0x1E280`, `0x1E18E`, `0x1E3A3`: food, water,
   health, and supply sharing.
 - `MAIN.EXE 0x2D593`: departure check.

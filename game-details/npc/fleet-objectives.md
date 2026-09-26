@@ -48,7 +48,7 @@ an NPC's assignment must be found through the same captain-to-fleet link used
 for its ships; fleet IDs should not be inferred from a captain's name.
 
 The objective argument is interpreted according to the objective. It can be a
-port ID, sailor ID, or region ID. The two navigation-target words are derived
+port ID or sailor ID. The two navigation-target words are derived
 movement state rather than the authoritative assignment: objectives aimed at a
 port copy that port's coordinates, while objectives aimed at a fleet follow
 the target fleet's changing coordinates.
@@ -67,7 +67,7 @@ a distinct autonomous assignment.
 |     0 | Return home            | home-port ID        | “We're on our way home.”         | heading toward the port                    |
 |     1 | Invest                 | destination port ID | heading there to invest          | heading toward the port                    |
 |     2 | Trade                  | destination port ID | off to trade goods there         | heading toward the port                    |
-|     3 | Waylay fleets          | region ID           | a hostile encounter statement    | waylaying fleets in the region             |
+|     3 | Waylay fleets          | port ID             | a hostile encounter statement    | waylaying fleets in the region             |
 |     4 | Attack merchant fleets | target sailor ID    | a hostile encounter statement    | attacking merchant fleets indiscriminately |
 |     5 | Pursue a fleet         | target sailor ID    | looking for that captain         | targeting that captain's fleet             |
 |     6 | Pursue a fleet         | target sailor ID    | looking for that captain         | targeting that captain's fleet             |
@@ -75,6 +75,11 @@ a distinct autonomous assignment.
 |     8 | Guard a fleet          | target sailor ID    | sailing in a convoy              | guarding that captain's fleet              |
 |     9 | Guard a port           | port ID             | on the lookout for pirates       | guarding the port                          |
 |    10 | Scripted pursuit       | target sailor ID    | “I have some business with you.” | not handled by the ordinary report table   |
+
+Objective 3's argument is a port whose coordinates become the destination,
+as for objectives 0–2 and 9; Otto's scenario, for example, assigns it with
+port IDs 28 (Nantes) and 48 (Santo Domingo)
+([Otto's scenario](../scenarios/scenario-3-otto-baynes.md)).
 
 Objectives 5–7 deliberately share the same public wording and all follow the
 target's fleet. Values 5 and 6 use the same pursuit branches in the movement,
@@ -143,7 +148,7 @@ and initializes the navigation target:
 | ----------: | ---------------------------------------------------------------------- |
 |           0 | The fleet's own home port.                                             |
 |         1–2 | The nation's cached merchant-fleet destination at nation byte `+0x04`. |
-|           3 | The existing region argument is retained.                              |
+|           3 | The existing port argument is retained.                                |
 |           4 | The current player's fleet is tracked.                                 |
 | 5–7, mode 3 | The current player's fleet is targeted.                                |
 | 5–7, mode 4 | A random position 0–4 in the target nation's fleet block is targeted.  |
@@ -167,7 +172,7 @@ The normal lifecycle is:
 return home (0)
     → repair/replenish and wait for the arrival-action delay
     → choose an objective from fleet class + national strategic mode
-    → choose its port/fleet/region argument
+    → choose its port or fleet argument
     → copy or continually follow the destination coordinates
     → perform the assignment
     → return home
@@ -185,7 +190,7 @@ game converts an objective into a new navigation target, it assigns
 Home, Invest, and Trade decrement it and take no action until it reaches zero.
 Thus it delays the action on arrival at a port, not just a fleet's departure
 from home. The timer remains present but is not consumed while a fleet is
-following another fleet or waylaying a region.
+following another fleet or waylaying near a port.
 
 Two assignment helpers can instead redirect a fleet to its home port with a
 fixed delay of 5. This happens when the fleet lacks flag `0x40` and the

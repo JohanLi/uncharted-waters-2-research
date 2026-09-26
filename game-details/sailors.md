@@ -167,9 +167,34 @@ monthly change = 2 × W − A + L
 new Loyalty    = clamp(old Loyalty + monthly change, 0, 100)
 ```
 
-A mate already at 100 bypasses this update and remains at 100. The payroll
-routine also records whether wages could actually be paid, but its Loyalty
-calculation uses the stored wage in either case.
+A mate already at 100 bypasses this update and remains at 100. The Loyalty
+calculation uses the stored wage whether or not the wages were actually paid
+([Wages](#wages)).
+
+### Wages
+
+Mates are paid at the start of every month by the monthly routine
+(`MAIN.EXE 0x1DFF6`, part of the group at `0x1E15C`), wherever the fleet is.
+Only mates are paid; the ordinary crew costs nothing. Each hired mate's wage
+is a byte in the list paired with the mate roster (`DS:0x2BCB`), in tens of
+gold pieces:
+
+```text
+wages = 10 × sum of the hired mates' wage bytes
+```
+
+- If the protagonist carries at least that much gold, it is deducted and the
+  message is 574, “Commodore, our crew was paid %ld gold pieces in wages.”
+- Otherwise nothing is deducted, every mate's byte `+0x29` gains bit `0x80`,
+  and the message is 572, “Commodore, we don't have enough gold to pay our
+  crew's wages.” No routine reads that bit, so an unpaid month has no further
+  effect, and Loyalty is recalculated as usual.
+
+The message is spoken by the Bookkeeper-first spokesman
+([Crew spokesmen](buildings.md#crew-spokesmen)) and appears only at sea, when
+the wages are not zero, and while no weather anomaly is active (the low four
+bits of `DS:0x0E37`, `0x1E110–0x1E124`). In port the deduction happens
+silently.
 
 The initial hiring test and requested-wage formula are documented under
 [Pub command dialogue](buildings.md#pub-command-dialogue). Pub hiring uniquely
@@ -286,6 +311,12 @@ These persistent recruits are found in inns or cafés; locations can change duri
 ## Temporary vagabonds
 
 These recruits disappear after being defeated and are only available while not sailing.
+All of them are drawn with generic portraits (sailor byte `+0x13` bits `0xC0`). When
+one loses his fleet in a naval battle, `MAIN.EXE 0x1533A` clears his byte `+0x29` bit
+`0x20`, and from then on each month's pass at `0x1DC64` has a 1-in-3 chance of reusing
+the record for a brand-new generic sailor (`0x1D71D`). Many ordinary fleet captains
+(for example IDs 8–68, 114, and 116) have generic portraits too and can vanish the same
+way ([After the battle](naval-battle.md#after-the-battle)).
 
 |  ID | Sailor           | Nationality | Leadership | Seamanship | Knowledge | Intuition | Courage | Swordsmanship | Charm | Luck | Navigation Level | Battle Level | Age | Skills                                     |
 | --: | ---------------- | ----------- | ---------: | ---------: | --------: | --------: | ------: | ------------: | ----: | ---: | ---------------: | -----------: | --: | ------------------------------------------ |
