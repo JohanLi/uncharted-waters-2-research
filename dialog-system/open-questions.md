@@ -14,8 +14,8 @@ testing.
 
 ## Current priorities
 
-1. **Identify the time-dependent general-RNG consumer** (Section 3).
-2. **Extend the query past one command per visit** (Section 1).
+No investigation is open. The remaining gaps are the accepted
+[known limitations](#known-limitations).
 
 All ordinary building command groups have save-aware resolvers, every
 reachable scenario opcode is decoded, and every prediction that was checked in
@@ -38,8 +38,9 @@ dialogue. It applies building hours, admission and hostile-country gates, story
 routes that suppress entry or the greeting, and the Lodge's `F8` exception. It
 resolves every command of every building type from supplied inputs. It reports
 executable-side random outcomes as probabilities with their exact draws,
-because the general RNG cannot be recovered from a save (Section 3). The query
-is read-only.
+because the general RNG cannot be recovered from a save
+([General RNG consumption](../game-details/townspeople.md#general-rng-consumption)).
+The query is read-only.
 
 ### Resolved
 
@@ -71,20 +72,30 @@ Pub greeting, the `|Henry VIII|`, `|Old Guild Worker|`, and `|Head Trader|`
 plates, the Bookkeeper's gold lines, the separate named-speaker panel, Used
 Ship graying, the Market half-price rule, the Guild's “You'll find Venice
 around 45°N 13°E.”, both Locate results and its gold check, the map-selling
-patron, and the night-time townspeople. The query reproduces all of them.
+patron, the night-time townspeople, and the fresh-launch supply-port prices
+(Food 31, Lumber 147, Shot 186). The query reproduces all of them.
 
-### Remaining query coverage
+### Known limitations
 
-- **Multi-command visits.** The query resolves one command per visit.
-  Per-visit state, such as the cartographer's single Report, is reported as a
-  note.
+These are accepted and not planned to be solved:
+
+- **Multi-command visits** carry forward the save writes and per-visit state
+  listed in the [dialog-system guide](./README.md#multi-command-visits). Other
+  effects, such as hiring a sailor, crew distribution, ship purchases, Palace
+  commands, and contracts, are noted but not applied to later commands, and a
+  random roll a later command depends on follows its failure branch unless
+  the caller assumes an outcome.
 - **Interactive controls** such as crew assignment, investigation, gambling,
   and ship design are identified at their handoff rather than simulated.
 - **Supply-port prices** for Food, Lumber, and Shot reuse the last regular
   port's metadata pointer held by the running program, which the save does not
-  contain. Water and every Dump operation remain exactly predictable.
-- **Pub attendant quirk.** With protagonist bit `0x10` set, the attendant
-  check reads the previously stored attendant, which the save does not hold.
+  contain. Before any regular port's town is set up in a run, the prices are
+  fixed at Food 31, Lumber 147, and Shot 186
+  ([Harbor](../game-details/buildings.md#harbor-command-dialogue)). Water and
+  every Dump operation remain exactly predictable.
+- **Random outcomes** stay probabilities. The general RNG is not in the save,
+  and every choice prompt advances it for as long as the player hesitates
+  ([General RNG consumption](../game-details/townspeople.md#general-rng-consumption)).
 
 ## 2. Scenario-VM state and effects
 
@@ -137,44 +148,6 @@ fleet `+0x21`/`+0x22` are its cargo type and amount
 ([Naval battle](../game-details/naval-battle.md#cargo)), and every fleet
 objective is listed in [Fleet navigation](../game-details/npc/fleet-navigation.md).
 
-## 3. General gameplay RNG lifecycle
-
-Executable-side choices use a 32-bit state at `DS:0xC1CC`/`DS:0xC1CE`:
-
-```text
-state = state * 0x41C64E6D + 0x3039    # modulo 2^32
-value = (state >> 16) & 0x7FFF
-result = value % bound
-```
-
-### Known
-
-- The state lies in `DS:0xBF32–0xC790`, which the C startup code clears
-  (`0x89C7–0x89D1`), so it starts at 0 when the program is launched.
-- Nothing reseeds it. The only direct writes are the generator itself
-  (`0x0A181`) and an `srand`-style setter (`0x0A18E`) that has no caller, and
-  the executable's time-of-day helper has no caller either.
-- It is not stored in the save, and loading a save does not change it.
-- In daytime every town frame moves the walking townspeople, which costs 8–12
-  draws plus one per visible fixed townsperson, whether or not the player moves
-  (see [Townspeople](../game-details/townspeople.md#general-rng-consumption)).
-  At night the routine makes none.
-- The clock advances only through building visits, arrival, battles, and
-  loading, so town frames do not trigger time-based world updates.
-
-Random results driven by this generator therefore cannot be predicted from a
-save, and the query reports them as probabilities.
-
-### Unknown
-
-In play, relaunching the program, loading the same save, and entering the same
-building at night gave different visit lengths. Some routine other than the
-townspeople must therefore draw a number of values that depends on elapsed real
-time before the building is entered, perhaps in the start-up menus or another
-frame loop. A quick way to narrow it down is to relaunch and load the same
-save twice, entering the building immediately the first time and after
-waiting a minute on the title or load screen the second time.
-
 ## Closed investigations
 
 The following no longer need entries in this tracker:
@@ -192,8 +165,10 @@ The following no longer need entries in this tracker:
 - every reachable scenario action opcode and `D0`/`DC` record group;
 - the meanings of the record fields those scripts read and write;
 - the general RNG's initialization, persistence, and unpredictability from a
-  save; and
-- townsperson movement and the lines shown when walking into a townsperson.
+  save, including the choice prompt that advances it while waiting for input
+  (`0x1921F`);
+- townsperson movement and the lines shown when walking into a townsperson;
+- building visits made of several commands.
 
 Their evidence and implementation details remain in the dialog-system guide,
 reverse-engineering notes, generated analysis, and relevant game-detail pages.

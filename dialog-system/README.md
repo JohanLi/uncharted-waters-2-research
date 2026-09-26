@@ -624,6 +624,61 @@ changing the save. Item Shop counteroffers, sailor rumors and hiring,
 collector Rumor, and other branches driven by the unsaved general RNG remain
 probabilistic.
 
+### Multi-command visits
+
+Further arguments after the action are later commands in the same building
+visit. A later command may repeat the building name:
+
+```sh
+pnpm run query-dialog -- FILE SLOT pub:treat:10 treat:10 recruit-crew:20
+pnpm run query-dialog -- FILE SLOT church:pray@success pray donate:500
+pnpm run query-dialog -- FILE SLOT market:buy-goods:1:1:20:yes sell-goods:1
+pnpm run query-dialog -- FILE SLOT special-building:report report
+```
+
+The first command is resolved exactly as a single command path, including the
+story routes and ordinary entry. The query then copies the save and applies
+the earlier commands' writes before resolving each later command against the
+copy. The save file itself is never changed. Modeled writes include on-hand
+gold, Bank balance, Luck, the Cartography, Celestial Navigation, and Gunnery
+skill bits, Adventure Fame, the unreported-chart counter, consumed
+discoveries, item inventory, Market cargo slots and rates, investment totals, a
+patron's Loyalty after Treat, repaired ship condition, the invitation flag set
+by a Pub Treat, and the same-day Shipyard ejection flag.
+
+The executable also keeps some state only while the player is inside a building.
+The query carries this state between commands:
+
+- **Pub enthusiasm.** Entry sets it to `floor(Charm / 3)`. Each Treat raises it,
+  and Recruit Crew sizes its pool from the current value. If Meet finds nobody
+  worth recruiting, it shows raw message 38 instead of 39 when enthusiasm is at
+  least 50.
+- **Pray's Luck roll.** Only the first Pray in a visit can add Luck.
+- **Cartographer Report.** After one Report, Report is grayed out for the rest
+  of the visit.
+- **The end of the visit.** Sailing, being ejected from the Shipyard, and
+  failing to pay the fortune teller end the visit. No later command can be
+  selected.
+
+A command can depend on the general gameplay RNG, which a save cannot
+reproduce. The query still reports it as a probability. In a sequence, append
+`@success` or `@failure` to that command to choose the outcome that later
+commands see. Otherwise later commands assume the roll failed and changed
+nothing. Each later command notes this dependency and its probability, and the
+overall confidence becomes `ambiguous`. This covers Pray's `random(2)` Luck,
+Donate's `(random(5) + 1) × 100` threshold for 100–499 gold, and the Item Shop
+counteroffer. Rolls that the path already selects are unchanged, such as a
+Shipyard low offer's `ejected` or `refused`.
+
+Some effects are not written to the copy. Each later command lists them as not
+applied, for example crew distribution, sailor hiring, waitress favor,
+collector and cartographer contracts, Lodge Check In's clock change, Supply,
+Moor, ship purchases, sales, remodeling, Palace commands, a Pub Treat's patron
+rumors, and the Support redistribution after an investment. An incomplete
+selection is treated as backing out to the building menu. Programmatic
+callers use `parseQueryVisit` and `queryVisit`; a one-command visit returns
+the same result as `queryScenario`.
+
 ## Worked João examples
 
 These examples show why port and building alone are insufficient.

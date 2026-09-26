@@ -27,8 +27,10 @@ import {
   loadSharedScenario,
   nextScenarioRandom,
   parseQueryAction,
+  parseQueryVisit,
   protagonistScenarioRandomSeed,
   queryScenario,
+  queryVisit,
   sharedScenarioRandomSeed,
 } from "./query.js";
 
@@ -2558,4 +2560,210 @@ test("sets the opposing captain and leaves the post-battle fleet unknown", async
   assert.equal(result.outcomes[0]!.dialogue[0]!.messageId, 604);
   assert.match(result.outcomes[0]!.uncertainties[0]!, /0x1EA3/);
   assert.ok(result.notes.some((note) => /sailor 60/.test(note)));
+});
+
+// Seville (port 1) has no story route for João's opening save, so a visit
+// reaches the ordinary menu. Tick 0x1B is 9:00, when the Pub, Church, and
+// Market are open.
+async function visitSave(portId = 1): Promise<Buffer> {
+  let save = await originalSave();
+  const base = slotOffset(1);
+  save[base + 0x0a] = portId;
+  save[base + 9] = 0x1b;
+  save = setGold(save, 1, 100_000);
+  return save;
+}
+
+// Gives the opening save's empty fleet one ship, Mercury, with 20 of 40
+// crew and 200 cargo spaces.
+function addVisitShip(save: Buffer): void {
+  const base = slotOffset(1);
+  const protagonistId = save[14]!;
+  const fleetId = save[base + 0x612 + protagonistId * 42 + 0x24]!;
+  const fleetShip = base + 0x1de0 + fleetId * 0x85 + 0x2b;
+  const instance = base + 0x47fc;
+  const supply = base + 0x423e;
+  save.set([20, 0, 80, 100, 50, 50, 0, 0, 0x10], fleetShip);
+  save.fill(0, instance, instance + 0x18);
+  save.write("Mercury", instance, "latin1");
+  save.writeUInt16LE(40, instance + 0x14);
+  save.writeUInt16LE(200, instance + 0x16);
+  save.fill(0, supply, supply + 0x1e);
+  save.fill(0xff, supply + 0x16, supply + 0x1b);
+  save[supply + 0x1b] = protagonistId;
+}
+
+async function visit(save: Buffer, ...values: string[]) {
+  const parsed = parseQueryVisit(values);
+  return queryVisit(
+    save,
+    1,
+    parsed.action,
+    parsed.commands,
+    await loadProtagonistScenario(1),
+    await loadSharedScenario(),
+  );
+}
+
+test("parses a building visit as a command sequence", () => {
+  assert.deepEqual(
+    parseQueryVisit([
+      "church:pray@success",
+      "church:pray",
+      "donate:500@failure",
+    ]),
+    {
+      action: { type: "building", context: 10, name: "church" },
+      commands: [
+        { path: ["pray"], assume: "success" },
+        { path: ["pray"] },
+        { path: ["donate", "500"], assume: "failure" },
+      ],
+    },
+  );
+  assert.throws(() => parseQueryVisit(["at-sea", "pray"]), /building/);
+});
+
+test("resolves a one-command visit exactly like the single-command query", async () => {
+  const save = await visitSave();
+  const single = await queryScenario(
+    save,
+    1,
+    parseQueryAction("pub:treat:10"),
+    await loadProtagonistScenario(1),
+    await loadSharedScenario(),
+  );
+  assert.deepEqual(await visit(save, "pub:treat:10"), single);
+  assert.equal(single.visit, undefined);
+});
+
+test("carries Pub enthusiasm from two Treats into Recruit Crew", async () => {
+  const save = await visitSave();
+  const protagonistId = save[14]!;
+  addVisitShip(save);
+  const charm = save[slotOffset(1) + 0x612 + protagonistId * 42 + 0x1a]!;
+  const entryEnthusiasm = Math.floor(charm / 3);
+
+  // At entry enthusiasm (below 30), Recruit Crew first warns and asks.
+  const fresh = await visit(save, "pub:recruit-crew");
+  assert.deepEqual(fresh.ordinaryBuilding?.command?.notes, [
+    `Current Pub enthusiasm: ${entryEnthusiasm}.`,
+  ]);
+
+  const result = await visit(
+    save,
+    "pub:treat:10",
+    "treat:10",
+    "recruit-crew:5",
+    "meet",
+  );
+  const [first, second, recruit, meet] = result.visit!;
+  assert.match(
+    first!.command!.effects[1]!,
+    new RegExp(`from ${entryEnthusiasm} to 46$`),
+  );
+  assert.match(second!.command!.effects[1]!, /from 46 to 63$/);
+  // Enthusiasm 63 skips the drinks warning and sizes the recruit pool.
+  assert.equal(recruit!.command?.disposition, "completed");
+  assert.ok(!recruit!.command!.dialogue.some((line) => line.rawIndex === 31));
+  assert.ok(
+    recruit!.command!.notes.some((note) => note.includes("floor(63 ×")),
+  );
+  // The unmodeled crew assignment is reported to the next command, and an
+  // empty Meet list reports raw 38 once enthusiasm reaches 50.
+  assert.ok(meet!.notes.some((note) => /crew-assignment/.test(note)));
+  assert.equal(meet!.command?.dialogue[0]?.rawIndex, 38);
+});
+
+test("allows one cartographer Report per visit", async () => {
+  const save = await visitSave(33);
+  const base = slotOffset(1);
+  const mercatorFlags =
+    base + CARTOGRAPHER_TABLE + 4 * CARTOGRAPHER_RECORD_SIZE + 0x16;
+  save[mercatorFlags] = save[mercatorFlags]! | 0x10;
+  save.writeUInt16LE(3, base + 0x036c);
+  save.writeUInt16LE(142, base + 0x036a);
+
+  const result = await visit(save, "special-building:report", "report");
+  const [first, second] = result.visit!;
+  assert.equal(first!.command?.disposition, "completed");
+  assert.equal(first!.command?.effects[0], "add 240 gold");
+  assert.equal(second!.command?.disposition, "unavailable");
+  assert.deepEqual(second!.notes, [
+    "Report is grayed out because it was already used during this visit.",
+  ]);
+});
+
+test("lets only the first Pray of a visit add Luck", async () => {
+  const save = await visitSave();
+  const protagonistId = save[14]!;
+  const luck = save[slotOffset(1) + 0x612 + protagonistId * 42 + 0x1b]!;
+
+  const unresolved = await visit(save, "church:pray", "pray", "donate:50000");
+  const [first, second, donation] = unresolved.visit!;
+  assert.equal(first!.command?.confidence, "ambiguous");
+  assert.match(first!.notes[0]!, /probability 50%/);
+  assert.equal(second!.command?.confidence, "decoded");
+  assert.deepEqual(second!.command?.uncertainties, []);
+  assert.match(second!.command!.notes[0]!, /cannot change Luck/);
+  // floor(100,000 / 50,000) = 2, so Luck becomes Luck - 2 + 11.
+  assert.equal(donation!.command?.effects[1], `set Luck to ${luck + 9}`);
+  assert.ok(donation!.notes.some((note) => /assumed to fail/.test(note)));
+  assert.equal(unresolved.confidence, "ambiguous");
+
+  const blessed = await visit(
+    save,
+    "church:pray@success",
+    "pray",
+    "donate:50000",
+  );
+  assert.match(blessed.visit![0]!.notes[0]!, /^Assumed roll success/);
+  assert.equal(
+    blessed.visit![2]!.command?.effects[1],
+    `set Luck to ${luck + 10}`,
+  );
+});
+
+test("spends Market gold before the next purchase", async () => {
+  let save = await visitSave();
+  const metadata = slotOffset(1) + 0x5966 + 1 * 0x25;
+  save.writeUInt16LE(10_000, metadata + 2);
+  save[metadata + 0x23] = 0;
+  save.fill(50, metadata + 0x10, metadata + 0x1a);
+  addVisitShip(save);
+  save = setGold(save, 1, 1_000);
+
+  const list = await visit(save, "market:buy-goods");
+  const price = Number(
+    /\((\d+) gold\/lot\)/.exec(list.ordinaryBuilding!.command!.menu[0]!)![1],
+  );
+  const lots = Math.floor(1_000 / price) - 1;
+  const result = await visit(
+    save,
+    `market:buy-goods:1:1:${lots}:yes`,
+    "buy-goods:1:1",
+    "sell-goods:1",
+  );
+  const [bought, again, sell] = result.visit!;
+  assert.equal(bought!.command?.effects[0], `deduct ${lots * price} gold`);
+  // Only the gold left after the first purchase limits the second.
+  const left = 1_000 - lots * price;
+  assert.deepEqual(again!.command?.menu, [
+    `Lots: 0–${Math.floor(left / price)}`,
+  ]);
+  // The purchased lots occupy the first cargo slot.
+  assert.match(sell!.command!.menu[0]!, new RegExp(`\\(${lots} lots,`));
+});
+
+test("stops a visit after a command that leaves the building", async () => {
+  const save = await visitSave();
+  save[slotOffset(1) + 9] = 0x30;
+  const result = await visit(
+    setGold(save, 1, 20),
+    "house-of-fortune:life:yes",
+    "life:yes",
+  );
+  assert.equal(result.visit![0]!.command?.disposition, "blocked");
+  assert.equal(result.visit![1]!.command, undefined);
+  assert.match(result.visit![1]!.notes.at(-1)!, /ended the visit/);
 });

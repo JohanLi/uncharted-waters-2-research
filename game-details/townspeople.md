@@ -181,12 +181,22 @@ line 618 is used when the port has no specialty (`0xFF`).
 
 The walker routine and every other executable-side random choice share one
 generator (see
-[open questions](../dialog-system/open-questions.md#3-general-gameplay-rng-lifecycle)).
+[Visit duration](buildings.md#visit-duration)).
 Its state starts at zero when the program is launched, is never reseeded, and
 is not stored in the save. In daytime, each town frame consumes between 8 and
 12 draws for the walkers, plus one per visible fixed actor. These draws are
 one of the reasons the generator's state when the player enters a building
 depends on the program's history since launch rather than on the save.
+
+The larger reason is the shared choice prompt. While it waits for the player
+to pick an option, its loop at `MAIN.EXE 0x1921F` draws `random(100)` and
+discards it on every pass, then polls the mouse and keyboard without waiting
+for a timer (`0x1863E`). The generator therefore advances as fast as the
+machine runs, for as long as the player hesitates. The title screen's Load
+Game / New Game / Quit Game menu (`0x1C1AF`), every yes/no confirmation
+(`0FC4:4529`), scenario forced menus (`0FC4:41F1`), list and quantity pickers
+(`0FC4:43B1`), and battle menus (`0FC4:4419`) all use it. Message boxes that
+only wait for a click (`0:7690`), the sea menu, and the building menus do not.
 Random results such as the
 40-, 60-, or 80-minute building visit, hostile-building encounters, or Used
 Ship stock cannot be predicted from a save.
