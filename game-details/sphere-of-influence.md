@@ -25,7 +25,12 @@ it activates the regional supply line described below.
 
 The Palace does not select allied ports directly from their six Support values.
 It uses the nation index cached in the low three bits of saved port-record byte
-`+0x13`. The game normally refreshes that index from Support as time advances.
+`+0x13`. The game refreshes that index every midnight, in port or at sea
+(`MAIN.EXE 0x1E88F`, called at `0x1E982` from the midnight routine that the
+day loop runs at the end of each day, `0x205DF`). For each of the 100 regular
+ports and each nation, it sets the index to a nation whose Support is at least
+75% (`0x1E81E`), and resets an index naming a nation below 75% to 6, meaning no
+controller (`0x1E849`).
 An investment that changes this cached controller also changes the player's
 personal Friendship with the nations involved, as documented in
 [National Friendship](friendship.md#investment-and-port-control); it does not
@@ -33,29 +38,27 @@ change the nation-to-nation Relations matrix.
 
 At the beginning of a new game, some ports already have at least 75% Support for
 a nation while this cached index still names their old controller. They are
-omitted from the Palace report until the first daily update synchronizes the
-cache. England therefore begins with only London, Bristol, and Dublin in its
-Palace report. The first daily update adds Bordeaux, Nantes, Oslo, and Stockholm,
+omitted from the Palace report until the first midnight synchronizes the cache. England therefore begins with only London, Bristol, and Dublin in its
+Palace report. The first midnight adds Bordeaux, Nantes, Oslo, and Stockholm,
 raising England's European rating from 352 to 810 without changing the ports'
 Support, Industry, or Economy values.
 
 ### Regional activation
 
-A region contributes only when the required allied-port Industry totals reach
-300. The Palace routine builds Economy and Industry totals for each nation and
+A region contributes only when the required allied-port Industry totals reach 300. The Palace routine builds Economy and Industry totals for each nation and
 region by iterating over all 100 regular ports (`MAIN.EXE` 0x2FF24–0x2FF78).
 It then applies these supply-line checks:
 
-| Requested region | Required allied-port Industry totals |
-| ---------------- | ------------------------------------ |
-| Europe           | Europe >=300                         |
-| New World        | New World >=300                      |
-| West Africa      | West Africa >=300                    |
+| Requested region | Required allied-port Industry totals                                |
+| ---------------- | ------------------------------------------------------------------- |
+| Europe           | Europe >=300                                                        |
+| New World        | New World >=300                                                     |
+| West Africa      | West Africa >=300                                                   |
 | East Africa      | East Africa >=300 and either West Africa >=300 or Middle East >=300 |
-| Middle East      | Middle East >=300                    |
-| India            | Middle East >=300 and India >=300    |
-| Southeast Asia   | Middle East, India, and Southeast Asia each >=300 |
-| Far East         | Middle East, India, Southeast Asia, and Far East each >=300 |
+| Middle East      | Middle East >=300                                                   |
+| India            | Middle East >=300 and India >=300                                   |
+| Southeast Asia   | Middle East, India, and Southeast Asia each >=300                   |
+| Far East         | Middle East, India, Southeast Asia, and Far East each >=300         |
 
 The direct checks for Europe, the New World, and West Africa are at `MAIN.EXE`
 0x2FFB7–0x2FFDC. The East Africa branch is at 0x30019–0x30071, and the eastern
@@ -89,14 +92,14 @@ boundaries.
 Portugal's initialized starting sphere demonstrates both the calculation and
 the supply-line checks:
 
-| Region | Allied ports | Industry | Economy | Result |
-| ------ | ------------ | -------: | ------: | -----: |
-| Europe | Lisbon, Ceuta | 860 | 865 | `floor(865 / 4) = 216` |
-| New World | Pernambuco, Rio de Janeiro | 290 | 260 | inactive: Industry is below 300 |
-| West Africa | Madeira, San Jorge, Luanda, Argin | 680 | 740 | `floor(740 / 3) = 246` |
-| East Africa | Sofala, Malindi, Mombasa | 1,150 | 1,140 | `floor(1,140 / 2) = 570` |
-| Middle East | Aden, Hormuz | 350 | 310 | `floor(310 / 3) = 103` |
-| India | Diu, Cochin, Goa | 760 | 745 | `745` |
+| Region      | Allied ports                      | Industry | Economy |                          Result |
+| ----------- | --------------------------------- | -------: | ------: | ------------------------------: |
+| Europe      | Lisbon, Ceuta                     |      860 |     865 |          `floor(865 / 4) = 216` |
+| New World   | Pernambuco, Rio de Janeiro        |      290 |     260 | inactive: Industry is below 300 |
+| West Africa | Madeira, San Jorge, Luanda, Argin |      680 |     740 |          `floor(740 / 3) = 246` |
+| East Africa | Sofala, Malindi, Mombasa          |    1,150 |   1,140 |        `floor(1,140 / 2) = 570` |
+| Middle East | Aden, Hormuz                      |      350 |     310 |          `floor(310 / 3) = 103` |
+| India       | Diu, Cochin, Goa                  |      760 |     745 |                           `745` |
 
 East Africa is active because its own Industry exceeds 300 and West Africa or
 the Middle East can supply it. India is active because both the Middle East and
@@ -143,13 +146,13 @@ European non-capitals can contribute 36,000 Economy, while the home capital
 adds its fixed Economy before the total is divided by four. This gives:
 
 | Home nation | Fixed capital Economy | European maximum |
-| ----------- | ---------------------: | ---------------: |
-| Portugal    |                    780 |            9,195 |
-| Spain       |                    770 |            9,192 |
-| Turkey      |                    810 |            9,202 |
-| England     |                    720 |            9,180 |
-| Italy       |                    750 |            9,187 |
-| Holland     |                    700 |            9,175 |
+| ----------- | --------------------: | ---------------: |
+| Portugal    |                   780 |            9,195 |
+| Spain       |                   770 |            9,192 |
+| Turkey      |                   810 |            9,202 |
+| England     |                   720 |            9,180 |
+| Italy       |                   750 |            9,187 |
+| Holland     |                   700 |            9,175 |
 
 The capital is stored on the nation record, not the port record:
 

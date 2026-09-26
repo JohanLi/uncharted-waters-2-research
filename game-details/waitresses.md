@@ -213,6 +213,10 @@ The comparisons are unsigned checks against 80 and 50 at
 same numeric favor field, not a separate permanent state or reward.
 
 All waitress records initialize favor to 0, including Lucia's and Ladia's.
+Scenario scripts change a few: João's opening sets Carlotta's and Lucia's favor
+to 100 (`SNR1.DAT 0x041F–0x042C`) and later removes Lucia from the Waitress
+command by clearing her flag `0x08` (`0x1A35–0x1A44`); Ali's story sets
+Ladia's favor to 50 and later 100.
 Story dialogue involving a protagonist and a waitress should not be confused
 with this ordinary favor mechanic.
 

@@ -30,7 +30,7 @@ fleet[0x00..0x03]  current world position
 fleet[0x04..0x07]  final/current mission navigation target
 fleet[0x08..0x0B]  local terrain-aware temporary waypoint
 fleet[0x0C..0x0D]  route-slot index and navigation flags
-fleet[0x0E..0x0F]  unidentified navigation-adjacent word
+fleet[0x0E..0x0F]  in-area step accumulator
 fleet[0x10..0x17]  four cached navigation-graph node IDs (u16 each)
 fleet[0x1B]        objective
 fleet[0x1C]        objective argument
@@ -48,13 +48,35 @@ local temporary waypoint at `+0x08/+0x0A`. The route-state code normally
 derives this waypoint from the current cached graph node by running a second,
 terrain-aware search. Bit `0x08` marks a cached graph route that reaches the
 graph node nearest the final destination; after its cached nodes have been
-consumed, navigation switches to the exact `+0x04/+0x06` target. Bit `0x40`
-participates in route exhaustion and rebuilding. Some flag combinations remain
-to be named.
+consumed, navigation switches to the exact `+0x04/+0x06` target.
 
-The principal movement, local-search, and route-advancement routines described
-below do not read the word at `+0x0E/+0x0F`. Calling it a movement accumulator
-would therefore be premature. Its exact meaning remains unidentified.
+### Route state
+
+The high byte `+0x0D` holds these flags:
+
+| Bit    | Meaning                                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------ |
+| `0x01` | Preserved by the view-shift reset (`0xBE3D`); no reader found                                    |
+| `0x02` | Reset the step accumulator at `+0x0E` on the next in-area step (`0x36F6A–0x36F7C`), then cleared |
+| `0x08` | The cached route reaches the graph node nearest the destination (`0x28F23`)                      |
+| `0x20` | Steer to the exact target at `+0x04/+0x06`                                                       |
+| `0x40` | The cached route is empty or used up and must be rebuilt                                         |
+| `0x80` | The temporary waypoint at `+0x08/+0x0A` is active                                                |
+
+Bit `0x40` is set when advancing through the cache leaves no filled slot
+(`0x2989A`, `0x2998B`). The route-state code then either switches to the exact
+target, when bit `0x08` is set, or calls the route builder (`0x28A18`), which
+refills the cache and clears `0x40` (`0x28F2B`). When a fleet is given a new
+destination, the game writes the whole word as `0x4000`, or `0x6000` for an
+exact target in the loaded area (`0x395AB`, `0x39671`, `0x20379`,
+`0x36DAC`, `0x36E4F`): cache slot 0, no cached nodes, no waypoint, and a
+rebuild pending. Scenario scripts use the same value. When the loaded sea area
+shifts, fleets whose waypoint now lies on land are reset the same way,
+keeping only bit `0x01` (`0xBDD8`, `0xBE3D–0xBE42`).
+
+The word at `+0x0E/+0x0F` is the step accumulator of the in-area heading
+routine (`0x36EC1`): it is seeded with `−(|dx| / 2)` when bit `0x02` is set
+and drives a line-drawing walk toward the target (`0x36F6A–0x36FAC`).
 
 The objective byte `+0x1B` selects what a fleet is doing. Speaking to a fleet
 with **Gossip** at sea reports it through a line chosen by objective
@@ -288,9 +310,7 @@ work is to:
 
 - plot all 622 nodes and their four possible links over the world map;
 - transcribe the FIFO search and four-node cache refill into reusable code;
-- identify the semantic purpose of the accumulated per-edge bytes;
-- identify the word at fleet offset `+0x0E`;
-- name the remaining route-flag combinations; and
+- identify the semantic purpose of the accumulated per-edge bytes; and
 - isolate the conditions under which the local terrain search can select a
   waypoint that incremental movement never reaches exactly.
 

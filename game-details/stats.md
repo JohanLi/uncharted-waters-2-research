@@ -76,7 +76,7 @@ experience nor attributes. See [Dueling](dueling.md).
   `(random(5) + 1) × 100` gold. The gain is 1–10; donating all your gold gives
   +10. Smaller donations never change Luck.
   See [Church and Mosque](buildings.md#church-and-mosque-command-dialogue).
-- In João's scenario, declining the gold that Father Felippe offers in
+- In João's scenario, choosing **Donate** when Father Felippe offers gold in
   Lisbon's church sets João's Luck to 100 (`SNR1.DAT 0x04D8`).
 - A new game starts the protagonist's Luck at `random(101)`, 0–100
   (`0x1BA96`), replacing the 50 stored for every protagonist in
@@ -90,12 +90,12 @@ stays at its starting value unless it is lowered.
 
 ## How attributes are lowered
 
-| Attribute              | Lowered by                                                                                                                                                                                                                                 |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Charm                  | Plundering a village: −2, or only down to 50 from 50–51; from 0–1 it wraps to 254–255 ([Villages](at-sea.md#villages))                                                                                                                     |
-| Luck                   | Plundering a village (up to −2); the Ghost ship sea event (up to −30) ([Event types](at-sea.md#event-types))                                                                                                                               |
-| Courage                | The Kraken sea event: the protagonist and every mate lose up to 10 ([Event types](at-sea.md#event-types))                                                                                                                                  |
-| All but Charm and Luck | Story penalties set them to 10: attacking an ally in João's finale, where Charm is also set to 50 and Luck to 0 ([João](scenarios/scenario-1-joao-franco.md)), and attacking Catalina's weakened fleet in Otto's story (`SNR3.DAT 0x18CE`) |
+| Attribute              | Lowered by                                                                                                                                                                                                                                                                                                      |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Charm                  | Plundering a village: −2, or only down to 50 from 50–51; from 0–1 it wraps to 254–255 ([Villages](at-sea.md#villages))                                                                                                                                                                                          |
+| Luck                   | Plundering a village (up to −2); the Ghost ship sea event (up to −30) ([Event types](at-sea.md#event-types))                                                                                                                                                                                                    |
+| Courage                | The Kraken sea event: the protagonist and every mate lose up to 10 ([Event types](at-sea.md#event-types))                                                                                                                                                                                                       |
+| All but Charm and Luck | Story penalties set them to 10: attacking an ally in João's finale, where Charm is also set to 50 and Luck to 0 ([João](scenarios/scenario-1-joao-franco.md)), and attacking Ezequiel's retreating Spanish fleets a fifth time in Otto's story ([Otto](scenarios/scenario-3-otto-baynes.md), `SNR3.DAT 0x18CE`) |
 
 ## What each attribute does
 

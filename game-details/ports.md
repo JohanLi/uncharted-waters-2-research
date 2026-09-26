@@ -197,13 +197,16 @@ slot-relative `0x5966`; investment and other economic changes persist there.
 
 ### 20-byte port display record
 
-Offsets are relative to the start of a port's 20-byte record:
+Offsets are relative to the start of a port's 20-byte record as the save and
+the executable use it (save slot `0x4F40 + port × 20`, returned by
+`MAIN.EXE 0:59EE`). The `DATA1.015` copy starts two bytes earlier, at
+`0x4F3E`, so its offsets are two higher.
 
 | Offset         |     Size | Field         | Encoding                                                                                                             |
 | -------------- | -------: | ------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `+0x02`        |  2 bytes | Longitude / X | little-endian `u16`; the extractor converts the wrapped map coordinate                                               |
-| `+0x04`        |  2 bytes | Latitude / Y  | little-endian `u16`                                                                                                  |
-| `+0x06..+0x13` | 14 bytes | Port name     | null-terminated string                                                                                               |
+| `+0x00`        |  2 bytes | Longitude / X | little-endian `u16`; the extractor converts the wrapped map coordinate                                               |
+| `+0x02`        |  2 bytes | Latitude / Y  | little-endian `u16`                                                                                                  |
+| `+0x04..+0x12` | 15 bytes | Port name     | null-terminated string                                                                                               |
 | `+0x13`        |   1 byte | Flags         | low 3 bits: nation; `0x10` known; `0x20` hidden from the lookout; `0x40` visited ([below](#known-and-visited-ports)) |
 
 ### Known and visited ports
