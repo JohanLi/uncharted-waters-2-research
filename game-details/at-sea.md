@@ -195,14 +195,89 @@ type and omits the wind speed; see [fleet-info.md](fleet-info.md).
 
 ## Lookout and discovery
 
-The lookout range is the best single ship's `lookout % × crew / 100`, capped at
-12 (supply byte `+0x08`), and doubled with a Telescope in the inventory
-(`0xD3FC`). Every tick, `0x36AD9` checks ports and discoveries by Chebyshev
-distance. Anything within 2 tiles is found automatically. Anything within the
-lookout range and inside the visible map is found when `random(200)` is below
-the best Intuition among the commodore and the mates. Fog disables the
-long-range roll. A port found this way becomes
-[known](ports.md#known-and-visited-ports) (`0x36C41`).
+### Lookout range
+
+The lookout range is computed at `0xD651–0xD674` and stored at `DS:0xC20A`:
+
+```text
+range = min(12, floor(best lookout % × crew / 100)) × (2 with a Telescope, else 1)
+```
+
+The lookout percentage is supply byte `+0x08`, and the best single ship counts;
+the ships' lookout crews are not added together. With 300 crew, 4% already
+reaches 12. The routine uses at least 2 (`0x36AEB`, `0x4B5B` takes the
+maximum).
+
+### Once per tick
+
+The day loop calls `0x36AD9` once per tick at sea (`0x205CA`); it is skipped
+in port and once an end state is set. After the
+[sea-event](#active-events-and-the-queue) check, it scans the 130 port
+records in ID order, skipping ports with flag `0x10` (known) or `0x20` (hidden
+from the lookout) ([Ports](ports.md#known-and-visited-ports)). For each port
+(`0x36BED–0x36C49`):
+
+1. Within 2 tiles of the fleet, by Chebyshev distance (`0x183EC`), the port is
+   found without a roll.
+2. Otherwise, if it is a candidate (below), `random(200)` is drawn. The port
+   is found when the draw is below the best Intuition among the protagonist
+   and the mates (sailor byte `+0x17`, `0x36BB3–0x36BE0`). If the draw fails,
+   the routine returns at once (`0x36C2F`).
+
+A found port gets flag `0x10` and becomes known (`0x36C41`). Either outcome
+ends the tick's scan, so the game makes **at most one roll per tick**, always
+for the lowest-numbered candidate. A second port in range waits until the
+first is found or leaves range. A failed roll on a lower-numbered port also
+delays a higher-numbered port that is within 2 tiles until a later tick.
+
+Only if no port was found or rolled for does the routine scan the 100
+discovery records the same way, skipping those with flag `0x80` (not in this
+game) or `0x40` (already sighted) (`0x36C4B–0x36CA2`). A sighted village gets
+`0x40` and 50 Adventure Fame ([Discovery flags](#discovery-flags)).
+
+Each tick's chance for the candidate is therefore `Intuition / 200`: 50% at
+Intuition 100, with an average wait of `200 / Intuition` ticks.
+
+### Candidates and the sea view
+
+A target is a candidate (`0x36A85`) when all of these hold:
+
+- no Fog is active (`DS:0x0E37` low bits not 3), so in Fog only the 2-tile
+  check finds anything;
+- it is within the lookout range on both axes (`0x183EC`);
+- it lies inside the 24 × 24-tile window whose top-left tile is at
+  `DS:0x118A`, `DS:0x118C`: `origin ≤ x < origin + 24`, and the same for y.
+
+That window is the one the sea view scrolls with, so nothing off screen can be
+sighted, however large the range. Where the fleet sits in the window depends
+on the **Scroll Range** option (`DS:0x0E2D`, save-slot offset `0x05`), a
+slider from 0 to 10 shown as 0–100% on the options screen (`0x26C63`, labels
+at `DS:0xAFD0`). A new game starts at 6, from `DATA1.015` offset `0x05`.
+
+When the view is re-centered (`0x1BA38`), the fleet is placed at column 11 and
+row 11 of the window. After each move, `0x37661–0x376E7` scrolls the window by
+one tile only when the fleet is more than Scroll Range tiles from column or
+row 11:
+
+```text
+scroll left/up    when fleet − origin < 11 − Scroll Range
+scroll right/down when fleet − origin > 11 + Scroll Range
+```
+
+The distance from the fleet to the edge of the view is therefore:
+
+| Scroll Range | Visible from the fleet, per side  | Ahead when sailing one way |
+| -----------: | --------------------------------- | -------------------------: |
+|            0 | 11 left and up, 12 right and down |                      11–12 |
+|  6 (default) | 5 to 18                           |                    about 6 |
+|           10 | 1 to 22                           |                    about 2 |
+
+A fleet sailing steadily in one direction pushes against the scroll margin, so
+at the default setting it sits about 6 tiles from the leading edge and 17 from
+the trailing edge. At Scroll Range 0, range 12 already covers the whole
+window, so a Telescope adds nothing there. The Telescope's doubled range only
+helps where the fleet is more than 12 tiles from the edge of the view: behind
+or to the side after the view has lagged, never ahead.
 
 ## Fleet sprites
 
@@ -303,6 +378,39 @@ Whenever a ship's health is below 20 after the change, it loses crew
 ```text
 loss = min(crew, floor((20 − health) × crew / 100) + 1)
 ```
+
+Health is unchanged while `t` is between −9 and 4, so the lowest ration that
+costs no health is `96 − floor(Leadership / 5)`. The rations are fleet-wide
+(the food pass reads `DS:0x2BAC` at `0x1E1F7` and `0x1E238`, the water pass
+`DS:0x2BAB` at `0x1E2A9` and `0x1E2E8`, for every ship), so the captain with
+the lowest Leadership sets that threshold for the whole fleet:
+
+| Leadership | No change | Gain per pass            |
+| ---------: | --------- | ------------------------ |
+|          0 | 96–100%   | none at any ration       |
+|         50 | 86–99%    | +1 at 100%               |
+|        100 | 76–89%    | +1 at 90–99%, +2 at 100% |
+
+Below the threshold a ship loses `floor(t / 5)` health per pass, for example
+6 per pass at a 50% ration with Leadership 100, or 10 with Leadership 0.
+
+### What health affects
+
+Only the crew-loss check above. Among the 107 supply-record lookups
+(`0x598C`), the other code that reads byte `+0x1C` either displays it, moves
+it with a ship, or adjusts it:
+
+- the at-sea panel's crew-weighted average (`0xD50F`, drawn at `0xD744`);
+- the ship panel (`0x214B2`);
+- moving a ship's supply record (`0x2E2A0`);
+- sea events, recruiting, and reassigning crew
+  ([Other health changes](#other-health-changes), [Event types](#event-types)).
+
+Health does not enter [fleet speed](#fleet-speed) or the
+[Battles](fleet-info.md) value. Health above 20 is therefore a buffer that low
+rations can spend without any other effect. It is slow to rebuild: rations
+raise it by at most 2 per pass, 4 a day, and only when the captain's
+Leadership allows it (table above).
 
 ### Sharing supplies between ships
 
@@ -794,11 +902,18 @@ Each epilogue begins with the in-game date and the protagonist's name.
 - `MAIN.EXE 0x1F282`, `0x287D2`, `0x1B88E`, `0x1CA0E`: wind re-roll, region
   lookup, and season tables.
 - `MAIN.EXE 0x36FFB–0x371C2`, `0x3723A`, `0x374E0`: fleet speed and movement.
-- `MAIN.EXE 0x36AD9`, `0xD3FC`: lookout and discovery.
+- `MAIN.EXE 0x36AD9–0x36CA2`, `0x36A85`, `0x183EC`, `0xD651–0xD674`, `0x205CA`:
+  lookout range, candidates, and the one-roll-per-tick scan.
+- `MAIN.EXE 0x1BA38`, `0x37661–0x376E7`, `0x26C63`, `DS:0xAFD0`: sea-view
+  window, scrolling, and the Scroll Range option; `DATA1.015` offset `0x05`:
+  its new-game value.
 - `MAIN.EXE 0xC022`, `0xC1F6–0xC472`, `0x7A8C`, `0xD835`, `DS:0x8F12`: fleet
   sprites.
 - `MAIN.EXE 0x1E764`, `0x1E1CE`, `0x1E280`, `0x1E18E`, `0x1E3A3`: food, water,
   health, and supply sharing.
+- `MAIN.EXE 0x1E228–0x1E26C`, `0x1E1F7`, `0x1E2A9`, `0x598C`, `0xD50F`,
+  `0xD744`, `0x214B2`, `0x2E2A0`: health threshold, fleet-wide rations, and the
+  readers of health.
 - `MAIN.EXE 0x2D593`: departure check.
 - `MAIN.EXE 0x3ABC3`, `0x3AD49`, `0x3AA55`, `0x3AAC5`, `0x3A244`, `0x3A183`,
   `0x3A5BD`, `0x3A4EA`, `0x3A866`, `0x3AB40`: going ashore.

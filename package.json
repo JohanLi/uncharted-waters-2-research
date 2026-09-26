@@ -23,8 +23,8 @@
     "extract-dialog": "node --import tsx dialog-system/scripts/index.ts",
     "query-dialog": "node --import tsx dialog-system/scripts/query.ts",
     "extract-all": "node --import tsx scripts/extract-all.ts",
-    "format": "prettier --write \"scripts/**/*.ts\" \"dialog-system/scripts/**/*.ts\" \"save-editor/**/*.{ts,js,css,html,md}\" \"*.{json,md}\"",
-    "format:check": "prettier --check \"scripts/**/*.ts\" \"dialog-system/scripts/**/*.ts\" \"save-editor/**/*.{ts,js,css,html,md}\" \"*.{json,md}\"",
+    "format": "prettier --write \"scripts/**/*.ts\" \"dialog-system/scripts/**/*.ts\" \"save-editor/**/*.{ts,js,css,html,md}\" \"game-details/**/*.md\" \"*.{json,md}\"",
+    "format:check": "prettier --check \"scripts/**/*.ts\" \"dialog-system/scripts/**/*.ts\" \"save-editor/**/*.{ts,js,css,html,md}\" \"game-details/**/*.md\" \"*.{json,md}\"",
     "test": "node --import tsx --test scripts/*.test.ts scripts/**/*.test.ts dialog-system/scripts/**/*.test.ts save-editor/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
