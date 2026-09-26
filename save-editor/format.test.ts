@@ -302,6 +302,14 @@ for (const slot of [1, 2]) {
     const instance = base + 0x47fc + save[shipSlot + 7]! * 0x18;
     save[instance + 0x11] = 5;
     const supply = base + 0x423e;
+    save.write("Santa Maria", instance, "latin1");
+    // Lumber, shot, and two cargo slots of goods that would overfill the ship.
+    save.writeUInt16LE(40, supply + 4);
+    save.writeUInt16LE(60, supply + 6);
+    save.writeUInt16LE(120, supply + 0x0c);
+    save.writeUInt16LE(80, supply + 0x0e);
+    save.set([3, 7, 0xff, 0xff, 0xff], supply + 0x16);
+    save.set([25, 50], supply + 8);
     const edited = setPlayerShipToTekkousen(save, slot);
 
     // Ship model and slot values are not currently exposed by an inspector.
@@ -317,6 +325,23 @@ for (const slot of [1, 2]) {
     assert.equal(edited[shipSlot + 0x08], 0x10);
     assert.equal(edited.readUInt16LE(supply), 3000);
     assert.equal(edited.readUInt16LE(supply + 2), 5000);
+    assert.equal(edited.readUInt16LE(supply + 4), 0);
+    assert.equal(edited.readUInt16LE(supply + 6), 0);
+    assert.deepEqual(
+      [...edited.subarray(supply + 0x0c, supply + 0x16)],
+      Array(10).fill(0),
+    );
+    assert.deepEqual(
+      [...edited.subarray(supply + 0x16, supply + 0x1b)],
+      Array(5).fill(0xff),
+    );
+    assert.equal(edited[supply + 0x1d], 10);
+    // Lookout 4%, navigation 20%; combat takes the remaining 76%.
+    assert.deepEqual([...edited.subarray(supply + 8, supply + 10)], [4, 20]);
+    assert.deepEqual(
+      [...edited.subarray(instance, instance + 0x11)],
+      [...Buffer.from("Edited", "latin1"), ...Array(11).fill(0)],
+    );
     assert.equal(save[instance + 0x11], 5);
 
     // Every other slot is left unchanged.

@@ -161,6 +161,11 @@ button:focus-visible {
   gap: 14px;
 }
 
+.field-hint {
+  color: #9c9fa5;
+  font: 13px system-ui;
+}
+
 .equipment-note {
   background: #202125;
   border: 1px solid #3b3d42;
