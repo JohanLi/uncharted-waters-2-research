@@ -213,10 +213,8 @@ Ship stock cannot be predicted from a save.
   `DS:0x8EF8–0x8F09`.
 - `MAIN.EXE 0x2E55F–0x2E643`: guard removal on a night-time Harbor entry.
 - `MAIN.EXE 0x0A166–0x0A1B1`: the general generator and `random(n)`.
-- Save slots in real saves: slots 4, 5, and 7 always hold types 0, 1, and 3,
-  and slot 6 is inactive (`0xFF, 0xFF`, type 2) in every friendly-port save.
 
-## Still unconfirmed
+## Open questions
 
 - The starting value of the ten-step conversation counter when entering a
   town.

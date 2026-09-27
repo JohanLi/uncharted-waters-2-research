@@ -131,8 +131,14 @@ In brief:
 - Variable 63 is a control word: a nonzero value after an entry route skips
   the ordinary greeting and, for the shared route, the protagonist route.
 - Variable 60 holds the opposing captain before and after a naval battle. The
-  after-battle hook runs after every battle except a defeat; scripts tell a
-  victory from an escape by whether that captain still commands a fleet.
+  after-battle hook runs after every battle except a defeat, including one
+  cancelled by `F8` in a before-battle route; scripts tell a victory from an
+  escape by whether that captain still commands a fleet
+  ([Naval battle](../game-details/naval-battle.md#after-the-battle)).
+- `F8` in a before-battle route cancels the battle (code 8). The fight,
+  message, Fame, and spoils are skipped, but the naval Relation loss and
+  personal-Friendship changes still apply
+  ([Cancelled battles](../game-details/naval-battle.md#cancelled-battles)).
 
 The save-aware query models all of these. Record references are resolved as
 save addresses with per-path writes, so later branches see earlier writes.
@@ -145,8 +151,9 @@ Fame-record bytes `+6` onward are the Friendship bytes
 ([Friendship](../game-details/friendship.md#player-friendship)), fleet
 `+0x0C` is route state ([Fleet navigation](../game-details/npc/fleet-navigation.md)),
 fleet `+0x21`/`+0x22` are its cargo type and amount
-([Naval battle](../game-details/naval-battle.md#cargo)), and every fleet
-objective is listed in [Fleet navigation](../game-details/npc/fleet-navigation.md).
+([Naval battle](../game-details/naval-battle.md#cargo)), and fleet
+`+0x1B`/`+0x1C` are its objective and argument, with flag `0x40` marking a
+story fleet ([Fleet objectives](../game-details/npc/fleet-objectives.md)).
 
 ## Closed investigations
 

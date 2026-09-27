@@ -338,7 +338,7 @@ All of them are drawn with generic portraits (sailor byte `+0x13` bits `0xC0`). 
 one loses his fleet in a naval battle, `MAIN.EXE 0x1533A` clears his byte `+0x29` bit
 `0x20`, and from then on each month's pass at `0x1DC64` has a 1-in-3 chance of reusing
 the record for a brand-new generic sailor (`0x1D71D`). Many ordinary fleet captains
-(for example IDs 8–68, 114, and 116) have generic portraits too and can vanish the same
+(for example IDs 8–68 and 114) have generic portraits too and can vanish the same
 way ([After the battle](naval-battle.md#after-the-battle)). How new sailors are
 generated, and how defeated fleets draft unemployed sailors of their nation
 as commanders, is in [Fleet regeneration](fleets.md#fleet-regeneration).

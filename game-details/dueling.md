@@ -66,7 +66,8 @@ in the shared quest script.
 João's and Catalina's Rudolph encounters change sailor 60's displayed name
 and portrait (`SNR2.DAT 0x2947–0x2962` for Catalina) but do not replace his
 attributes or levels. Rudolph therefore inherits the
-current saved stats of sailor 60. The Franco-home duel similarly calls the
+current saved stats of sailor 60, whose levels keep pace with the player's
+each month ([Rival protagonists](stats.md#rival-protagonists)). The Franco-home duel similarly calls the
 engine with sailor 60 even though the dialogue shows generic pirate attackers.
 
 The operand is the sailor ID: the four Khan/Rudolph-family calls are `E8 3C`,
@@ -289,3 +290,7 @@ weapon table above.
 
 The AI selection routine is at `MAIN.EXE` `0x16709–0x167EA`, and NPC equipment
 selection is at `0x178CC–0x17A4D`.
+
+## Open questions
+
+None remain.

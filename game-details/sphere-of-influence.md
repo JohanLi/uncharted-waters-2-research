@@ -180,3 +180,7 @@ and 0x328A6) before accepting an amount. A match selects message `0x0002`:
 supplies “Our economic power rating in,” and messages `0x1D1` through `0x1D8`
 contain the eight region names. `MESSAGE2.DAT` supplies the sentence fragments
 needed for the alternate region-name grammar and “recently.”
+
+## Open questions
+
+None remain.

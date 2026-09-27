@@ -212,8 +212,9 @@ route for opposing captain 1 (`0xA101`). Every building behaves normally, and
 battles against any other captain are unaffected.
 
 A before-battle route that ends in `F8` makes `MAIN.EXE` cancel the battle
-(`0x150FD`, outcome code 8): no message, Fame, or spoils follow. See
-[Naval battle](../naval-battle.md#cancelled-battles).
+(`0x150FD`, outcome code 8): no message, Fame, or spoils follow, but the naval
+Relation and Friendship changes are still applied against the opposing
+fleet's nation. See [Naval battle](../naval-battle.md#cancelled-battles).
 
 ### Wait for news
 

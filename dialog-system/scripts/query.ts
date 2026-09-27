@@ -249,7 +249,10 @@ export async function loadGeneralText(): Promise<GeneralText> {
 
 // Before and after a naval battle, MAIN.EXE stores the opposing captain's
 // sailor ID in variable 60 of both VM arrays (0x163F2). After the battle that
-// captain's fleet byte depends on the result: a defeated fleet is dissolved.
+// captain's fleet byte depends on the result (0x16126–0x16185): the fleet is
+// dissolved when its flagship sank or lost its crew, when the protagonist won
+// a duel (code 6), or when the captain lacks sailor bit 0x20. A fled (2),
+// nightfall (1), or cancelled (8) opponent otherwise keeps it.
 function battleEnvironment(action: ScenarioQueryAction): {
   captain?: number;
   unknownAddresses?: ReadonlySet<number>;
@@ -921,12 +924,17 @@ function executeRoute(
     if (order <= 3 || order === 9)
       return `send fleet ${fleet} to ${readText(state, PORT_TABLE + target * PORT_RECORD_SIZE + 4, 14)} (port ${target})`;
     if (order === 4) return `set fleet ${fleet} to follow the player`;
+    // Objectives 5–7 pursue the sailor's fleet (7 without the ordinary
+    // withdrawals), 8 guards it, and 10 is the scripted "business" pursuit;
+    // see game-details/npc/fleet-objectives.md.
     const verb =
-      order === 7
+      order >= 5 && order <= 7
         ? "pursue"
-        : order === 0x0a
-          ? "follow"
-          : `target (order ${order})`;
+        : order === 8
+          ? "guard"
+          : order === 10
+            ? "follow"
+            : `target (order ${order})`;
     return `set fleet ${fleet} to ${verb} ${sailorName(state, target)} (sailor ${target})`;
   };
   const shipModelName = (state: ExecutionState, type: number): string =>
@@ -1428,7 +1436,13 @@ function executeRoute(
     else if (instruction.opcode === 0xf1)
       state.effects.push("advance section when the interpreter returns");
     else if (instruction.opcode === 0xf8)
-      state.effects.push("suppress normal building menu and force exit");
+      state.effects.push(
+        // In a before-battle route the cleared control word cancels the
+        // battle (MAIN.EXE 0x150FD, outcome code 8) instead.
+        route.selector === 0xa1
+          ? "cancel the battle (outcome code 8): no fight, message, Fame, or spoils, but the naval Relation loss and personal-Friendship changes still apply against the opposing fleet's nation; a protagonist cancellation also skips the shared before-battle route"
+          : "suppress normal building menu and force exit",
+      );
 
     if (instruction.opcode === 0xf2) {
       finish(state);
@@ -1830,7 +1844,7 @@ export async function queryScenario(
   const battleNotes =
     action.type === "after-battle"
       ? [
-          `Variable 60 holds the opposing captain (sailor ${action.opposingCaptainId}). Whether that captain still commands a fleet (sailor byte +0x24, 0xFF when none) depends on the battle result and is treated as unknown.`,
+          `Variable 60 holds the opposing captain (sailor ${action.opposingCaptainId}). Whether that captain still commands a fleet (sailor byte +0x24, 0xFF when none) depends on the battle result and is treated as unknown. The hook also runs after a battle cancelled by a before-battle F8 (code 8).`,
         ]
       : [];
   const generalText = await loadGeneralText();
@@ -1912,7 +1926,7 @@ export async function queryScenario(
         ...(joaoPubNeedsHarborVisit
           ? [
               "The 2,000-fame Pub scene is not available in subsection 0. Visit the Harbor first: its primary 0xA303 route checks João's adventure fame and advances the save to subsection 1.",
-              "The apparent 06:40 arrival effect came from visiting the Harbor while waiting for the Pub to open; entering the Pub directly after the 11:40 arrival left the save in subsection 0.",
+              "The arrival time does not advance the subsection; only the Harbor route does, so entering the Pub first leaves the save in subsection 0.",
             ]
           : []),
         "No matching protagonist-scenario route was found.",
@@ -2022,6 +2036,25 @@ export async function queryScenario(
       );
   }
   const availableOutcomes = buildingOpen === false ? [] : outcomesWithDialogue;
+  // A protagonist before-battle route that cancels the battle makes
+  // MAIN.EXE skip the shared scenario's before-battle route (0x150FD jumps
+  // past its dispatch at 0x15107).
+  const cancels = (outcome: ScenarioQueryOutcome) =>
+    outcome.effects.some((effect) => effect.startsWith("cancel the battle"));
+  const cancelling =
+    action.type === "before-battle"
+      ? availableOutcomes.filter(cancels).length
+      : 0;
+  const sharedStatus =
+    cancelling > 0 && cancelling === availableOutcomes.length
+      ? { ...shared, outcomes: [] }
+      : shared;
+  if (cancelling > 0 && shared.route !== undefined)
+    notes.push(
+      cancelling === availableOutcomes.length
+        ? "The protagonist route cancels the battle in every outcome, so the shared before-battle route does not run."
+        : "In the outcomes that cancel the battle, the shared before-battle route does not run.",
+    );
   const storyConfidence: QueryConfidence =
     availableOutcomes.length === 0
       ? shared.confidence
@@ -2054,7 +2087,7 @@ export async function queryScenario(
     route,
     routeTable: subsection === 0 ? "primary" : `subsection-${subsection}`,
     outcomes: availableOutcomes,
-    sharedScenario: shared,
+    sharedScenario: sharedStatus,
     ...(ordinaryBuilding ? { ordinaryBuilding } : {}),
     notes,
   };

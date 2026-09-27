@@ -4168,7 +4168,9 @@ function portInvestCommand(
   const metadata =
     slotOffset(slot) + PORT_METADATA_TABLE + portId * PORT_METADATA_RECORD_SIZE;
   // Each port accumulates Market and Shipyard investment separately from its
-  // Economy and Industry values. The executable caps each total at 50,000.
+  // Economy and Industry values. The executable caps each total at 50,000; at
+  // month end 0x1CB4E (via 0x1E16D) adds floor(total / 300) to Economy or
+  // Industry, capped at 1,000, and clears it. Neither value ever falls.
   const investedOffset = industrial ? 8 : 4;
   const invested = save.readUInt16LE(metadata + investedOffset);
   const kind = industrial ? "Shipyard" : "Market";
@@ -4229,7 +4231,12 @@ function portInvestCommand(
               "redistribute national Support and refresh the associated port state",
             ],
       uncertainties: [],
-      notes: [],
+      notes:
+        amount === 0
+          ? []
+          : [
+              `At month end the ${kind} investment adds floor(total / 300) to ${industrial ? "Industry" : "Economy"}, capped at 1,000, and is cleared.`,
+            ],
     },
     amount === 0
       ? NO_WRITES
@@ -6983,6 +6990,9 @@ function palaceShipCommand(
 
   // The aid lines keep the Palace image rather than a ruler portrait.
   const speaker = "Palace guard";
+  // Monthly royal aid (0x1DB6C) sets type +0x07 to min(floor(X / 4000), 7)
+  // and adds to count +0x08. The ship is instance template 0x28 + type
+  // (0x3074D), so types 0-7 are ship models 0-7, Balsa through Brigantine.
   const record = base + NATION_RECORDS + nation * NATION_RECORD_SIZE;
   const shipType = save[record + 7]!;
   const remaining = save[record + 8]!;

@@ -99,13 +99,13 @@ No other routine reads the values 0, 2, 3, 5, or 6.
 
 Only these routines write the Relation bytes `+0x0B..+0x11`:
 
-| Cause                                 | Change                                                                        | Code                 |
-| ------------------------------------- | ----------------------------------------------------------------------------- | -------------------- |
-| Royal mission: deliver documents      | +5 in both directions, capped at stored 100                                   | `SNR0` section 7     |
-| Royal mission: negotiate a treaty     | +10 in both directions, capped at stored 100                                  | `SNR0` section 8     |
-| Monthly drift (status value 1, above) | the reverse Relation +3 to +7, then both set equal; no cap                    | `0x1D305–0x1D31B`    |
-| The player sinks a nation's fleet     | −3 to −7                                                                      | `0x15E5F`, `0x15E6F` |
-| Computer fleets fight                 | −2 or −3 ([details](npc/fleet-objectives.md#battles-between-computer-fleets)) | `0x1FC7D–0x1FCE6`    |
+| Cause                                                                  | Change                                                                        | Code                 |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------- |
+| Royal mission: deliver documents                                       | +5 in both directions, capped at stored 100                                   | `SNR0` section 7     |
+| Royal mission: negotiate a treaty                                      | +10 in both directions, capped at stored 100                                  | `SNR0` section 8     |
+| Monthly drift (status value 1, above)                                  | the reverse Relation +3 to +7, then both set equal; no cap                    | `0x1D305–0x1D31B`    |
+| A player battle ends with an even code ([below](#naval-victory-rules)) | home→target −3 to −7, then copied to target→home                              | `0x15E5F`, `0x15E6F` |
+| Computer fleets fight                                                  | −2 or −3 ([details](npc/fleet-objectives.md#battles-between-computer-fleets)) | `0x1FC7D–0x1FCE6`    |
 
 The monthly drift is the only way Relations rise without the player. It needs
 a pair with neither flag and either a stored Relation of 0–30 with the first
@@ -123,8 +123,9 @@ allied (status `0x25` and `0x21`) and Turkey and Italy blockade each other
 between Spain and England). The alliance bit has three effects:
 
 - the Relations screen marks the pair (`0x33178`);
-- sinking an allied nation's fleet uses diplomatic class 6
-  ([below](#diplomatic-class)): Piracy Fame factor ×1, the player's own
+- sinking an allied nation's fleet while carrying the player's own nation's
+  Letter of Marque uses diplomatic class 6 ([below](#diplomatic-class); without
+  the Marque the class is 0): Piracy Fame factor ×1, the player's own
   nation's Friendship falls instead of rising, and the victim nation's
   Friendship falls by twice the ordinary amount; and
 - the monthly update above never raises the Relation between allies, because
@@ -182,7 +183,8 @@ going to %s.`).
 
 ### Confirmed status-flag effects
 
-The flags are not merely descriptive save data. Outside the naval-battle classifier, the national-Relations display
+The flags are not merely descriptive save data. Outside the naval-battle classifier, which reads them only when the
+player carries their own nation's Letter of Marque ([Diplomatic class](#diplomatic-class)), the national-Relations display
 renders separate markers for an alliance and a blockade. The blockade bit also selects a special port-NPC setup path for
 a port belonging to the blockading nation; that path initializes the harbor actors used for hostile-port guards.
 
@@ -426,9 +428,10 @@ additional same-nation loss  = random(10..14)
 same-nation Relation loss    = random(3..7)
 ```
 
-With a high diagonal Relation, class 5 supplies target scale 90, making the first loss 30–42 and the complete same-nation
-Friendship loss 40–56. The additional same-nation decrement does not consult the Letter of Marque. A Marque can affect
-the earlier classifier, but the high-Relation class on a same-nation diagonal takes priority over it.
+Without the player's own Letter of Marque the class is 0, target scale 30, so the first loss is 10–14 and the complete
+same-nation Friendship loss 20–28. With the Marque and a high diagonal Relation, class 5 supplies target scale 90, making
+the first loss 30–42 and the complete loss 40–56. The additional same-nation decrement does not consult the Letter of
+Marque.
 
 After both Friendship deductions, the same-nation branch applies two punishment thresholds:
 
@@ -459,9 +462,10 @@ the former section and destination can remain as
 stale data after the control state has been reset; they no longer make the
 mission active.
 
-Battle-result state controls whether the naval update runs. An accepted pre-combat Merchant surrender uses the reduced
-Fame battle-result factor described in `fame/piracy-fame.md`; a fleet made to flee during combat receives the full
-award. The same-nation Friendship behavior remains separate from that Fame factor.
+Battle-result state controls whether the naval update runs. An accepted pre-combat Merchant surrender and an enemy
+flagship that flees during combat both end with code 2, which runs the naval update but uses the reduced Fame
+battle-result factor ([Piracy Fame](fame/piracy-fame.md#naval-victories)). The same-nation Friendship behavior remains
+separate from that Fame factor.
 
 ## Everything that reads personal Friendship
 
@@ -509,6 +513,6 @@ multiplier.
 - Scenario bytecode `0x1C92–0x1CD1`: document-delivery Relation update.
 - Scenario bytecode `0x20B7–0x20F6`: treaty Relation update.
 
-## Still unresolved
+## Open questions
 
 None remain.

@@ -298,10 +298,11 @@ Any pirate fleet anywhere counts; the Guild's “around here” is flavor text.
    captain's fleet byte is now `0xFF`, one fleet is counted (variable 19 falls by
    one). Flag 2 records whether that fleet was defeated after the deadline. The
    post-battle cleanup at `MAIN.EXE 0x1611F–0x16185` clears the fleet byte
-   (through `0x15302`) when the enemy flagship is no longer an active ship or
-   the protagonist won a duel; a fleet whose flagship fled keeps
-   its captain and does not count (**Likely** outcome mapping; see
-   [How a battle ends](../naval-battle.md#how-a-battle-ends)).
+   (through `0x15302`) when the enemy flagship has sunk or has no crew or
+   durability, when the protagonist won a duel, or when the captain's record
+   is no longer in use; a fleet whose flagship fled or survived to nightfall
+   otherwise keeps its captain and does not count
+   ([After the battle](../naval-battle.md#after-the-battle)).
 3. **The commissioning Guild** (`0x117D`): with every fleet defeated, the gold
    and Piracy Fame are paid (message 102), or half the gold and no Fame if the
    last fleet was defeated late (message 100). Otherwise an expired assignment

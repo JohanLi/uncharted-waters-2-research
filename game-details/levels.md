@@ -208,3 +208,7 @@ These levels also participate in systems that do not award experience:
   for ordinary damaging attacks, durability defeat, and crew defeat.
 - `MAIN.EXE 0x33373–0x333C2`: implements the House of Fortune's Navigation and
   Battle experience-remaining readings.
+
+## Open questions
+
+None remain.

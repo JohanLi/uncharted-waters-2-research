@@ -35,3 +35,7 @@ with an **Open questions** section listing what remains undecoded.
 - `game-details/fame/`: sources and effects of the three Fame values.
 - `game-details/friendship.md`: Relation changes made by diplomatic royal
   missions.
+
+## Open questions
+
+None remain.

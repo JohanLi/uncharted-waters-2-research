@@ -192,8 +192,11 @@ A defeated fleet is emptied and marked inactive
 ([After the battle](naval-battle.md#after-the-battle)). At the start of each
 month (`0x1DC53` → `0x1DC3E`) the game refills inactive fleets with ships and
 then gives them a new commander. Protagonist fleets (IDs ending in 0) are
-never touched. The initial file state described above is therefore only the
-starting point.
+never touched; a rival protagonist's fleet instead gains or replaces at most
+one ship a month through a separate routine (`0x1DE71`), described for
+Catalina's fleet in
+[João's scenario](scenarios/scenario-1-joao-franco.md#catalinas-pursuit). The
+initial file state described above is therefore only the starting point.
 
 ### Refilling ships
 
@@ -264,7 +267,8 @@ There is no fallback between the two: if the chosen side finds no one, the
 fleet waits for the next month. Once all 120 sailor records are in use, “create a new one” always fails, so a defeated national
 fleet is relaunched only one month in two on average. Meanwhile it still
 counts as at sea for its class and keeps its siblings in port
-([class guard](npc/fleet-objectives.md#arrival-action-delay)). Sailor IDs 6–78 are the regular captains, so a
+([class guard](npc/fleet-objectives.md#arrival-action-delay)). Sailor IDs 6–68 are the regular captains and 69–78 the
+[story recruits](sailors.md#story-recruits), so a
 captain who lost his fleet and kept his record is drafted before any
 [permanent vagabond](sailors.md#permanent-vagabonds) (79–119) of his nation.
 Only sailors with `+0x27 & 3` of 2 or more ever command pirates; in the

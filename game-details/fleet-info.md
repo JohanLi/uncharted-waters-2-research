@@ -155,3 +155,7 @@ them:
 The resulting fleet value is **Battles 2,324** (`780 + 1,050 + 494`).
 
 The slot and instance structure is also documented in [fleets.md](fleets.md).
+
+## Open questions
+
+None remain.

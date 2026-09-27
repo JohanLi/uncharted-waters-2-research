@@ -89,7 +89,8 @@ battle-result factor used by the Piracy Fame calculation.
 ### Diplomatic factor
 
 For a non-pirate player nation, the diplomatic factor is selected by the
-national Letter-of-Marque classifier described in `../friendship.md`. Without
+national Letter-of-Marque classifier described in
+[National Friendship](../friendship.md#diplomatic-class). Without
 the player's own nation's Letter of Marque the class is always 0, so the
 factors above ×1 need that Marque:
 
@@ -218,3 +219,7 @@ The relevant calculations are located at:
 
 The Fame words at offsets `+0`, `+2`, and `+4` are Trade, Piracy, and
 Adventure, respectively.
+
+## Open questions
+
+None remain.

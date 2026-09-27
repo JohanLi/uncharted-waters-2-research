@@ -6,9 +6,13 @@ import { run as extractShips } from "./ships/index.js";
 import { run as drawTilesets } from "./tilesets/index.js";
 import { run as drawWindsCurrentAnomalies } from "./winds-current-anomalies/index.js";
 import { run as drawWorldMap } from "./draw-world-map/index.js";
+import { run as drawFleetStartPositions } from "./draw-world-map/fleet-start-positions.js";
+import { run as drawNavigationGraph } from "./fleet-navigation/draw-graph.js";
 import { run as extractDialog } from "../dialog-system/scripts/index.js";
 
 await drawWorldMap();
+await drawFleetStartPositions();
+await drawNavigationGraph();
 await drawTilesets();
 await drawWindsCurrentAnomalies();
 await extractPorts();
