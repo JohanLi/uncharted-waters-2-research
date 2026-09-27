@@ -471,8 +471,8 @@ buildings react to the purchase.
     messages are skipped. Both paths continue with message 316, `F8`, and `F1`.
 
 [^decoy]:
-    Ali's fleet is fleet ID 20 (`0x14`, sailor 5's fleet byte) and Catalina's
-    is fleet 10 (`0x0A`). The Pub scene at `SNR6.DAT 0x1282–0x12B4` copies
+    Ali's fleet is fleet ID 20 (sailor 5's fleet byte) and Catalina's
+    is fleet 10. The Pub scene at `SNR6.DAT 0x1282–0x12B4` copies
     fleet 20's current X/Y into fleet 10, writes objective `7` (pursue),
     target sailor `5` (Ali), and flags `0x41`, then executes `D1`. It does not
     write ship slots, so Catalina's fleet has whatever ships `MAIN.EXE`'s

@@ -48,6 +48,21 @@ Up to four fleets can take part, one per side number. Bits 6–7 of unit byte
 |   `0x00` | The main enemy fleet                                        |
 |   `0x40` | An assisting enemy fleet, fighting alongside the main enemy |
 
+### Fleets that join a battle
+
+When a battle involving the player starts (`0x163E8`), `0x162CA` offers each side one supporting
+fleet from the active, undocked fleets within 2 tiles of the player's fleet on
+both axes (`0x1843A`, `0x183EC`), excluding the two fleets already fighting. A
+candidate must be a convoy or voyaging fleet (position 5–9 of its block,
+`0x16351`); merchant fleets and protagonist fleets never join. The first
+candidate of the defender's nation supports the defender (message 779,
+“%s %s will support the defending side.”), and the first of the attacker's
+nation supports the attacker (message 780). The only test is the fleet's
+nation (`0x16368`, `0x163A2`): Relations and the alliance flag are not read,
+so an allied nation's fleet never joins either side. If the player's
+affiliation is Piracy, no fleet joins at all (`0x1630C–0x16320`). Pirate
+corsairs and privateers can support a pirate fleet the player attacks.
+
 ### Flagship
 
 Each fleet's flagship is chosen afresh when a battle is set up (`0x144DC`).
@@ -75,7 +90,12 @@ ship these are simply the captain's own values. See
 ### The battle map
 
 The battle map is 52 × 48 hexes (`0x12A8A`), arranged in vertical columns with
-every odd column half a hex lower. Distance is counted in hexes (`0x12902`,
+every odd column half a hex lower. It is drawn from the 6 × 6 world-map tiles
+around the fleet (`0x141A2`): each tile becomes an 8 × 8 block of hexes, and
+tiles numbered `0x34` or above become land, map bit `0x80`. Hexes where land
+meets sea are made land or sea at random, the two outer columns on each side
+copy their neighbours, and `0x13F74` then shapes the coastline. No ship can
+enter land. Distance is counted in hexes (`0x12902`,
 `0x12996`). Adjacent ships are at distance 1; they can board each other but
 cannot fire on each other.
 
@@ -132,10 +152,12 @@ while a higher Tacking makes turns into the wind cheaper.
 ### Turning
 
 A ship can only step straight ahead or turn 60° to either side; it cannot
-turn further or reverse in one step. Turning needs a turn charge of at least
-50 (`0x12B33`). Each straight step adds the ship's turn rate to the charge,
-up to 100, and a turn uses it all up. The charge carries over between turns
-(unit byte `+0x0B`) and starts at 0. The turn rate is (`0x12AF2`):
+turn further or reverse in one step. Before each step the ship's turn rate is
+added to its turn charge, up to 100. The step may turn when the result is at
+least 50 (`0x12B33`; the player's plotter at `0x12EC5`, computer ships at
+`0x132F6`); a turn empties the charge, and a straight step keeps the new
+value. The charge carries over between turns (unit byte `+0x0B`) and starts
+at 0. The turn rate is (`0x12AF2`):
 
 ```text
 T         = floor(Tacking × Sea / 200)
@@ -354,6 +376,15 @@ fleet.
 |    5 | The player's flagship has no crew or has sunk: defeat   | The game ends ([Game over at sea](at-sea.md#game-over-at-sea)) |
 |    7 | The protagonist loses the duel: defeat                  | The game ends                                                  |
 
+After the ending, the battle's end sequence (`0x16040–0x16185`) treats the
+codes by parity. For an even code (2, 4, 6, or 8), each of the player's
+captains gains end-of-battle Battle experience (`0x160D7`), and the
+diplomatic update runs: the naval [Relation loss and personal-Friendship
+changes](friendship.md#naval-victory-rules) against the opposing fleet's
+nation (`0x1610C` → `0x15DE5`, whose only guard is `0x15DED`, the parity
+test). Odd codes skip both, so nightfall (1), fleeing (3), and surrender (9)
+change neither Relations nor Friendship; 5 and 7 end the game first.
+
 A victory (4 or 6) awards [Piracy Fame](fame/piracy-fame.md#naval-victories)
 with the full battle-result factor of 3 and the [spoils](#spoils-of-victory).
 When the enemy flagship flees (2), the player still gains Piracy Fame, with
@@ -476,7 +507,14 @@ anywhere.” (message 791), as in the
 ### Cancelled battles
 
 A scenario's pre-battle route can cancel a battle before it starts (code 8,
-`0x150FD`). The ending then does nothing: no message, Fame, or spoils.
+`0x150FD`). No battle is fought (`0x16444`), and the ending shows no message
+and gives no Fame or spoils (`0x15AD3`). The end sequence still runs
+(`0x16467`), however, and 8 is even. The opposing captain was already
+recorded when the battle was set up (`0x14BF2`), so the naval Relation loss
+and personal-Friendship changes are applied against that fleet's nation as if
+it had been fought, including the same-nation shame and exile checks. The
+end-of-battle experience is zero, because its base is the pre-battle
+routine's result, −1 for a cancelled battle, divided by 5.
 
 ### Journal entry
 
@@ -502,7 +540,16 @@ newly sighted ports (`0x212FA`, `0x2D7AF`, `0x36C3C`).
 After a victory (`0x15912`), the player takes `(F + 1) × 100` gold, where `F`
 is the defeated fleet's treasury, the word at fleet record `+0x24`: “We managed to seize …
 gold pieces” (messages 562 and 560). The fleet's item (`+0x1D`) is taken as
-well when the inventory holds fewer than 20 items.
+well when the inventory holds fewer than 20 items (`0x15950`); the item stays
+in the fleet record until the fleet is relaunched.
+
+Every fleet starts without an item (`0xFF`). Each time a computer fleet
+returns home, it gets one with probability ½ if it has none: one of items
+50–69, the gift and jewellery items from the Silk Shawl to the Ruby Ring
+(`50 + random(20)`, `0x3990B–0x39933`). The same loop can also fill the next
+three bytes, `+0x1E` to `+0x20`, with rolls of ¼, ⅙, and ⅛, each
+made only when every earlier roll succeeded, but nothing reads them. A relaunch clears
+all four to `0xFF` (`0x1D961`).
 
 A fleet's treasury starts at `floor(G / 10) + 1 + random(3)`, where `G` is its
 nation's Guild Profit ([Sphere of influence](sphere-of-influence.md)), each
@@ -592,16 +639,37 @@ At the start of a battle every ship gets (`0x14463`):
 - Chase when the captain's `Courage >= random(50)`, otherwise Defend;
 - Fire when the ship has shot and is a sailing ship, otherwise Rush.
 
-The Strategy and Tactic select how a ship moves (`0xF6D2`, table
-`DS:0x90B2`):
+A computer fleet's ships all use the fleet commander as captain (side record
+`+6`, `0x1480A`), so the fleet ID tested is the commander's and every ship of
+a merchant fleet starts with Flee. The flagship is then chosen (`0x144DC`,
+[Flagship](#flagship)) and its orders are replaced outright with `0x22`
+(`0x14581`): Pack, Attack, Defend, and Rush, plus bit `0x20`. Nothing
+reads that bit: every later write to the orders byte keeps it (`0x108AD`,
+`0x10B19`, `0x10B42`, `0x10B51`, `0x1398B`), and the game finds a side's
+flagship through the side record's first pointer (`0x1457A`) instead. So a merchant fleet's escorts flee from the first turn
+whatever their strength, while its flagship stays and fights. It flees only
+through the [morale check](#morale). Every computer flagship likewise starts
+with Rush, even when it has shot.
 
-| Orders              | Movement                                                                         |
-| ------------------- | -------------------------------------------------------------------------------- |
-| Flee                | Leave from the edge if on it, otherwise head for the farthest reachable edge hex |
-| Pack + Attack       | Close on its target, or the enemy flagship if it has none                        |
-| Pack + Escape       | Move to the reachable hex least exposed to enemy fire and boarding               |
-| Fight Back + Attack | Stay near its own flagship and attack whatever comes within reach                |
-| Fight Back + Escape | Stay near its own flagship in the least exposed hex                              |
+The Strategy and Tactic select how a ship moves (`0xF6D2`, far-pointer table
+`DS:0x90B2` indexed by `orders & 0x0F`):
+
+| Orders              | Routine  | Movement                                                           |
+| ------------------- | -------- | ------------------------------------------------------------------ |
+| Flee                | `0xF265` | Leave from the edge if on it, otherwise head for an edge hex       |
+| Pack + Attack       | `0xF5DF` | Close on the target ship, or the enemy flagship if it has none     |
+| Pack + Escape       | `0xF618` | Move to the reachable hex least exposed to enemy fire and boarding |
+| Fight Back + Attack | `0xF47F` | Close on its own flagship, the same routine as Pack + Attack       |
+| Fight Back + Escape | `0xF4A2` | Move as close to its own flagship as possible, then least exposed  |
+
+Computer fleets never use Fight Back or Escape. Their orders are set only at
+the start of the battle (Attack, with Chase and Fire as above) and by the
+morale check, which adds Flee (`0xF874`); every other write to `+0x0C` comes
+from the player's Order screen (`0x10803–0x10B51`). The same screen is the
+only place a ship is given its own target (orders bit `0x80`, unit byte
+`+0x06`, `0x10B2F–0x10B3D`). A computer ship therefore always closes on the
+opposing **main** fleet's flagship (`0x129DB`), even when it belongs to an
+assisting fleet, or flees. The other rows apply to the player's escorts.
 
 Chase or Defend does not change the movement. It is read only when the game
 decides whether a ship looks for targets, which it does when Attack or Chase
@@ -610,6 +678,145 @@ practical effect in battle**, and it never enters any damage formula.
 
 With **Fire**, a ship fires when it can and otherwise boards an adjacent ship.
 With **Rush**, it boards when adjacent and otherwise fires (`0x13DDA`).
+
+### Choosing a destination
+
+Each computer-controlled ship's turn (`0xF857`) builds three 52 × 48 maps
+(`0xF6FB`, `0x13570`), picks a destination hex (`0xF6D2`), plots a path to it
+(`0x138F7`), moves (`0xF76D`), and attacks (`0xF73F`). Nothing in it is
+random.
+
+**Candidate hexes.** A depth-first search (`0x132EB`) tries every course the
+ship could actually sail this turn: at each step a left turn, straight on, and
+a right turn, under the real [movement point](#wind-and-movement-points) and
+[turning](#turning) rules. A step must stay on the map, avoid every ship and
+crewless hull, and cost no more than the points left. A hex becomes a
+candidate only when the ship could take **one more** legal step from it
+(`0x133CC–0x133D3`), so a hex reachable only by spending almost all its
+points is never chosen; the starting hex is always a candidate (`0x135B8`).
+Candidates are then removed for every living ship of the mover's own and
+allied fleets, the mover included: the hex directly ahead of that ship, and
+its last free neighbour when five of its six are occupied (`0x13537`,
+`0x1340F`).
+
+**Attack value.** On a ship with Attack or Chase, every hex the search enters
+is scored for the facing the ship arrives with; the starting hex is scored for
+its current facing and both turns (`0x135C0–0x135E9`). For each enemy ship
+(`0x131C8`):
+
+```text
+if own ship has shots and the enemy is within its range and broadside arc:
+    v = enemy firepower at distance d × (2 with Fire, else 1)
+if d = 1:
+    v = enemy boarding value (+0x16) × (2 with Rush, else 1)
+if v ≥ value[hex]: value[hex] = v, and the hex records that facing
+```
+
+The firepower and boarding values are the **enemy's** (`0x13272`, `0x132AD`),
+not the moving ship's own, and `v` is kept in one byte, so 256 or more wraps:
+a Fire ship's value for an enemy firing 200 at distance 2 becomes 144.
+
+**Exposure.** For each enemy ship, every hex within 5 of it that lies in its
+range and **current** broadside arc adds that enemy's firepower at the
+distance, and an adjacent hex adds its boarding value (`0x13131`, `0x130BD`).
+The total is also one byte and wraps.
+
+**Choosing.** The routines scan the candidates row by row from the top, left to
+right within a row, and keep a running best. With `R` the ship's own gun range
+(0 without guns), `D` the distance to the hex being closed on, `m` the
+distance moved, and `ceil10` rounding up to a multiple of 10:
+
+| Routine                  | Takes a hex when                                                                         |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| Close on (`0xF34B`)      | `max(D, R)` is lower; or equal and value > `T`; or equal, value = `T`, and `m` is larger |
+| Near flagship (`0xF4A2`) | `D` is lower; or equal and exposure < `T`; or equal, exposure = `T`, and `m` is larger   |
+| Least exposed (`0xF618`) | exposure is lower; or equal and `m` is larger                                            |
+
+For closing on a ship, `T = ceil10(floor((12 − min(max(D, R), 10)) × best value / 10))`;
+near the flagship, `T = ceil10(floor(min(D, 10) × best exposure / 10))`
+(`0xF3E3–0xF417`, `0xF57A–0xF594`). Every hex at distance `R` or less from
+the target ties on `max(D, R)`, including the hexes next to it, from which no
+ship can fire. A ship therefore closes to within `R` hexes of the target and
+then picks among those hexes by attack value. The threshold is taken from the
+current best, so the result depends on the scan order. With `R` of 3 or 5
+the factor is below 10, and a later hex (farther down, then farther right)
+with about 90% or 70% of the best value replaces it. With `R` of 2 the factor
+is 10, and an equal later hex does not.
+
+A hex next to one of the player's ships ties with the firing hexes on the
+first rule whenever it is no more than `R` from the target, so it competes
+with them on attack value alone. Because the values are
+the player's, a computer ship boards rather than fires when the player's
+boarding factor beats the player's own doubled firepower, as it is kept in
+one byte. With Fire, a firing hex scores `2 × firepower mod 256`:
+
+| Player's guns | Firing hex value at distance 2 / 3 / 4 / 5 |
+| ------------- | ------------------------------------------ |
+| Cannon        | 144 / 104 / – / –                          |
+| Demicannon    | 24 / – / – / –                             |
+| Canon Pedrero | 200 / – / – / –                            |
+| Culverin      | 200 / 180 / 160 / 140                      |
+| Demiculverin  | 80 / 72 / 64 / 56                          |
+| Saker         | 80 / – / – / –                             |
+| Carronade     | 144 / 104 / 64 / 24                        |
+
+A player captain with a boarding factor near its maximum of 150 therefore
+draws boarders against every gun type except Culverin and Canon Pedrero, and
+a player ship without guns can only be boarded. With Rush the boarding value
+is doubled instead and can wrap too: 150 becomes 44.
+
+**Fleeing** (`0xF265`) leaves the battle from an edge hex unless that hex is
+land (`0xEFBB`, `0x139A4`). Otherwise it takes the candidate edge hex
+farthest from its own starting hex, the first in scan order on ties
+(`0xF2E6–0xF300`); the enemy's position plays no part. With no candidate on
+an edge, it takes the candidate nearest any of 12 points on the edges, the
+four corners and the two middle hexes of each side, skipping points that are
+land (`0xF00D`). The land test swaps row and column: it reads map byte
+`x × 52 + y` instead of `y × 52 + x`, so it checks the wrong hex, and for
+the four points on the right edge it reads past the map into the unit
+records:
+
+| Point (x, y)       | Byte tested                                   | Effect                                                            |
+| ------------------ | --------------------------------------------- | ----------------------------------------------------------------- |
+| (0, 0)             | hex (0, 0)                                    | correct                                                           |
+| (25, 0), (26, 0)   | hexes (0, 25), (0, 26)                        | skipped when the left edge's middle is land                       |
+| (0, 23), (0, 24)   | hexes (23, 0), (24, 0)                        | skipped when the top edge's middle is land                        |
+| (0, 47)            | hex (47, 0)                                   | skipped when that top-edge hex is land                            |
+| (25, 47), (26, 47) | hexes (47, 25), (47, 26)                      | skipped when those hexes, 4 columns from the right edge, are land |
+| (51, 0)            | `DS:0x9CEA`, unit 4 `+0x10`                   | never skipped                                                     |
+| (51, 23), (51, 24) | `DS:0x9D01`, `0x9D02`, unit 5 `+0x0F`/`+0x10` | never skipped                                                     |
+| (51, 47)           | `DS:0x9D19`, unit 6 `+0x0F`                   | never skipped                                                     |
+
+The unit array begins at `DS:0x9C7A`, right after the map, with ten 24-byte
+records per side (`0x144ED`), so units 4–6 are slots 4–6 of the attacking
+main fleet. Byte `+0x10` is the firepower at distance 1, which is 0 for every
+gun type (`0x145F3`), and `+0x0F` is the high byte of the 16-bit shot count,
+so neither can hold `0x80`. The right-edge points therefore always count,
+even when they are land.
+
+**Sunk and departed ships still count.** A sunk ship is never removed from
+its side's unit list: sinking clears its map hex, cancels any player-set target aimed at
+it, and zeroes its fleet slot (`0x13A21`, `0x11ADF`, `0x13959`), and leaving
+the battle only sets orders bit `0x40` (`0x139A4`). Its position and shot
+count stay in the unit record. The attack-value and exposure maps loop over
+every unit in the list and test only shots, not whether the ship is still
+in the battle (`0x131C8`, `0x13131`, `0x12C99`, `0x12CDB`). A computer ship
+can therefore choose a hex for firing on, or boarding, a ship that has sunk,
+left, or lost its crew, and avoid fire from one. The attack after the move
+does check (`0x13DDA` calls `0x128E4`), so it only attacks a ship still in
+the battle; if none is in reach, the ship ends its turn without attacking.
+
+**Moving and attacking.** When the destination recorded a facing, the path
+(`0x136CD`) must arrive with that facing, so the ship ends with a target in
+its broadside arc. Otherwise it takes the course with the fewest turns, trying
+left, straight, then right. A ship that stays in its hex only turns in place,
+to the recorded facing or else toward its target (`0x137F5`); this costs no
+points and does not empty the turn charge (`0xF7AD`). It then attacks once
+when its hex recorded a facing: its own target if the player set one,
+otherwise the first enemy it can attack in list order, starting with that
+fleet's flagship (`0x13EC8`, `0x13E53`), with Fire or Rush deciding between
+firing and boarding as [above](#orders). A ship with neither Attack nor Chase
+never attacks.
 
 ### Morale
 
@@ -622,5 +829,4 @@ flagship is that badly damaged.
 
 ## Open questions
 
-- **Computer ship movement.** The scoring inside “close on the target”
-  (`0xF34B`) and “stay near the flagship” (`0xF4A2`) is only approximated here.
+None remain.

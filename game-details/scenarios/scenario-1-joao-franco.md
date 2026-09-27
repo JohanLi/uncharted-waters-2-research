@@ -65,7 +65,7 @@ points toward the intended sequence.
 1. Visit the **Franco home**. Duke Leon permits João to sail, orders him to
    investigate Atlantis, and puts Rocco in charge of his education. The
    briefing creates the ship being built for João as a pending ship (`F9 05`
-   at `0x0280`), adds Rocco (sailor `0x45`) to the mate roster (`FB 45` at
+   at `0x0280`), adds Rocco (sailor 69) to the mate roster (`FB 45` at
    `0x02C2`), and sets flag 0. João is then ejected.
 2. Visit the **Pub after Duke Leon's briefing**. A single post-briefing visit is
    sufficient: it supplies 1,000 gold pieces, has Lucia arrange a secret
@@ -85,7 +85,7 @@ points toward the intended sequence.
    occurs, the Pub ejects João instead of offering its ordinary services,
    including crew recruitment.
 4. Visit the **Church** to meet and recruit Brother Enrico. Father Felippe asks
-   João to take him to Zipangu. The scene adds Enrico (sailor `0x46`) to the
+   João to take him to Zipangu. The scene adds Enrico (sailor 70) to the
    roster and sets flag 2. This is strictly required: without Enrico, the
    Harbor says that Father Felippe was looking for João and ejects him before
    he can use the Harbor menu.
@@ -114,7 +114,7 @@ points toward the intended sequence.
    does not replay; neither answer blocks progression.
 9. Set sail. The first midnight at sea (voyage day 1) advances the opening
    subsection. On voyage day 3, Rocco discovers the stowaway who calls himself
-   Domingo; Domingo (sailor `0x47`) joins the roster (`FB 47` at `0x0937`), and
+   Domingo; Domingo (sailor 71) joins the roster (`FB 47` at `0x0937`), and
    the scene advances the scenario to section 1.
 
 ### Lisbon building behavior during preparation
@@ -225,15 +225,15 @@ set in the untouched `KOUKAI2.DAT`), the pirates attack and `E8 3C` starts a
 duel against sailor 60. The script reads the resulting balance (100 is even;
 higher favors João):
 
-| Balance after the duel | Result                                                                                                                                                                              |
-| ---------------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|                   ≤ 40 | The pirate turns on Alberto and Rocco strikes him from behind. The story continues.                                                                                                 |
-|                  ≥ 160 | The pirate falls. João's Battle Level byte `+0x1D` is increased by 1, capped at 100 (`0x1071–0x1089`), and sailor 60's fleet and location bytes are rewritten to `0x3C` and `0xFF`. |
-|                 41–159 | “This fight's not finished yet”: the duel restarts at `0x0FFF`.                                                                                                                     |
+| Balance after the duel | Result                                                                                                                                                                          |
+| ---------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|                   ≤ 40 | The pirate turns on Alberto and Rocco strikes him from behind. The story continues.                                                                                             |
+|                  ≥ 160 | The pirate falls. João's Battle Level byte `+0x1D` is increased by 1, capped at 100 (`0x1071–0x1089`), and sailor 60's fleet and location bytes are rewritten to 60 and `0xFF`. |
+|                 41–159 | “This fight's not finished yet”: the duel restarts at `0x0FFF`.                                                                                                                 |
 
 The duel engine ends a fight at balance 0 or 200 but also stops after 20
 exchanges (`MAIN.EXE 0x17E1C–0x17E5A`), so the middle row is reachable when
-neither side has won by then. The scene then renames sailor `0x47` “Alberto”
+neither side has won by then. The scene then renames sailor 71 “Alberto”
 (`+0x00`) and “Prince” (`+0x09`), sets his portrait selector `+0x12` to
 `0x15`, and sets flag 5 (`0x10B6–0x10D8`).
 
@@ -277,7 +277,7 @@ neither side has won by then. The scene then renames sailor `0x47` “Alberto”
 7. The after-battle route runs after any ending except João's defeat, which
    ends the game as in any battle. If Catalina no longer commands a fleet
    (her fleet byte is `0xFF`), she vows revenge for the insult and the script
-   restores both links: her fleet byte becomes `0x0A` again and fleet 10's
+   restores both links: her fleet byte becomes 10 again and fleet 10's
    captain byte `+0x2A` becomes 1. Otherwise she promises to turn João into
    mincemeat next time. In both cases the script sets bit `0x20` in her byte
    `+0x29`, clears fleet 10's flags byte (making it inactive), sets her
@@ -298,8 +298,7 @@ any hour ([Nightfall](../naval-battle.md#nightfall)).
 
 [^catalina-fleet]:
     Catalina's ten La Reales are not created by this scenario
-    event. In the untouched `raw/KOUKAI2.DAT`, Catalina points to fleet ID
-    `0x0A`. Its fleet record begins at absolute file offset `0x23A9`, its ten
+    event. In the untouched `raw/KOUKAI2.DAT`, Catalina points to fleet ID 10. Its fleet record begins at absolute file offset `0x23A9`, its ten
     ship slots begin at `0x23D4`, and every slot initially contains the empty
     pattern `FF 00 FF FF FF FF FF FF 00`. The cached fleet-strength byte at
     record offset `+0x28` and the fleet-flags byte at `+0x29` are also both
@@ -312,7 +311,7 @@ any hour ([Nightfall](../naval-battle.md#nightfall)).
     other-captain fleet refill routine at `0x1DE71`. The refill routine walks
     all 120 sailor records, skips the active protagonist (`0x1DEAB-0x1DEB4`),
     and therefore processes sailor ID 1, Catalina, while João is the player.
-    Catalina's sailor record supplies fleet ID `0x0A`, which is resolved at
+    Catalina's sailor record supplies fleet ID 10, which is resolved at
     `0x1DEF5-0x1DEFD`.
 
     `0x1D40F` first recalculates fleet strength as
@@ -344,7 +343,7 @@ any hour ([Nightfall](../naval-battle.md#nightfall)).
     ten La Reales before the story encounter.
 
     The Harbor setup in `SNR1.DAT` at `0x17E1-0x1814` only copies João's
-    position into fleet `0x0A`, sets Catalina's objective to 7 with João as its
+    position into fleet 10, sets Catalina's objective to 7 with João as its
     target, writes active flags `0x41`, and invokes the navigation action `D1`.
     It never touches the ship slots. The encounter therefore uses whatever the
     monthly routine has already placed there. A save that reaches 8,000
@@ -638,7 +637,7 @@ time, and Navigation state, so re-entering at the same moment repeats it.
 
 [^rudolph-stats]:
     “Pirate Rudolph” has no separate sailor record. The scene
-    repurposes sailor ID `0x3C` (60), normally Antonio Khan: it writes `0x3B`
+    repurposes sailor ID 60, normally Antonio Khan: it writes `0x3B`
     to the record's displayed-character/portrait selector at `+0x12`, loads the
     strings “Pirate” and “Rudolph” (messages 1053 and 1054, `D4 041C` and
     `D4 041D`), and copies them into the two nine-byte name fields at `+0x00`
@@ -701,7 +700,7 @@ with you.” ([NPC fleet navigation](../npc/fleet-navigation.md)); this is the
 generic captain response, not new scenario dialogue.
 
 The same reconfiguration creates the force waiting near Neo-Atlantis. Pirate
-Rudolph's fleet is fleet ID `60` (`0x3C`), because Rudolph is the renamed
+Rudolph's fleet is fleet ID 60, because Rudolph is the renamed
 sailor-60 record described above.[^rudolph-stats] It is placed at the fixed
 position `(1922, 656)`, near the Amazon between Porto Velho and Cayenne, given
 pursuit objective `7`, and made to target João. The scenario places all nine
@@ -746,13 +745,13 @@ script:
 [^finale-fleet-code]:
     The first setup is in `raw/SNR1.DAT` around
     `0x3578–0x360A`. It reads João's fleet position dynamically, selects fleet
-    IDs `0x0F–0x13` through the sailor fleet bytes, and writes current X/Y,
+    IDs 15–19 through the sailor fleet bytes, and writes current X/Y,
     objective `7`, target sailor `0`, and flags `0x41`; it separately gives
-    fleet `0x0A` objective `10`. The post-Ezequiel setup around
+    fleet 10 objective `10`. The post-Ezequiel setup around
     `0x3751–0x3828` loads the fixed position `(0x0782, 0x0290)`, applies it
-    with objective `7` to fleet IDs `0x3D–0x45` and fleet `0x3C`, moves fleets
-    `0x0F–0x13` to João's position with objective `10`, and moves Catalina's
-    `0x0A` to João's position without rewriting her objective. None of these
+    with objective `7` to fleet IDs 61–69 and fleet 60, moves fleets
+    15–19 to João's position with objective `10`, and moves Catalina's
+    fleet 10 to João's position without rewriting her objective. None of these
     blocks writes fleet ship slots or ship-instance durability.
 
 #### Attacking the allied fleets
@@ -767,7 +766,12 @@ are before-battle routes, checked when the opposing captain's fleet byte is not
 | Ezequiel's Spanish force, fleet IDs `15–19` | Rocco asks whether João really means to attack Ezequiel and the Spanish fleet. The following exchange calls him a nitwit. | **Nitwit**                          |
 
 Choosing **No** plays a short relieved exchange and ends with `F8`, which
-cancels that battle before it starts (outcome 8); nothing else changes.
+cancels that battle before it starts (outcome 8). The cancelled battle still
+applies the naval Relation and Friendship changes against Spain
+([Cancelled battles](../naval-battle.md#cancelled-battles)): the
+Portugal–Spain Relation falls by 3–7 and, without the Portuguese Letter of
+Marque, João's Portuguese Friendship rises by 5–9 while his Spanish Friendship
+falls by 10–14 ([Diplomatic class](../friendship.md#diplomatic-class)).
 Choosing **Yes** lets the battle proceed but deliberately makes the scenario
 unwinnable. Both routes apply the same mechanical punishment
 ([Stats](../stats.md)):[^ally-attack-failure]
@@ -811,9 +815,9 @@ assignments.
     The Catalina failure block is in `raw/SNR1.DAT` around
     `0x38AB–0x39C6`; the parallel Ezequiel/Spanish block is around
     `0x39F1–0x3B0C`. Each rewrites João's first name and attributes, sets
-    variable 9, detaches fleet IDs `0x3D–0x45` from their captains, assigns
-    return-home objective `0` and active flags to fleets `0x0F–0x13` and
-    Catalina's `0x0A`, and clears the active flag of Rudolph's `0x3C`. Both
+    variable 9, detaches fleet IDs 61–69 from their captains, assigns
+    return-home objective `0` and active flags to fleets 15–19 and
+    Catalina's 10, and clears the active flag of Rudolph's 60. Both
     finish with the section-advance operation `F1`, which from the last João
     section leaves the saved section byte at `0xFF`.
 
@@ -863,7 +867,7 @@ These executable details, decoded outside the scenario program, explain behavior
 - **Assisting fleets** are those within 2 tiles of the player's fleet on both
   axes (`0x183EC`, called with radius 2 from `0x1843A`).
 - **Sailor 60's rewrite after a decisive home duel** normally changes nothing.
-  The new-game record already holds fleet `0x3C` and location `0xFF`
+  The new-game record already holds fleet 60 and location `0xFF`
   (`KOUKAI2.DAT` `0x1081`), the scenario duel (`E8` → `MAIN.EXE 0x17F8A`) writes
   no sailor fleet, location or `+0x29` bytes, and SNR1 only reads `+0x29`
   between the Shipyard duel and the home scene. The rewrite matters only if

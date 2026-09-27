@@ -649,8 +649,12 @@ Economy  = min(1000, Economy  + floor(Market investment   / 300))
 Industry = min(1000, Industry + floor(Shipyard investment / 300))
 ```
 
-It then clears both accumulated words. The schedule on which this routine runs
-has not been traced here.
+It then clears both accumulated words. The routine (`0x1CB4E`) runs for every
+port at the end of each month (`0x1B306` → `0x1E16D`), just before the monthly
+Guild Profit refresh. It is the only executable writer of Economy and
+Industry, and the only scenario reference to this record group (`SNR0 0x09D2`)
+reads a shop-item byte, so a port's Economy and Industry never fall; they only
+rise, to at most 1,000.
 
 **Market Rate** builds a ten-goods working list, then displays the present
 port's commodity information in successive tables. Raw index 151 (entry 152)
@@ -806,7 +810,7 @@ and `M` is 3 when the patron's and protagonist's low two personality bits match
 and 1 otherwise (`0x2C1F1–0x2C221`); see
 [sailors.md](sailors.md#mate-loyalty). The matching branch uses raw index 44
 and the other branch raw 45. When
-the patron is the captain of a hostile fleet (fleet IDs `0x3C–0x45`), the
+the patron is the captain of a hostile fleet (fleet IDs 60–69), the
 meeting code at `0x2BE43` sets a flag that replaces either line with raw index
 861, “You can't buy me with drinks.” (`0x2C1C7–0x2C1E8`); the Loyalty
 calculation that follows is not skipped. If the resulting Loyalty is above 30
@@ -1212,6 +1216,23 @@ updates personal Friendship, and clears the old national fleet state used by
 the protagonist. Its menu predicate and exact Friendship changes are covered
 under [Defection](friendship.md#defection).
 
+Royal aid builds up each month (`0x1DB6C`, part of the monthly national
+update). For each nation, let `X = rank × that nation's Guild Profit`, using
+the protagonist's rank and the nation record's word `+0x00`:
+
+- with the protagonist's stored Friendship toward the nation at 130 or more
+  (displayed +30), gold aid `+0x05` rises by `floor(X / 3000)`, capped at 100
+  (thousands of gold); `+0x06` rises by `floor(X / 1000)`, capped at 100,
+  though nothing reads it; the ship type `+0x07` is set to
+  `min(floor(X / 4000), 7)`; and the ship count `+0x08` rises by
+  `min(floor(X / 4000), 10)`;
+- with Friendship below 70 (displayed −30), all four are reset: 0, 0, `0xFF`,
+  and 0;
+- in between they are left unchanged.
+
+A protagonist with No Rank therefore accrues nothing. Defect clears the new
+nation's `+0x05` to `+0x07` to 0 but leaves its ship count (`0x305E8–0x305EE`).
+
 **Gold** begins at `0x3063A`. It is royal aid, not a contribution. The current
 nation record holds an aid amount in thousands of gold pieces. A zero amount
 produces, “His Majesty thinks you can make it on your own this time.” Otherwise
@@ -1220,7 +1241,26 @@ be collected twice. If that award would take on-hand gold above 600,000,000,
 the command refuses it instead.
 
 **Ship** begins at `0x306C2` and likewise consumes a ship type cached in the
-current nation record. It refuses when no ship aid is pending or when the fleet
+current nation record. The ship is the ship-instance template `0x28 + type`
+(`0x3074D`), so the type byte `+0x07` picks one of the eight smallest models:
+
+| Type | Needed `X = rank × Guild Profit` (monthly accrual above) | Ship             |
+| ---: | -------------------------------------------------------- | ---------------- |
+|    0 | below 4,000                                              | Balsa            |
+|    1 | 4,000–7,999                                              | Hansa Cog        |
+|    2 | 8,000–11,999                                             | Dhow             |
+|    3 | 12,000–15,999                                            | Buss             |
+|    4 | 16,000–19,999                                            | Tallette         |
+|    5 | 20,000–23,999                                            | Caravela Latina  |
+|    6 | 24,000–27,999                                            | Caravela Redonda |
+|    7 | 28,000 or more                                           | Brigantine       |
+
+The type is rewritten each month from that month's `X`, so the ship given is
+the one for the latest month, while the count adds up. Since the count only
+grows by `floor(X / 4000)`, a month with `X` below 4,000 adds no ships; a
+Balsa is given only when such a month (after a loss of rank, say) or Defect,
+which sets the type to 0 without clearing the count, leaves ships still
+pending. It refuses when no ship aid is pending or when the fleet
 and ship-instance lists cannot accept another vessel, and also requires an
 eligible mate to captain it. On success it creates the specified ship, lets the
 player name it, assigns it to the fleet, decrements the cached aid count, and
