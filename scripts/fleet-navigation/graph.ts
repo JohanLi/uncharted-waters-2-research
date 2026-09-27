@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+
+import { repoRoot } from "../shared.js";
 
 // The NPC world-navigation graph (game-details/npc/fleet-navigation.md):
 // DATA1.005 holds the active node count and DATA1.004 768 16-byte records.
@@ -9,6 +10,14 @@ export const WORLD_WIDTH = 0x870;
 export const NO_NEIGHBOR = 0xffff;
 const NODE_SIZE = 16;
 const NODE_CAPACITY = 768;
+
+/** Signed X distance from `x1` to `x2`, the short way round the world. */
+export function wrappedDx(x1: number, x2: number): number {
+  const dx = x2 - x1;
+  if (dx > WORLD_WIDTH / 2) return dx - WORLD_WIDTH;
+  if (dx < -WORLD_WIDTH / 2) return dx + WORLD_WIDTH;
+  return dx;
+}
 
 export interface GraphNode {
   id: number;
@@ -28,12 +37,6 @@ export interface NavigationGraph {
   /** All 768 stored records; the search also scans record `count`. */
   nodes: readonly GraphNode[];
 }
-
-const repositoryRoot = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-);
 
 export function parseGraph(
   nodeData: Uint8Array,
@@ -68,7 +71,7 @@ export function parseGraph(
 }
 
 export function loadGraph(
-  rawDirectory = join(repositoryRoot, "raw"),
+  rawDirectory = join(repoRoot, "raw"),
 ): NavigationGraph {
   return parseGraph(
     readFileSync(join(rawDirectory, "DATA1", "DATA1.004")),

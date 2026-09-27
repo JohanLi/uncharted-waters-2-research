@@ -17,8 +17,9 @@ Two routes computed from the stored graph (see
 
 Those are graph routes, not direct great-circle-like courses and not evidence
 that the game has mistaken the horizontal wrap seam. The paths can be poor in
-geographical terms because the search minimizes graph hops rather than sailing
-distance.
+geographical terms because the graph has no lanes across the open ocean
+([Tools](#tools)), and its search does not always find the cheapest route
+through the graph it has ([The world-navigation graph](#the-world-navigation-graph)).
 
 ## Fleet navigation state
 
@@ -411,3 +412,7 @@ are so long.
   `0x203FD` clears the temporary-waypoint flag (see [Recovery](#recovery)).
 - `MAIN.EXE` logical address `2DFF:387C`: terrain predicate used by the local
   movement routines.
+
+## Open questions
+
+None remain.

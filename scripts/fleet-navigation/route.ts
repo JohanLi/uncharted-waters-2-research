@@ -1,4 +1,4 @@
-import { NO_NEIGHBOR, WORLD_WIDTH, type NavigationGraph } from "./graph.js";
+import { NO_NEIGHBOR, wrappedDx, type NavigationGraph } from "./graph.js";
 
 // A transcription of MAIN.EXE's NPC route builder, 0x28A18–0x28F37, and its
 // nearest-node scan, 0x28939–0x28A17. See game-details/npc/fleet-navigation.md.
@@ -23,9 +23,7 @@ export function nearestNode(
   let bestId = -1;
   for (let id = graph.count; id >= 0; id -= 1) {
     const node = graph.nodes[id]!;
-    let dx = node.x - x;
-    if (dx > WORLD_WIDTH / 2) dx -= WORLD_WIDTH;
-    else if (dx < -WORLD_WIDTH / 2) dx += WORLD_WIDTH;
+    const dx = wrappedDx(x, node.x);
     const dy = node.y - y;
     const distance = dx * dx + dy * dy;
     if (distance < best) {

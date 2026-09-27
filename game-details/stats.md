@@ -217,3 +217,7 @@ Leadership rises by `random(3)` and Seamanship, Knowledge, and Intuition by
 pattern: it rises by `floor((P − R) / 2) + 1 + random(2)`, and each level
 gained adds `random(3)` Leadership and `random(5)` Courage and Swordsmanship.
 Charm and Luck never change.
+
+## Open questions
+
+None remain.

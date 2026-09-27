@@ -216,9 +216,12 @@ listed above:
 - `0x2052F` dispatches protagonist route selector `0xA0` while at sea and
   supplies the current voyage-day counter at `DS:0x2BAA` as its qualifier.
 - `0x150E5`/`0x15107` dispatch selector `0xA1` immediately before protagonist
-  and shared naval-battle handling. `0x16191`/`0x1619C` dispatch `0xA2` after
-  that handling. The protagonist qualifier comes from `DS:0x0EDA`; the shared
-  qualifier comes from `DS:0x0F64`.
+  and shared naval-battle handling, in that order. If either route clears its
+  control word with `F8`, the battle is cancelled with outcome code 8
+  (`0x150FD`); a protagonist cancellation also skips the shared route.
+  `0x16191`/`0x1619C` dispatch `0xA2` after that handling, inside the end
+  sequence `0x16040`. The protagonist qualifier comes from `DS:0x0EDA`; the
+  shared qualifier comes from `DS:0x0F64`.
 - At `0x163F2`, battle setup compares the two participant IDs with
   `DS:0x1439`, the current protagonist's zero-based sailor ID, and stores the
   other participant in both qualifier fields. Thus the `0xA1`/`0xA2`
@@ -406,11 +409,14 @@ reported as unavailable because the Palace dispatch table contains only four
 handlers.
 
 Pub Meet and Lodge Gossip share the sailor records and interaction helpers.
-The query selects employed mates, locally unemployed sailors, and captains of
-fleets currently at the port, while status bit `0x40` selects Pub versus Lodge.
-It resolves the duty, roster-capacity, and Pub-only Loyalty gates for Hire.
-The experience roll compares `random(20)` with the protagonist's corresponding
-ability and combined levels scaled by rank; the candidate's combined levels
+The query follows the collector at `0x182A1`: employed mates, sailors whose
+saved port is the current one, and captains of fleets below 70 docked at the
+port, while personality bit `0x10` (sailor byte `+0x27`) selects Pub versus
+Lodge (`0x18353`, `0x183B3`). It resolves the duty, roster-capacity, and
+Pub-only Loyalty gates for Hire. The offer is reached when
+`random(20) + candidate score` is below the protagonist's score plus a tenth
+of it per rank (`0x2C58B–0x2C5E0`;
+[Buildings](../../game-details/buildings.md)); the candidate's combined levels
 and best non-Luck ability determine the three-result wage range. Navigator
 Gossip and the exact hiring result remain probabilistic because both consume
 the unsaved general RNG. Duel is resolved up to its transfer into the separate
@@ -490,7 +496,10 @@ at all (`0x20A32`). The before- and after-battle paths test the same pair at
 
 The executable dispatches after-battle selector `0xA2` after every battle
 except a defeat: battle-result codes 5 and 7 play the defeat music and set game
-mode `0x1A` (`0x15D6C`, `0x15DD0`), which skips the dispatch at `0x16101`.
+mode `0x1A` (`0x15D6C`, `0x15DD0`), which skips the dispatch at `0x16101`. A
+battle cancelled by a before-battle `F8` (code 8) still runs the end sequence
+(`0x16467` → `0x16040`) and therefore the `0xA2` hook
+([Cancelled battles](../../game-details/naval-battle.md#cancelled-battles)).
 Scripts distinguish a victory from an escape themselves. Catalina's armed
 section-6 wildcard route `0xA2FF` begins with `D0 00 03 3C 24`, a reference to
 the fleet byte of the sailor in variable 60, the opposing captain, and plays
@@ -650,7 +659,14 @@ section byte at `0x30475`.
 pointer held in the interpreter frame. Messages 97–98 at `SNR5.DAT 0x0489` end
 in `F8 F2` and eject Pietro from the Genoa Church, while messages 99–100 at
 `0x049A` end in `F2` alone and leave the Lodge usable. Ejecting Pub messages
-90–91 and wildcard messages 101–102 likewise end in `F8 F2`.
+90–91 and wildcard messages 101–102 likewise end in `F8 F2`. In a
+before-battle `0xA1` route the same cleared word cancels the battle instead
+(code 8, `0x150FD`): no fight, message, Fame, or spoils, but the end-of-battle
+diplomacy still applies the naval Relation loss and personal-Friendship
+changes against the recorded opponent's nation
+([Cancelled battles](../../game-details/naval-battle.md#cancelled-battles)).
+João section 5, Catalina section 7, Otto section 4, and Ali section 2 have
+such routes.
 
 Executable tracing establishes these João route contexts. The first eleven
 entries belong to section 0, with `0xA003` reached through its nested table;
@@ -1054,7 +1070,10 @@ higher effective Fame requirement.
 The same route does not place the five Spanish fleets around Catalina's current
 position. At `SNR2.DAT 0x0892–0x08E8`, it loads the literal coordinates
 `(0x008E, 0x0176)`, or `(142, 374)`, and writes them to fleet IDs 15–19. It then
-sets objective 7, target sailor 1 (Catalina), and flags `0x41`. Seville's raw
+sets objective 7, target sailor 1 (Catalina), and flags `0x41`, the active bit
+plus the story flag `0x40`
+([Story flag](../../game-details/npc/fleet-objectives.md#story-flag-0x40)).
+Seville's raw
 port coordinate is `(142, 372)`. Thus the fleets spawn immediately outside
 Seville and pursue Catalina from there.
 
@@ -1327,8 +1346,10 @@ cancel flag cleared, so the player must choose. João's Lisbon Church offer
 order type `+0x1B`, order target `+0x1C`, and flags `+0x29 = 0x41` through
 group-`0x08` references. For order types 0–3 and 9 the target is a port, whose
 coordinates become the destination. Type 4 follows the player. The other types
-target a sailor's fleet: type 7 pursues, as in every story interception, and
-type `0x0A` follows, as in Ezequiel's escort. `D1` writes no VM state.
+target a sailor's fleet: type 7 pursues without the ordinary withdrawals, as
+in every story interception, and type 10 follows, as in Ezequiel's escort
+([Objective values](../../game-details/npc/fleet-objectives.md#objective-values)).
+`D1` writes no VM state.
 
 `D9` calls a static stub that indexes nine formatters at `DS:0xB438`. Each
 formatter prints a `MESSAGE.DAT` line through `2DFF:5D46` with values taken

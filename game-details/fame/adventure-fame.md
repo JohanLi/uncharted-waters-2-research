@@ -266,3 +266,7 @@ The main executable contains the relevant calculations at these file offsets:
   in `DATA1/DATA1.015` at `0x6E74–0x7130`. Records 98 and 99 are placeholders
   whose flag byte `+0x06` keeps `0x80`, the bit that marks a record as not
   selected for the current game.
+
+## Open questions
+
+None remain.

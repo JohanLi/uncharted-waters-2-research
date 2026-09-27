@@ -468,8 +468,9 @@ records and selects those whose fleet byte is `25` through `29`: Turkey's two
 Convoys and three Voyaging Fleets. It moves each fleet to the fixed point
 `(458, 548)`, eight map units south of Aden's port coordinate `(458, 540)`,
 assigns objective `7` (pursue), sets the objective argument to sailor `0`
-(João), replaces the flags with `0x41` (active plus the special `0x40`
-state), and invokes `D1`. The four Turkish Merchant Fleets, IDs `21`–`24`, are
+(João), replaces the flags with `0x41` (active plus the
+[story flag `0x40`](../npc/fleet-objectives.md#story-flag-0x40)), and invokes
+`D1`. The four Turkish Merchant Fleets, IDs `21`–`24`, are
 not included.
 
 The setup does **not** rebuild ship slots or restore their current durability.
@@ -496,11 +497,12 @@ fleets João meets supply the two battles, and nothing prevents the same fleet
 from supplying both.
 
 Because the five fleets start at one point and all pursue João, a battle with
-one of them can draw others in. The battle setup adds nearby military fleets
-(fleet IDs ending in 5–9) from the same ten-ID national block as a main
-participant as assisting fleets (`MAIN.EXE 0x162CA–0x163DC`, which uses the
-nearby-fleet list built at `0x1843A`). Fleets 25–29 all qualify as assisting
-enemies (role `0x40`) of one another. A duel against an assisting commodore
+one of them can draw a second in. The battle setup adds, for each side, the
+first nearby military fleet (fleet IDs ending in 5–9) of that side's nation
+as an assisting fleet (`MAIN.EXE 0x162CA–0x163DC`, which uses the
+nearby-fleet list built at `0x1843A`;
+[Fleets that join a battle](../naval-battle.md#fleets-that-join-a-battle)).
+Fleets 25–29 all qualify as the assisting enemy (role `0x40`) of one another. A duel against an assisting commodore
 only empties that ship's crew and does not end the battle
 ([How a battle ends](../naval-battle.md#how-a-battle-ends)).
 
@@ -716,8 +718,8 @@ objective, target, and active flags. It does **not** create new ship records,
 refill durability, or reconstruct destroyed fleets. Consequently “spawn” here
 means reactivating and relocating Rudolph's and the regular pirates' existing
 fleet records, with whatever ships those records currently contain. Fleets
-65–69 are military-numbered, so a battle with one pirate fleet can draw others
-from the block in as assisting enemies (see the Massawa invasion above).
+65–69 are military-numbered, so a battle with one pirate fleet can draw one
+more from the block in as an assisting enemy (see the Massawa invasion above).
 
 The attack hook (`0x3835–0x38A3`) runs before any battle whose opposing
 captain's fleet byte is 60 through 69. The first such battle plays Martinez's
@@ -865,7 +867,8 @@ These executable details, decoded outside the scenario program, explain behavior
   Fight/Flee/Surrender menu, or a merchant's surrender offer
   ([Before the battle](../naval-battle.md#before-the-battle-fight-flee-or-surrender)).
 - **Assisting fleets** are those within 2 tiles of the player's fleet on both
-  axes (`0x183EC`, called with radius 2 from `0x1843A`).
+  axes (`0x183EC`, called with radius 2 from `0x1843A`), at most one per side
+  ([Fleets that join a battle](../naval-battle.md#fleets-that-join-a-battle)).
 - **Sailor 60's rewrite after a decisive home duel** normally changes nothing.
   The new-game record already holds fleet 60 and location `0xFF`
   (`KOUKAI2.DAT` `0x1081`), the scenario duel (`E8` → `MAIN.EXE 0x17F8A`) writes

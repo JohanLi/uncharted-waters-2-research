@@ -499,3 +499,7 @@ The fleet slot offsets agree with the `KOUKAI2.DAT` layout: slot `+0x02` is
 current durability and slot `+0x03` is maximum durability. The cap is therefore
 applied while previewing and constructing a ship, rather than being imposed by
 the one-byte save fields themselves.
+
+## Open questions
+
+None remain.

@@ -177,9 +177,11 @@ captain, guarding a fleet, or guarding a port. If the fleet has cargo, the
 report appends that fact. See [NPC fleet objectives](npc/fleet-objectives.md)
 for the objective values and their exact waitress wording.
 
-The favor gate is at `MAIN.EXE 0x2CCD7–0x2CD37`. An executable state bit can
-bypass this ordinary threshold, so the table gives the normal favor requirement
-rather than claiming it is the only possible access route.
+The favor gate is at `MAIN.EXE 0x2CCD7–0x2CD37`. It skips the threshold when
+protagonist byte `+0x29` bit `0x10` is set (`0x2CD10–0x2CD14`), but no sailor
+ever has that bit
+([Sailor flags](fleets.md#sailor-flags-0x10-and-0x40)), so the favor
+threshold in the table always applies.
 
 ### Ask Info
 
@@ -237,3 +239,7 @@ clears the flag before applying its own gain. The waitress command begins at
 at `0x2CD38–0x2D06B`. See
 [the royal-mission notes](scenarios/scenario-0-royal-missions.md#waitress-job-info)
 for the full state flow.
+
+## Open questions
+
+None remain.

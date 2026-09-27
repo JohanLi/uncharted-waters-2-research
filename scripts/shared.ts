@@ -60,3 +60,7 @@ export function decodeCString(bytes: Uint8Array): string {
     .decode(end < 0 ? bytes : bytes.subarray(0, end))
     .replaceAll("'", "’");
 }
+
+/** Start of save slot `slot` (1–3) in raw/KOUKAI2.DAT (game-details/fleet-info.md). */
+export const saveSlotBase = (slot: number): number =>
+  0x97 + (slot - 1) * 0x7cc8;

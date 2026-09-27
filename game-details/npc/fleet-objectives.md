@@ -55,8 +55,8 @@ movement state rather than the authoritative assignment: objectives aimed at a
 port copy that port's coordinates, while objectives aimed at a fleet follow
 the target fleet's changing coordinates.
 
-See [fleet-navigation.md](fleet-navigation.md) for the separate route and
-waypoint investigation.
+See [NPC fleet navigation](fleet-navigation.md) for how a fleet plans and
+follows its route to the target.
 
 ## Objective values
 
@@ -291,16 +291,19 @@ therefore 8–15 days, and a fleet held back by the class guard retries after
 Pursuit objectives validate their target captain before refreshing a course. A
 target is usable only if sailor flag `0x20` is set and the sailor has a fleet
 ID other than `0xFF`; an unusable target is redirected to the pursuer's home
-port. The caller does not itself write the objective byte when it makes that
-redirect; whether the common homeward helper also changes the objective remains
-to be decoded. This validation is later than objective selection. At selection
+port. The redirect (`0x1F9BF`) calls the assignment helper `0x394F1` with
+objective 0 and the home port, which writes objective 0, the home port as
+argument, the port's coordinates as target, and route word `0x4000`
+(`0x39585–0x395AB`); the class guard is skipped for objective 0. This validation is later than objective selection. At selection
 time the game has already stored objective 6 and a target captain; it only
 checks that captain's referenced fleet has its active bit. The stricter captain-status
 check occurs during a subsequent pursuit refresh. A fleet can therefore leave
 port with an explicit pursuit assignment, make a little progress toward the
 selected target, and then be redirected home when that later check fails.
 
-Pirate pursuers also give up on their own (`0x1F71B`). If the target's fleet
+Pursuers also give up on their own (`0x1F71B`, which acts only for pirate
+fleets 61–69 and for fleets in positions 5–9, `0x1F749–0x1F753`). If the
+target's fleet
 has a nonzero arrival delay `+0x27`, meaning it is docked and waiting, the
 pursuer goes home (`0x1F7E0`, `0x1F828`). Otherwise it goes home on a roll
 each daily update: 1 in 15 for positions up to 6, or 1 in 30 if the
@@ -360,7 +363,8 @@ encounter (`0x263E8`, at `0x1FABE`) is reached when the target is the
 protagonist (`0x1FA7E–0x1FA87`), and no message is shown for a fight between
 two computer fleets, even on screen. Fleets join a battle as assisting fleets
 only when a battle involving the player starts: `0x1843A` lists the active,
-undocked fleets within 2 tiles of the player's fleet on both axes (`0x183EC`).
+undocked fleets within 2 tiles of the player's fleet on both axes (`0x183EC`)
+([Fleets that join a battle](../naval-battle.md#fleets-that-join-a-battle)).
 
 ### Story flag `0x40`
 
@@ -399,23 +403,39 @@ home; any nonzero rank permits the encounter to continue. Corsairs therefore
 break off from a commoner but attack a protagonist holding any title, from
 Page upward.
 
+The pursuit refresh has a second corsair branch (`0x1F778–0x1F943`). When a
+pirate fleet on objective 4 is inside the loaded sea area, it rolls
+`random(3)`, or `random(2)` if its commander's personality bit `0x80` is
+clear, and on 0 lists every active fleet 0–59 that is a national merchant
+fleet (positions 1–4) or the player's fleet, the latter only if the
+protagonist holds a title. It picks one at random and asks `0x395B9` for
+objective 5 against it. Only corsairs ever hold objective 4, and a corsair
+already at sea counts itself for the [class guard](#arrival-action-delay), so
+the guard always trips: instead of chasing the chosen fleet, the corsair gets
+objective 0, its home port, and a 5-day delay, and keeps its current course
+until it arrives. The branch can run only while the player is in port,
+because the daily update skips fleets in the loaded area while the player is
+at sea (`0x1FEAF–0x1FEBC`). A corsair with story flag `0x40` never reaches it
+(`0x1F740`).
+
 ### Profit and fleet activity
 
-Profit is read when an autonomous fleet completes its home turnaround. The
-game sets fleet word `+0x24` to:
+Guild Profit is read when an autonomous fleet completes its home turnaround.
+The game sets fleet word `+0x24` to:
 
 ```text
-floor(nation Profit / 10) + 1 + random(3)
+floor(Guild Profit / 10) + 1 + random(3)
 ```
 
 That value is subsequently used to scale investments and trade cargo, so a
-wealthier nation sends better-funded investment and trading sorties. Profit
-also affects the monthly choice to begin an offensive national strategy.
+wealthier nation sends better-funded investment and trading sorties. Guild
+Profit also affects the monthly choice to begin an offensive national
+strategy.
 
-No direct Profit test has yet been found in the active-fleet flag or in a
-fleet-count limit. Profit is therefore not known to change how many fleets are
-at sea or how often they sail; its decoded effects are the funding word above
-and the monthly offensive-strategy choice.
+It does not change how many fleets sail at once: the class guard above is a
+fixed count. It does set how fast defeated fleets return, because the monthly
+refill allowance and the ship types it offers depend on it
+([Fleet regeneration](../fleets.md#refilling-ships)).
 
 ## Relevant code
 
@@ -429,8 +449,13 @@ and the monthly offensive-strategy choice.
 - `MAIN.EXE` `0x39886–0x39990`: home turnaround and new-sortie setup.
 - `MAIN.EXE` `0x3986F–0x39885`: decrement arrival-action delay.
 - `MAIN.EXE` `0x39991–0x39C39`: investment and trade arrival handlers.
-- `MAIN.EXE` `0x3941E–0x3967E`: category guard and five-tick home redirect.
+- `MAIN.EXE` `0x3941E–0x3967E`: category guard and five-day home redirect;
+  `0x394F1` also sends a fleet home with objective 0.
 - `MAIN.EXE` `0x1F3E3–0x1F456`: arrival at a port: snap to the port, set flags `0x30` (docked), and set the arrival delay.
 - `MAIN.EXE` `0x397FF–0x3981A`: home port must equal the capital, else objective 0.
 - `MAIN.EXE` `0x1F71B–0x1F94D`, `0x1F94E–0x1F9CF`, and
   `0x1FA1E–0x1FCEE`: pursuit, target validation, and encounter transitions.
+
+## Open questions
+
+None remain.

@@ -604,7 +604,9 @@ mistakes:
 | Ezequiel, fleets 15–19 | Emilio warns that this is the “Invincible Fleet” led by Ezequiel. | “It's too bad. This way, I don't get to see the ending.” The same failure follows.                                                           |
 
 Choosing **No** plays “What a relief” (or, after the Martinez meeting, “You're
-targeting the wrong ship!”) and cancels the battle with `F8`. Choosing **Yes**
+targeting the wrong ship!”) and cancels the battle with `F8`, which still
+applies the naval Relation and Friendship changes
+([Cancelled battles](../naval-battle.md#cancelled-battles)). Choosing **Yes**
 suppresses the Fight/Flee/Surrender prompt and runs a failure
 block:[^ally-attack-failure]
 
@@ -670,8 +672,9 @@ These executable details, decoded outside the scenario program, explain behavior
   sea (`0x1EAC0`); each month a record without it has a 1-in-3 chance of being
   reused for a new generic sailor (`0x1DC64`), and after a battle a captain
   without it always loses his fleet ([After the battle](../naval-battle.md#after-the-battle)).
-  Bit `0x10` is never set on a protagonist
-  ([Waitresses](../waitresses.md)), and no executable path sets bit `0x08`.
+  Bit `0x10` is never set on any sailor
+  ([Sailor flags](../fleets.md#sailor-flags-0x10-and-0x40)), and no executable
+  path sets bit `0x08`.
 - **Duel direction.** A scripted duel (`E8`, `MAIN.EXE 0x37E8E`) makes the
   protagonist the first combatant, whose damage moves the balance toward 200
   (`0x17F8A`); a balance of 100 or more therefore favors Catalina.

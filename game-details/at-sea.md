@@ -286,16 +286,16 @@ offers Sail, when bit `0x20` of `DS:0x1189` is set (the fleet is at anchor),
 and otherwise from entry `0x1D`, which offers Anchor (`0x266B4–0x266C2`),
 and dispatches through a jump table at `0x2670F`:
 
-| Entry | Command     | Handler                                   |
-| ----: | ----------- | ----------------------------------------- |
-|     0 | Auto Sail   | `0x26724`                                 |
-|     1 | Sail/Anchor | `0x2672B`                                 |
-|     2 | Port Call   | `0x26731`                                 |
-|     3 | Go Ashore   | `0x26738` ([Going ashore](#going-ashore)) |
-|     4 | View        | `0x2673F` → `0x255F9` (below)             |
-|     5 | Gossip      | `0x26746`                                 |
-|     6 | Battle      | `0x26754`                                 |
-|     7 | Options     | `0x2675B`                                 |
+| Entry | Command     | Handler                                                                        |
+| ----: | ----------- | ------------------------------------------------------------------------------ |
+|     0 | Auto Sail   | `0x26724` ([route search](npc/fleet-navigation.md#the-world-navigation-graph)) |
+|     1 | Sail/Anchor | `0x2672B`                                                                      |
+|     2 | Port Call   | `0x26731`                                                                      |
+|     3 | Go Ashore   | `0x26738` ([Going ashore](#going-ashore))                                      |
+|     4 | View        | `0x2673F` → `0x255F9` (below)                                                  |
+|     5 | Gossip      | `0x26746` ([Nightfall](naval-battle.md#nightfall))                             |
+|     6 | Battle      | `0x26754`                                                                      |
+|     7 | Options     | `0x2675B`                                                                      |
 
 ### Another fleet's details and pirate disguises
 

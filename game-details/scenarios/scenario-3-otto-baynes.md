@@ -289,9 +289,14 @@ even if he then refuses to pay.
 [^gold-fleet]:
     `SNR3.DAT 0x1177–0x11B2`: fleet 11's position becomes `(1736, 529)`, its
     objective 0 (return home) with argument port 1 (Seville), and its flags
-    `0x41`. `D1` recomputes its course. Byte `+0x21` receives goods ID 31
+    `0x41`, adding the
+    [story flag `0x40`](../npc/fleet-objectives.md#story-flag-0x40). `D1`
+    recomputes its course. Byte `+0x21` receives goods ID 31
     (Gold) and word `+0x22` the amount 120; these are the cargo fields that
-    [naval-battle spoils](../naval-battle.md) read. Pietro's name for the
+    [naval-battle spoils](../naval-battle.md#cargo) read. Once the fleet has
+    reached Seville and waited out its arrival delay, the ordinary home
+    turnaround clears the cargo
+    ([Investing and trading](../npc/fleet-objectives.md#investing-and-trading)). Pietro's name for the
     captain comes from fleet byte `+0x2A`, the captain sailor ID (15, Esteban
     Ortega, in `raw/KOUKAI2.DAT`), through that sailor's two name fields.
 

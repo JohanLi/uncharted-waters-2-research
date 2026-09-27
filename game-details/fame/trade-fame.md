@@ -21,14 +21,16 @@ Trade Fame = current Economy + current Industry
 ```
 
 Economy and Industry each range from 0 to 1,000, so one alliance change can award at most 2,000 Trade Fame. The
-calculation uses the port's ratings after the investment.
+calculation uses the port's current ratings: an investment raises them only when it is converted at the end of the month
+([Market command dialogue](../buildings.md#market-command-dialogue)).
 
 There is no award merely for raising Economy or Industry while the port remains allied. Conversely, the code tests for a
-transition from another nation to the protagonist's nation, so a port which is lost and later reclaimed can award Fame
-again.
+transition from another nation to the protagonist's nation, so a port which is lost, for example to a computer merchant
+fleet's investment ([Investing and trading](../npc/fleet-objectives.md#investing-and-trading)), and later reclaimed can
+award Fame again.
 
 Either Market or Shipyard investment can produce the alliance change. Market investment raises Economy, while Shipyard
-investment raises Industry; both ratings contribute to the Fame award regardless of which investment completes the
+investment raises Industry, at the end of the month; both ratings contribute to the Fame award regardless of which investment completes the
 takeover.
 
 ## Guild assignments
@@ -130,3 +132,7 @@ The relevant calculations are located at:
   and `0x24E1`: Ali's direct Trade Fame writes; and
 - `MAIN.EXE` file offset `0x0AF42`: resolve one protagonist's 14-byte Fame record. Its words at `+0`, `+2`, and `+4` are
   Trade, Piracy, and Adventure.
+
+## Open questions
+
+None remain.

@@ -28,6 +28,8 @@ directory; the dialog extractor writes to `dialog-system/scripts/output/`.
 Individual workflows are also available:
 
     pnpm run draw-world-map
+    pnpm run draw-fleet-start-positions
+    pnpm run draw-navigation-graph
     pnpm run draw-tilesets
     pnpm run draw-winds-current-anomalies
     pnpm run extract-ports
@@ -38,6 +40,11 @@ Individual workflows are also available:
     pnpm run extract-portraits-items-discoveries
     pnpm run extract-dueling
     pnpm run extract-dialog
+
+The two map overlays need `draw-world-map` to have run first.
+`pnpm run navigation-route <from> <to>` prints the route a computer fleet
+takes between two port IDs or `x,y` save coordinates; see
+[fleet navigation](game-details/npc/fleet-navigation.md#tools).
 
 The dialog extractor reads the game data directly and does not require a
 database.

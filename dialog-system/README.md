@@ -238,7 +238,8 @@ For protagonist scenarios:
 - the qualifier is usually the building/context ID;
 - qualifier `0xFF` is a wildcard context;
 - selector `0xA0` is an at-sea voyage-day hook;
-- selectors `0xA1` and `0xA2` are before- and after-naval-battle hooks.
+- selectors `0xA1` and `0xA2` are before- and after-naval-battle hooks
+  ([Naval battle](../game-details/naval-battle.md#how-a-battle-ends)).
 
 The known building qualifiers use zero-based values compared with the
 one-based building IDs documented in [Buildings](../game-details/buildings.md):
@@ -421,7 +422,7 @@ The following operations matter when describing what the player experiences:
 | `F0`                          | **Decoded**   | Advance subsection after the interpreter returns                   |
 | `F1`                          | **Decoded**   | Advance section, reset subsection, and clear scenario flags        |
 | `F2`                          | **Decoded**   | Stop scenario interpretation                                       |
-| `F8`                          | **Confirmed** | Suppress the normal building menu and force the player outside     |
+| `F8`                          | **Confirmed** | Force a building exit, or cancel the battle in an `0xA1` route     |
 | `C9 <variable> <message>`     | **Decoded**   | Show a forced menu built from the lines of an MES entry            |
 | `D9 00 <selector>`            | **Confirmed** | Show a formatted Guild or royal-mission line from `MESSAGE.DAT`    |
 | `D1 <variable>`               | **Decoded**   | Send a story fleet after a sailor or to a port                     |
@@ -512,6 +513,13 @@ conversations use the same `F8 F2` ending.
 Dialog wording alone remains insufficient evidence; the encoded `F8` is what
 distinguishes an ejecting conversation from a visually similar reminder.
 
+In a before-battle `0xA1` route, `F8` cancels the battle instead (outcome code
+8, `MAIN.EXE 0x150FD`). No battle is fought and there is no ending message,
+Fame, or spoils, but the end-of-battle sequence still runs: the naval Relation
+loss and personal-Friendship changes apply against the recorded opponent's
+nation, and the after-battle `0xA2` hook is dispatched
+([Cancelled battles](../game-details/naval-battle.md#cancelled-battles)).
+
 ## State that selects a conversation
 
 The scenario save state includes at least:
@@ -600,7 +608,8 @@ query models that scenario audience after admission. For every ordinary
 building action, the query also reports the decoded entry greeting or access
 response and visible main menu after applying story suppression. It identifies
 when a hostile reception may preempt that result, but cannot select the random
-outcome until the general gameplay RNG lifecycle is known.
+outcome, because the general gameplay RNG is not in the save
+([General RNG consumption](../game-details/townspeople.md#general-rng-consumption)).
 
 Colon-separated paths currently execute every Harbor command, including
 Supply and Moor submenus and supply-port Rename Port; Item Shop Buy/Sell; all
@@ -715,4 +724,7 @@ those paths instead of inferring behavior from their wording.
 - [Scenario guides](../game-details/scenarios/README.md)
 - [Building IDs, availability, and ordinary greetings](../game-details/buildings.md)
 - [Hostile-country building behavior](../game-details/friendship.md)
+- [Naval battle endings and cancelled battles](../game-details/naval-battle.md#how-a-battle-ends)
+- [NPC fleet objectives](../game-details/npc/fleet-objectives.md), which `D1`
+  story fleets use
 - [Open dialog-system questions](./open-questions.md)

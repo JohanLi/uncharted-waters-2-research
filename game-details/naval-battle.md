@@ -514,7 +514,7 @@ recorded when the battle was set up (`0x14BF2`), so the naval Relation loss
 and personal-Friendship changes are applied against that fleet's nation as if
 it had been fought, including the same-nation shame and exile checks. The
 end-of-battle experience is zero, because its base is the pre-battle
-routine's result, −1 for a cancelled battle, divided by 5.
+routine's result, −1 for a cancelled battle, divided by 5. The scenario's after-battle routes also still run (`0x16191`), as after any other battle.
 
 ### Journal entry
 
@@ -553,9 +553,12 @@ all four to `0xFF` (`0x1D961`).
 
 A fleet's treasury starts at `floor(G / 10) + 1 + random(3)`, where `G` is its
 nation's Guild Profit ([Sphere of influence](sphere-of-influence.md)), each
-time the fleet is created (`0x1D938–0x1D94D`). When one computer fleet
-defeats another at sea, it takes a fifth of the loser's treasury, up to a
-treasury of 60,000 (`0x1FBA0–0x1FBC1`). The routine also skips the
+time the fleet is relaunched (`0x1D938–0x1D94D`) and each time it returns
+home; investing halves it and trading spends it
+([Investing and trading](npc/fleet-objectives.md#investing-and-trading)).
+For each ship one computer fleet sinks of another at sea, it takes a fifth of
+the loser's treasury, up to a treasury of 60,000 (`0x1FBA0–0x1FBC1`;
+[Battles between computer fleets](npc/fleet-objectives.md#battles-between-computer-fleets)). The routine also skips the
 item when the defeated flagship has a player-side [role](#battle-roles), which
 cannot happen when the player wins, so in practice only a full inventory
 prevents it.

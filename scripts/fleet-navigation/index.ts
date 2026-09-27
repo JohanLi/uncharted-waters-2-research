@@ -1,28 +1,28 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
+import { repoRoot, saveSlotBase } from "../shared.js";
 import { loadGraph } from "./graph.js";
 import { findRoute } from "./route.js";
 
 // Prints the node route an NPC fleet would follow between two points.
 //   pnpm navigation-route <from> <to>
-// Each point is either a port ID (read from raw/KOUKAI2.DAT) or raw world
-// coordinates written as "x,y".
+// Each point is either a port ID (its position in the port table of
+// raw/KOUKAI2.DAT save slot 1) or save/game world coordinates written as "x,y"
+// (not the drawn map's, which are shifted 720 tiles east).
 
-const repositoryRoot = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-);
-const SLOT_BASE = 0x97;
 const PORT_TABLE = 0x4f40;
 const PORT_SIZE = 20;
+const PORT_NAME = 0x04;
+const PORT_NAME_SIZE = 15;
 
 function portPoint(port: number): { x: number; y: number; name: string } {
-  const save = readFileSync(join(repositoryRoot, "raw", "KOUKAI2.DAT"));
-  const base = SLOT_BASE + PORT_TABLE + port * PORT_SIZE;
-  const nameBytes = save.subarray(base + 4, base + 18);
+  const save = readFileSync(join(repoRoot, "raw", "KOUKAI2.DAT"));
+  const base = saveSlotBase(1) + PORT_TABLE + port * PORT_SIZE;
+  const nameBytes = save.subarray(
+    base + PORT_NAME,
+    base + PORT_NAME + PORT_NAME_SIZE,
+  );
   const end = nameBytes.indexOf(0);
   return {
     x: save.readUInt16LE(base),

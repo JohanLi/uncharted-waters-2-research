@@ -2613,6 +2613,56 @@ test("sets the opposing captain and leaves the post-battle fleet unknown", async
   assert.ok(result.notes.some((note) => /sailor 60/.test(note)));
 });
 
+test("reports F8 in a before-battle route as a cancelled battle", async () => {
+  // Ali's section-2 route 0xA101 ends Catalina's decoy encounter with F8,
+  // which cancels the battle (MAIN.EXE 0x150FD, outcome code 8).
+  const save = await storySave(5, 0xff, 2, 0);
+  save[slotOffset(1) + 0x31] = 2;
+  const result = await queryScenario(
+    save,
+    1,
+    parseQueryAction("before-battle:1"),
+  );
+  const cancelled = result.outcomes.filter((outcome) =>
+    outcome.effects.some((effect) => /^cancel the battle/.test(effect)),
+  );
+  assert.equal(cancelled.length, 1);
+  assert.ok(!cancelled[0]!.effects.some((effect) => /force exit/.test(effect)));
+});
+
+test("a protagonist battle cancellation skips the shared before-battle route", async () => {
+  // With the Guild's Defeat Pirates job active (shared section 4), SNR0's
+  // primary 0xA1FF route matches the battle and would mark a pirate
+  // opponent with flag 3. Ali's section-2 route still
+  // cancels this one, and MAIN.EXE then skips the shared dispatch
+  // (0x150FD jumps past 0x15107).
+  const save = await storySave(5, 0xff, 2, 0);
+  save[slotOffset(1) + 0x31] = 2;
+  save[slotOffset(1) + 0xba] = 4;
+  save[slotOffset(1) + 0xbb] = 0;
+  // The shared route only acts on a pirate opponent: put captain 1 in
+  // fleet 61 (sailor byte +0x24).
+  save[slotOffset(1) + 0x612 + 42 + 0x24] = 61;
+  const action = parseQueryAction("before-battle:1");
+  const shared = inspectSharedScenario(
+    save,
+    1,
+    action,
+    await loadSharedScenario(),
+  );
+  assert.equal(shared.route?.keyHex, "0xA1FF");
+  const result = await queryScenario(save, 1, action);
+  assert.ok(
+    result.outcomes.every((outcome) =>
+      outcome.effects.some((effect) => /^cancel the battle/.test(effect)),
+    ),
+  );
+  assert.equal(result.sharedScenario.outcomes.length, 0);
+  assert.ok(
+    result.notes.some((note) => /shared before-battle route/.test(note)),
+  );
+});
+
 // Seville (port 1) has no story route for João's opening save, so a visit
 // reaches the ordinary menu. Tick 0x1B is 9:00, when the Pub, Church, and
 // Market are open.
