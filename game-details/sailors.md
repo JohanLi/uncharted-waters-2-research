@@ -123,6 +123,15 @@ though in-game tip 1299 says a Chief Navigator's skills improve quickly.
   candidates (message 285).
 - Hiring sets duty 6. Leaving the player's service, through the battle-start
   withdrawal or a Harbor resignation (`0x13F29`, `0x2E3FF`), clears it to 0.
+- **Unused officer lookups.** `0x23D73` scans the 30-entry mate list
+  (`DS:0x2BAD`) and reports which mate holds duty 3, 4, and 5, or `0xFF` for
+  each vacancy; Change Job Duty uses it to fill its three slots. Three more
+  routines wrap it to return a single officer by preference: First Mate, then
+  Chief Navigator, then Bookkeeper (`0x23DE2`); Bookkeeper, First Mate, Chief
+  Navigator (`0x23E12`); and Chief Navigator, First Mate, Bookkeeper
+  (`0x23E42`). Nothing in `MAIN.EXE` calls them: they are far routines in
+  segment `0x1E5F` (offsets `0x01F2`, `0x0222`, `0x0252`), and there is no far
+  call, `push cs` near call, far pointer, or offset table that reaches them.
 - Removing a ship from the fleet (`0xB13F`) makes its captain duty 6. A
   captain whose ship sinks in battle stays in the party as an
   unassigned mate. The same applies to a named captain whose ship sinks in a
@@ -282,7 +291,10 @@ joins the player and cannot be hired. He is an antagonist during Otto’s story.
 
 ## Permanent vagabonds
 
-These persistent recruits are found in inns or cafés; locations can change during play.
+These persistent recruits are found in inns or cafés. While unemployed, those
+without sailor byte `+0x29` bit `0x40` (79, 91, 94, 99, 101, 102, and 109) can
+move up to two port IDs a month; the rest stay put
+([Sailor flags](fleets.md#sailor-flags-0x10-and-0x40)).
 
 |  ID | Sailor           | Nationality | Leadership | Seamanship | Knowledge | Intuition | Courage | Swordsmanship | Charm | Luck | Navigation Level | Battle Level | Age | Skills                                                              |
 | --: | ---------------- | ----------- | ---------: | ---------: | --------: | --------: | ------: | ------------: | ----: | ---: | ---------------: | -----------: | --: | ------------------------------------------------------------------- |
@@ -316,7 +328,9 @@ one loses his fleet in a naval battle, `MAIN.EXE 0x1533A` clears his byte `+0x29
 `0x20`, and from then on each month's pass at `0x1DC64` has a 1-in-3 chance of reusing
 the record for a brand-new generic sailor (`0x1D71D`). Many ordinary fleet captains
 (for example IDs 8–68, 114, and 116) have generic portraits too and can vanish the same
-way ([After the battle](naval-battle.md#after-the-battle)).
+way ([After the battle](naval-battle.md#after-the-battle)). How new sailors are
+generated, and how defeated fleets draft unemployed sailors of their nation
+as commanders, is in [Fleet regeneration](fleets.md#fleet-regeneration).
 
 |  ID | Sailor           | Nationality | Leadership | Seamanship | Knowledge | Intuition | Courage | Swordsmanship | Charm | Luck | Navigation Level | Battle Level | Age | Skills                                     |
 | --: | ---------------- | ----------- | ---------: | ---------: | --------: | --------: | ------: | ------------: | ----: | ---: | ---------------: | -----------: | --: | ------------------------------------------ |
@@ -344,6 +358,9 @@ way ([After the battle](naval-battle.md#after-the-battle)).
 ## Active NPC captains
 
 Sailor IDs `6–68` are active NPC captains. Their fleet assignments and ship compositions are documented in [fleets.md](fleets.md).
+Pirate captains (nationality Piracy) are shown at sea under a false flag,
+nation `ID mod 6`, until a mate unmasks them; see
+[pirate disguises](at-sea.md#another-fleets-details-and-pirate-disguises).
 
 |  ID | Sailor           | Nationality | Leadership | Seamanship | Knowledge | Intuition | Courage | Swordsmanship | Charm | Luck | Navigation Level | Battle Level | Age | Skills                                                     |
 | --: | ---------------- | ----------- | ---------: | ---------: | --------: | --------: | ------: | ------------: | ----: | ---: | ---------------: | -----------: | --: | ---------------------------------------------------------- |
@@ -413,6 +430,4 @@ Sailor IDs `6–68` are active NPC captains. Their fleet assignments and ship co
 
 ## Open questions
 
-- **Unused duty selectors.** Three helpers pick a mate by duty preference in
-  the orders 3–5–4 (`0x23DE2`), 4–3–5 (`0x23E12`), and 5–3–4 (`0x23E42`), but
-  no caller has been found. They may be unused.
+None remain.
