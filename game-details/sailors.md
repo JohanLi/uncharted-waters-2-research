@@ -15,10 +15,21 @@
 | Battle experience                    | +0x20..+0x21 |
 | Age                                  |        +0x22 |
 | Loyalty                              |        +0x23 |
+| Fleet                                |        +0x24 |
+| Port (unemployed sailors)            |        +0x25 |
 | Duty                                 |        +0x26 |
+| Personality                          |        +0x27 |
 | Skill mask                           |        +0x28 |
+| Status                               |        +0x29 |
 
 Skill-mask bits are `0x01` Negotiation, `0x02` Accounting, `0x04` Gunnery, `0x08` Cartography, and `0x10` Celestial Navigation. Nationality is taken from the record country/status byte.
+
+Status bit `0x20` makes a sailor eligible for Pub and Lodge encounters, and
+personality bit `0x10` fixes which of the two buildings lists them: set for
+the Pub, clear for the Lodge. See
+[Lodge command dialogue](buildings.md#lodge-command-dialogue). Personality bit
+`0x40` and the low two bits affect the Pub's **Treat**
+([Pub command dialogue](buildings.md#pub-command-dialogue)).
 
 The experience thresholds, voyage and combat awards, and attribute increases
 are documented in [levels.md](levels.md).

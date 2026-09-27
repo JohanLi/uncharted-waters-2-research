@@ -870,19 +870,24 @@ function localSailors(
   const playerFleet = save[protagonist + 0x24]!;
   const coordinates = data.portCoordinates[portId];
   const sailors: LocalSailor[] = [];
-  for (let id = 6; id < 120; id++) {
+  // MAIN.EXE 0x182A1 collects every sailor except the protagonist with status
+  // bit 0x20 who is at this port, in the player's fleet, or captain of a fleet
+  // below 70 docked (fleet bit 0x10) at the port's coordinates. Personality
+  // bit 0x10 then selects the Pub list (0x18353) or the Lodge list (0x183B3).
+  for (let id = 0; id < 120; id++) {
     if (id === protagonistId) continue;
     const record = base + SAILOR_TABLE + id * SAILOR_RECORD_SIZE;
     const status = save[record + SAILOR_AFFILIATION]!;
-    if ((status & 0x20) === 0 || Boolean(status & 0x40) !== pub) continue;
+    if ((status & 0x20) === 0) continue;
+    if (Boolean(save[record + 0x27]! & 0x10) !== pub) continue;
     const fleetId = save[record + 0x24]!;
     const ownMate = fleetId === playerFleet;
-    const unemployedHere = fleetId === 0xff && save[record + 0x25] === portId;
+    const unemployedHere = save[record + 0x25] === portId;
     let fleetHere = false;
-    if (!ownMate && fleetId < 100 && coordinates) {
+    if (!ownMate && !unemployedHere && fleetId < 70 && coordinates) {
       const fleet = base + PLAYER_FLEET_TABLE + fleetId * FLEET_RECORD_SIZE;
       fleetHere =
-        (save[fleet + 0x29]! & 1) !== 0 &&
+        (save[fleet + 0x29]! & 0x10) !== 0 &&
         save.readUInt16LE(fleet) === coordinates.x &&
         save.readUInt16LE(fleet + 2) === coordinates.y;
     }
@@ -1062,10 +1067,12 @@ function sailorHireCommand(
   const playerScore =
     (save[protagonist + 0x1c]! + save[protagonist + 0x1d]!) *
     save[protagonist + 0x14 + bestIndex]!;
-  const experienceMargin = Math.floor(
-    (playerScore * inspectRank(save, slot, protagonistId)) / 10,
-  );
-  const successOutcomes = Math.min(20, experienceMargin);
+  // MAIN.EXE 0x2C5A8-0x2C5E0: the offer is reached when
+  // random(20) + candidate score < player score + floor(player score * rank / 10).
+  const threshold =
+    playerScore +
+    Math.floor((playerScore * inspectRank(save, slot, protagonistId)) / 10);
+  const successOutcomes = Math.max(0, Math.min(20, threshold - sailorScore));
   if (successOutcomes === 0)
     return result(path, {
       confidence: "decoded",
@@ -1075,7 +1082,7 @@ function sailorHireCommand(
       effects: [],
       uncertainties: [],
       notes: [
-        "The rank-scaled Navigation/Battle experience comparison cannot succeed.",
+        `Candidate score ${sailorScore} is not below the player threshold ${threshold}, so no random(20) result succeeds.`,
       ],
     });
 
@@ -1129,7 +1136,7 @@ function sailorHireCommand(
     dialogue: [prompt, quote, line(data, 144, sailor.name)],
     menu: selectedMenu,
     effects: [
-      `if the experience roll succeeds, add ${sailor.name} to the first empty mate slot`,
+      `if the hire roll succeeds, add ${sailor.name} to the first empty mate slot`,
       `store a monthly wage of ${wageLabel} gold`,
       `increase ${sailor.name}'s Loyalty from ${loyalty} to ${Math.min(100, loyalty + 10)}`,
       "clear the sailor's port, assign the protagonist's fleet, and set duty 6",
@@ -1137,7 +1144,7 @@ function sailorHireCommand(
     uncertainties: uncertainty,
     notes: [
       `Candidate score: (${save[sailor.record + 0x1c]} + ${save[sailor.record + 0x1d]}) × ${best} = ${sailorScore}.`,
-      `Rank-scaled player margin: ${experienceMargin}.`,
+      `Player threshold: ${playerScore} + floor(${playerScore} × rank / 10) = ${threshold}.`,
     ],
   });
 }
