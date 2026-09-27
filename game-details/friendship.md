@@ -53,6 +53,88 @@ alliance flag   = status byte & 0x20
 blockade flag   = status byte & 0x10
 ```
 
+### Monthly status update
+
+Each month `0x1D363` visits every ordered pair of the six nations (`i` toward
+`j`). `0x1D13F` first writes a value into the low nibble of `i`'s status byte
+toward `j`, keeping the alliance and blockade bits. The value comes from the
+table at `DS:0xA7E4`, indexed by the stored Relation band
+(`floor((Relation + 9) / 40)`), by comparing the two nations' Guild Profit,
+and by the pair's status:
+
+| Relation (stored) | Guild Profit            | Allied | Blockade | Neither          |
+| ----------------- | ----------------------- | -----: | -------: | ---------------- |
+| 0–30              | `i` more than twice `j` |      0 |        3 | 0                |
+| 0–30              | `j` more than twice `i` |      1 |        3 | 5                |
+| 0–30              | `i` higher              |      0 |        3 | 1                |
+| 0–30              | `j` higher or equal     |      1 |        3 | 5                |
+| 31–70             | `i` more than twice `j` |      6 |        4 | 2 or 0 (rule 9)  |
+| 31–70             | `j` more than twice `i` |      1 |        3 | 2 or 0 (rule 10) |
+| 31–70             | `i` higher              |      6 |   3 or 0 | 2 or 0 (rule 9)  |
+| 31–70             | `j` higher or equal     |      0 |        3 | 2 or 0 (rule 10) |
+| 71–110            | `i` more than twice `j` |      6 |        4 | 2                |
+| 71–110            | `j` more than twice `i` |      6 |        3 | 1                |
+| 71–110            | `i` higher              |      6 |   3 or 0 | 2 or 0 (rule 8)  |
+| 71–110            | `j` higher or equal     |      6 |   3 or 0 | 2 or 0 (rule 8)  |
+
+The rules draw against the stored Relation `R` (`0x1D1EF–0x1D230`): “3 or 0” is
+3 when `random(100) < R`; rule 8 gives 2 when `random(100) > R`; rules 9 and
+10 give 2 when `30 + random(20)` or `30 + random(10)` exceeds `R`. A Relation
+above 110 would read past the table.
+
+`0x1D2D8` then acts on the whole status byte, so only a pair with neither flag
+set can match:
+
+- **1:** `j`'s Relation toward `i` rises by `3 + random(5)`, and `i`'s is set to
+  the same value.
+- **4:** `i` may seize a port from `j` (`0x1D246`): with chance
+  `min(50, 10 × i's Guild Profit / j's) / 50`, the highest-numbered port
+  allied to `j` other than its capital switches to `i`, with `i`'s support
+  there set to `80 + random(10)`. Value 4 only arises in the Blockade column,
+  where the status byte also carries the blockade bit, so this never happens.
+
+No other routine reads the values 0, 2, 3, 5, or 6.
+
+### What changes Relations
+
+Only these routines write the Relation bytes `+0x0B..+0x11`:
+
+| Cause                                 | Change                                                                        | Code                 |
+| ------------------------------------- | ----------------------------------------------------------------------------- | -------------------- |
+| Royal mission: deliver documents      | +5 in both directions, capped at stored 100                                   | `SNR0` section 7     |
+| Royal mission: negotiate a treaty     | +10 in both directions, capped at stored 100                                  | `SNR0` section 8     |
+| Monthly drift (status value 1, above) | the reverse Relation +3 to +7, then both set equal; no cap                    | `0x1D305–0x1D31B`    |
+| The player sinks a nation's fleet     | −3 to −7                                                                      | `0x15E5F`, `0x15E6F` |
+| Computer fleets fight                 | −2 or −3 ([details](npc/fleet-objectives.md#battles-between-computer-fleets)) | `0x1FC7D–0x1FCE6`    |
+
+The monthly drift is the only way Relations rise without the player. It needs
+a pair with neither flag and either a stored Relation of 0–30 with the first
+nation's Guild Profit higher than the second's but not more than double, or a
+stored Relation of 71–110 with the second nation's Guild Profit more than
+double the first's. Because it has no cap, it can lift a Relation past 100;
+above 110 the table lookup reads past its end and nothing further happens.
+
+### What the alliance flag does
+
+No executable routine sets or clears the alliance bit `0x20` or the blockade
+bit `0x10`; they come from the new-game data, where Portugal and Spain are
+allied (status `0x25` and `0x21`) and Turkey and Italy blockade each other
+(`0x12`), and scenario scripts may add them (Otto's story sets a blockade
+between Spain and England). The alliance bit has three effects:
+
+- the Relations screen marks the pair (`0x33178`);
+- sinking an allied nation's fleet uses diplomatic class 6
+  ([below](#diplomatic-class)): Piracy Fame factor ×1, the player's own
+  nation's Friendship falls instead of rising, and the victim nation's
+  Friendship falls by twice the ordinary amount; and
+- the monthly update above never raises the Relation between allies, because
+  their status byte always carries the flag.
+
+It does not make allied fleets help in battle
+([Fleets that join a battle](naval-battle.md#fleets-that-join-a-battle)),
+does not stop allies from fighting each other's fleets, and is not read by the
+Guild's target choice.
+
 ### Guild intelligence
 
 The Guild's national-intelligence report reads two fields from each nation record:
@@ -104,8 +186,7 @@ The flags are not merely descriptive save data. Outside the naval-battle classif
 renders separate markers for an alliance and a blockade. The blockade bit also selects a special port-NPC setup path for
 a port belonging to the blockading nation; that path initializes the harbor actors used for hostile-port guards.
 
-Both flags are also inputs to a national-state update routine. Its exact gameplay consequence remains unresolved, so the
-flags should not yet be assumed to determine every aspect of port access or fleet behavior.
+Both flags also freeze the monthly Relation drift between the pair ([Monthly status update](#monthly-status-update)); [What the alliance flag does](#what-the-alliance-flag-does) lists every effect of the alliance bit.
 
 The diagonal is a valid, active matrix cell. It is not a foreign-policy relationship in the ordinary sense, but the game
 updates it when the player attacks fleets belonging to the player's own nation.
@@ -281,20 +362,20 @@ met.
 
 ## Naval-victory rules
 
-For a normal national-fleet battle, the reciprocal home↔target Relation cells are each reduced independently by:
+These rules run at the end of a battle whose outcome code is even: 2 (the enemy flagship fled), 4 and 6 (victories), and
+8 (a battle cancelled by a scenario before it started); see
+[How a battle ends](naval-battle.md#how-a-battle-ends). Nightfall, fleeing, and surrender skip them (`0x15DED`).
 
-```text
-random(5) + 3       # 3–7 points
-```
-
-The values are clamped at stored zero, corresponding to displayed Relation −30. This Relation deduction occurs before
+For a normal national-fleet battle, the home→target Relation is reduced by `random(5) + 3`, 3 to 7 points, clamped at
+stored zero (displayed Relation −30), and the target→home Relation is then set to the same value (`0x15E5F–0x15E6F`). This Relation deduction occurs before
 the personal-Friendship class is selected, but after the Fame diplomatic class is selected.
 
 ### Diplomatic class
 
 Let `home` be the current player's nation, `target` the defeated fleet's nation, and `relationRaw` the stored
 home→target Relation at the start of the battle. The class starts at zero. A matching national Letter of Marque
-(`0x1D + home`) changes the initial class to one. The following tests then overwrite it in order:
+(`0x1D + home`) changes the initial class to one. Only then are the following tests made, overwriting it in order;
+without a matching Marque the class stays 0 whatever the Relations or flags (`0x152A5`):
 
 ```text
 if relationRaw <= 40:                         class = 2
@@ -382,6 +463,22 @@ Battle-result state controls whether the naval update runs. An accepted pre-comb
 Fame battle-result factor described in `fame/piracy-fame.md`; a fleet made to flee during combat receives the full
 award. The same-nation Friendship behavior remains separate from that Fame factor.
 
+## Everything that reads personal Friendship
+
+Every routine that reads the protagonist's Friendship bytes (`+0x06..+0x0C` of the 14-byte record at `DS:0x13DE`,
+reached through `0:5942`) is listed here; no code addresses them directly.
+
+| Routine              | Use                                                                                      |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `0x15DE5`            | Naval Friendship update ([above](#naval-victory-rules))                                  |
+| `0x1CD7F`            | Guild target: a nation may target the player ([Guild intelligence](#guild-intelligence)) |
+| `0x1DB6C`            | Monthly royal aid: accrues at 130 or more, resets below 70 ([Palace](buildings.md))      |
+| `0x20930`            | Hostile encounters in ordinary buildings ([Other buildings](#other-buildings))           |
+| `0x3051D`            | Defect ([Defection](#defection))                                                         |
+| `0x309A4`            | Palace admission and hostile reception ([Palace](#palace))                               |
+| `0x327C3`            | Port-controller change ([Investment and port control](#investment-and-port-control))     |
+| `0x21EE3`, `0x32F9D` | Displays only                                                                            |
+
 ## What is established about inputs
 
 Enemy Battle Level, player rank, and existing personal Friendship do not select the random Friendship deductions.
@@ -414,8 +511,4 @@ multiplier.
 
 ## Still unresolved
 
-- The exact behavior of every alternate battle-result state.
-- The meanings of the lower bits in the Alliance/Blockade status bytes.
-- Whether personal Friendship affects systems outside the decoded naval, hostile-building, and sphere-of-influence
-  calculations. The blockade-controlled hostile-port NPC setup is a Relations effect, not evidence of another
-  Friendship effect.
+None remain.

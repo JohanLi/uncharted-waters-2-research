@@ -483,7 +483,6 @@ None remain; the last one is answered in [Engine notes](#engine-notes).
 [^treasure-scan] In unedited play a match always exists: new-game
 initialization gives both treasures a record in the exact `0x80` state, the
 lookout skips any record with `0x80` or `0x40` set (`MAIN.EXE 0x36C5B`), and
-the royal special search only selects treasures 90–96. What the executable
-would do with no matching record, as in an edited save, is unknown: the
-loop would run past record 99 into the item definitions at save `0x7130`
-and beyond.
+the royal special search only selects treasures 90–96. Without a match the
+loop never ends: the index wraps from record 255 back to 0 and the game hangs
+([Engine notes](#engine-notes)).

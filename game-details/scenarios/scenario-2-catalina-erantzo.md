@@ -195,7 +195,7 @@ left alone.
     `+0x29 & 0x0F` and Piracy Fame, stops at port 1, and requires affiliation
     `6` and Fame ≥ 1 (`82 02 03` against the literal 1). The loop at
     `0x0892–0x08E8` walks sailors 0–119, takes each sailor's fleet byte `+0x24`,
-    and for fleet IDs `0x0F–0x13` writes position words
+    and for fleet IDs 15–19 writes position words
     `+0x00/+0x02 = (0x008E, 0x0176)`, objective `+0x1B = 7`, target `+0x1C = 1`
     (Catalina), and flags `+0x29 = 0x41`, then runs `D1` to recompute the
     course. Because the loop starts from captains, a fleet whose captain link is
@@ -206,7 +206,7 @@ left alone.
 [^battle-hooks]:
     Protagonist before-battle routes are dispatched at `MAIN.EXE 0x150E5`. If a
     route matched and its interaction-control word comes back zero (the effect
-    of `F8`), `0x150FD` records battle code 8, a cancelled battle. When either
+    of `F8`), `0x150FD` records battle code 8, a cancelled battle. The end-of-battle diplomacy still runs against the opponent ([Cancelled battles](../naval-battle.md#cancelled-battles)). When either
     scenario's variable 63 is nonzero (`0x15121–0x1512D`), the call to
     `0x1507B`, which offers Fight, Flee, or Surrender, is skipped. Scripts set
     variable 63 with `0C 3F 0001`. After-battle routes are dispatched at
@@ -421,7 +421,7 @@ post-battle block at `0x161BB`.
     `+0x14..+0x1B` as `78, 75, 48, 95, 84, 73, 31, 100`, and levels
     `+0x1C = 14`, `+0x1D = 18`. Byte `+0x29` is rewritten as
     `(value & 0xF0) | 0x26`; the untouched `KOUKAI2.DAT` value is `0x20`, so the
-    result is `0x26`. Fleet `0x3C` receives position `(0x0160, 0x0156)`,
+    result is `0x26`. Fleet 60 receives position (352, 342),
     objective 7, target 1, and flags `0x41`, then `D1 03` with variable 3 = 60.
     The before-battle route at `0x1D77` has key `0xA13C`; the after-battle route
     at `0x1DAC` has key `0xA23C` and tests sailor 60's fleet byte `+0x24`
@@ -580,17 +580,17 @@ executes `F1`.
 
 [^finale-fleet-code]:
     João's Harbor scene is `SNR2.DAT 0x29C8–0x2B0C`; it copies fleet 10's
-    position words to fleets `0x0F–0x13` (objective 7, target 1, flags `0x41`,
+    position words to fleets 15–19 (objective 7, target 1, flags `0x41`,
     `D1`) and to fleet 0 (objective 10, target 1, flags `0x41`). The Ezequiel
     route at `0x2B15–0x2CB3` writes `(0x0782, 0x0290)` and objective 7 to fleets
-    `0x3D–0x45`, gives fleets `0x0F–0x13` objective 10 at fleet 10's position,
+    61–69, gives fleets 15–19 objective 10 at fleet 10's position,
     moves fleet 0, runs `D1 0A` with variable 10 = 0, then `F8 F0`. The Martinez
     route at `0x2F3A` sets flag 2 at `0x2F9D`; the after-battle route at
     `0x2FA1` requires flag 2 and fleet byte `0xFF`. The ending loop at
     `0x3048–0x30C7` writes sailor `+0x24 = 0xFF`, duty `+0x26 = 0`, and location
     `+0x25 = random(42)` for each pirate captain, and fleet `+0x29 = 0`,
-    `+0x28 = 0`, `+0x2A = 0xFF`. Fleets `0x0F–0x13` and fleet 0 receive route
-    word `0x4000`, objective 0, argument 1, and flags 1; fleet `0x3C` receives
+    `+0x28 = 0`, `+0x2A = 0xFF`. Fleets 15–19 and fleet 0 receive route
+    word `0x4000`, objective 0, argument 1, and flags 1; fleet 60 receives
     flags 0. `F4 01` at `0x30F6` precedes `F1`.
 
 ### Attacking the allies
@@ -626,7 +626,7 @@ changed, and João's fleet keeps objective 10.
     set for Yes); the Ezequiel block is at `0x2E03–0x2EFF` (`E9 10` at
     `0x2E1A`). Each sets variable 9 to 1, repeats the pirate-detach loop, writes
     route word `0x4000`, objective 0, argument 1, and flags 1 to fleets
-    `0x0F–0x13` and `0x0A`, writes flags 0 to fleet `0x3C`, and ends in `F1`.
+    15–19 and 10, writes flags 0 to fleet 60, and ends in `F1`.
     The No branches end in `F8` at `0x2E02` and `0x2F39`.
 
 ## Compact building guide

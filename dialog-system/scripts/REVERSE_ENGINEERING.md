@@ -506,8 +506,8 @@ variable. Action `D4 <message:u16be>` fills that buffer: its handler at
 `0x38DD5` calls `0x383A5`, which reads the selected MES entry and expands its
 `$d`, `$n`, `$r`, and `$s` placeholders into `DS:0x0620`. The reachable
 pattern `D4 <message>; DC 00 03 <sailor> 00|09; 1F 00 00` renames a sailor:
-for example, `SNR1.DAT 0x10C2` gives sailor `0x47` the names “Prince” and
-“Alberto”, and `0x32AF` gives sailor `0x3C` the names “Pirate” and
+for example, `SNR1.DAT 0x10C2` gives sailor 71 the names “Prince” and
+“Alberto”, and `0x32AF` gives sailor 60 the names “Pirate” and
 “Rudolph”. All 18 reachable `D4` instructions and all 18 reachable
 `1F xx 00` selector-0 reads occur in SNR1–SNR3; 17 use this sailor pattern,
 while `SNR1.DAT 0x2B35` writes through an unnamed group-`0x0C` reference

@@ -397,7 +397,8 @@ an easy victory, but Otto orders a retreat. The route then:
   flags `0x01`, clearing their story bit;
 - executes `F8`, which cancels the pending battle (end code 8,
   `MAIN.EXE 0x150F0–0x150FD`; see
-  [Cancelled battles](../naval-battle.md#cancelled-battles)); and
+  [Cancelled battles](../naval-battle.md#cancelled-battles)), which still
+  applies the naval Relation and Friendship changes against Spain; and
 - advances the subsection and resets variable 8 to 0.
 
 Until voyage day 5, a new before-battle route watches for Otto attacking one
