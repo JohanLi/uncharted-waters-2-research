@@ -72,6 +72,13 @@ monthly routine at `MAIN.EXE` 0x1CBE6–0x1CD7E rebuilds the same Economy and
 Industry totals used by the Palace, applies the regional activation rules, and
 writes the sum of the resulting regional ratings to this field.
 
+It does this for the six nations only (`0x1CD5B`). The pirates' record 6 gets
+the average of the six, `floor(sum / 6)` (`0x1CD63–0x1CD77`). Ports whose
+allegiance nibble is 6, which the game shows as neutral, add nothing to it.
+The pirates' Guild Profit therefore rises and falls with the nations', and it
+drives their fleet refills like any nation's
+([Fleet regeneration](fleets.md#refilling-ships)).
+
 The same monthly national-state update also refreshes the Guild's merchant-fleet
 destination at nation record `+0x04` (`MAIN.EXE` 0x1D051–0x1D131). The dispatcher
 at 0x1DC53–0x1DC63 invokes both calculations together. Thus the reported Profit
