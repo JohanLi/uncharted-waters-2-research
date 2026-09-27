@@ -178,12 +178,26 @@ useful navigator is present, raw index 67 says, “I don't see anyone who would
 be much help”; another empty-result branch uses raw index 68, “I heard that a
 good navigator was at the pub.”
 
-Sailor-record status bit `0x20` marks records eligible for these ordinary
-encounters. Bit `0x40` divides them between the two buildings: set records
-belong to the Pub list and clear records to the Lodge list. The executable
-then includes the protagonist's employed mates, unemployed sailors whose
-saved port is the current port, and active captains whose fleet is presently
-at that port. The protagonist is excluded.
+Both lists come from the collector at `0FC4:3061` (`MAIN.EXE 0x182A1`). It
+scans the 120 sailor records and keeps those with status bit `0x20`
+(sailor byte `+0x29`) that are one of the protagonist's employed mates,
+unemployed sailors whose saved port (`+0x25`) is the current port, or
+captains of a fleet docked at that port (fleet ID below 70, fleet byte
+`+0x29` bit `0x10`, fleet position equal to the port's), such as a computer
+fleet waiting out its
+[arrival delay](npc/fleet-objectives.md#arrival-action-delay). The sailor at
+`DS:0x1439` (the protagonist) is excluded. Personality bit `0x10` (sailor byte
+`+0x27`) then divides the result between the two buildings, so each sailor
+always appears in the same one:
+
+- set: the Pub's **Meet** list (`0FC4:30EC`, test at `0x18353`, called from
+  `0x2C674`);
+- clear: the Lodge's **Gossip** list (`0FC4:314C`, test at `0x183B3`, called
+  from `0x2E847`).
+
+For example, sailor 96, Alonzo Oreida, starts in Lisbon with personality
+`0xE1`, so he is found only at the Lodge. Because the Lodge makes no Loyalty
+check (below), his starting Loyalty of 0 does not prevent hiring him.
 
 Selecting one of the player's own mates produces one of three ordinary lines
 about returning to dry land, going to bed, or leaving port. Other sailors
@@ -601,11 +615,43 @@ The purchase price is 120% of the ordinary value, rounded down, unless the
 inventory contains the Tax Free Permit for the nation controlling the port; the
 permit removes that markup.
 
-For transaction value `V` and port Economy `E`, buying first raises the
-selected category by `min(10, floor(V / (E + 500)))`, then raises all ten
-categories by `min(3, floor(V / 1000))`; every byte is capped at 100. Selling
-performs the same two calculations as decreases, flooring each category at 0.
-The selected category therefore receives both adjustments.
+Markets keep no stock counts. The Buy list is rebuilt on each entry from the
+Economy tests and the specialty's rate test above (`0x2A346–0x2A3D2`), so
+the only good that can disappear through trading is the specialty, when
+purchases raise its category to 90 or more. It returns once the rate falls
+below 90 again. The quantity prompt's maximum is
+`min(floor(gold / price), ship's free cargo space)`, passed to the number
+input as a 32-bit value (`0x29FCA–0x2A022`); there is no other per-transaction
+cap. A ship holds at most five different goods (cargo bytes `+0x16..+0x1A`);
+a purchase needs an empty slot or one already holding that good.
+
+For transaction value `V` (quantity × per-lot price) and port Economy `E`,
+the rate adjustments are:
+
+| Transaction | Selected category                            | All ten categories                     |
+| ----------- | -------------------------------------------- | -------------------------------------- |
+| Buy         | `+min(10, floor((V mod 65536) / (E + 500)))` | `+min(3, floor((V mod 65536) / 1000))` |
+| Sell        | `−min(10, floor(V / (E + 500)))`             | `−min(3, floor((V mod 65536) / 1000))` |
+
+Purchases apply the selected-category change first and then the market-wide
+one, each capped at 100 (`0x2A0B7–0x2A13D`). Sales do the same as decreases,
+each limited to the current rate so that no byte falls below 0
+(`0x2A97C–0x2AA30`). The selected category therefore receives both
+adjustments. The `V mod 65536` terms come from 16-bit multiplications whose
+high word is discarded (`0x2A0C3–0x2A0D2` and `0x2A9F0–0x2A9F6`); the sale's
+selected-category term uses a 32-bit product and quotient (`0x2A9A6–0x2A9AD`).
+
+Two consequences follow. A transaction worth less than both 1,000 and
+`E + 500` gold changes no rate, so a load sold or bought in such pieces
+leaves the prices unchanged; extra transactions within one Market visit take
+no additional game time ([Visit duration](#visit-duration)). A purchase whose
+value lies just above a multiple of 65,536 is treated as small as well: 723
+lots at 363 gold cost 262,449, which is 305 more than 4 × 65,536, so neither
+of the purchase adjustments applies. A sale always lowers its own category
+by the full amount unless `V < E + 500`. Because the price of a transaction is
+fixed before its adjustment, one large sale can deliberately lower the
+market's rates, and with them the purchase prices that follow, at no cost to
+the proceeds of that sale.
 
 **Sell Goods** first compacts the fleet's cargo list and displays raw indices
 407 and 408 (entries 408–409) as its `Goods / Load / Rate` table and row
@@ -655,6 +701,12 @@ Guild Profit refresh. It is the only executable writer of Economy and
 Industry, and the only scenario reference to this record group (`SNR0 0x09D2`)
 reads a shop-item byte, so a port's Economy and Industry never fall; they only
 rise, to at most 1,000.
+
+The same monthly pass also moves each of the port's ten price-index
+categories toward 50 (`0x1CBA2–0x1CBD2`). For every category it draws
+`r = random(5) + 1`; a rate above 50 falls by `r`, and a rate of 50 or below
+rises by `r`. A rate moved by trading therefore recovers by only 1–5 points
+(3 on average) per month change unless further trading moves it back.
 
 **Market Rate** builds a ten-goods working list, then displays the present
 port's commodity information in successive tables. Raw index 151 (entry 152)
@@ -777,13 +829,24 @@ that ability's index:
 candidate score = (candidate Navigation Level + candidate Battle Level) × A
 player score    = (player Navigation Level + player Battle Level)
                   × player ability i
-margin          = floor(player score × rank / 10)
+threshold       = player score + floor(player score × rank / 10)
 ```
 
-The offer is reached when `random(20) < margin`, so the exact probability is
-`min(20, margin) / 20`. Failure uses raw index 145. The candidate score does
-not affect that probability after the comparison simplifies, but it determines
-the requested wage:
+The offer is reached when `random(20) + candidate score < threshold`
+(`0x2C58B–0x2C5E0`), where rank is the protagonist's Fame-record byte `+0x0D`.
+The probability is therefore `clamp(threshold − candidate score, 0, 20) / 20`.
+Rank adds a 10% bonus per title to the player score; it is not a multiplier,
+so a protagonist with No Rank can still hire. Ties in the candidate's
+abilities select the first, in the order Leadership through Charm. Failure
+uses raw index 145.
+
+For example, João starts with Navigation and Battle Level 1 and Knowledge 73.
+Alonzo Oreida's highest ability is Knowledge 80, so his score is
+`2 × 80 = 160` against João's `2 × 73 = 146` and the hire always fails. After
+João's first Navigation level, his score is `3 × 73 = 219`, and it always
+succeeds.
+
+The candidate score also determines the requested wage:
 
 ```text
 monthly wage = 10 × min(20, floor(candidate score / 400) + random(3) + 1)

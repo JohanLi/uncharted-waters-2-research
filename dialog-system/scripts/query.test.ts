@@ -1164,30 +1164,81 @@ test("resolves Palace documents, defection, and royal aid", async () => {
   assert.match(defect.command?.effects[0] ?? "", /Spain/);
 });
 
+test("hires at No Rank once the player score beats the candidate", async () => {
+  const save = await originalSave();
+  const base = slotOffset(1);
+  const protagonistId = save[14]!;
+  const protagonist = base + 0x612 + protagonistId * 42;
+  save[base + 0x0a] = 0;
+  save[base + 0x5b6 + protagonistId * 14 + 13] = 0;
+  save.fill(0xff, base + 0x1d85, base + 0x1d85 + 30);
+  for (let id = 0; id < 120; id++) {
+    if (id === protagonistId) continue;
+    const status = base + 0x612 + id * 42 + 0x29;
+    save[status] = save[status]! & ~0x20;
+  }
+  // Alonzo Oreida: Lodge-only (personality bit 0x10 clear), Knowledge 80.
+  const alonzo = base + 0x612 + 96 * 42;
+  save.set([59, 65, 80, 71, 68, 53, 64, 77, 1, 1], alonzo + 0x14);
+  save[alonzo + 0x23] = 0;
+  save[alonzo + 0x24] = 0xff;
+  save[alonzo + 0x25] = 0;
+  save[alonzo + 0x26] = 0;
+  save[alonzo + 0x27] = 0xe1;
+  save[alonzo + 0x29] = 0x21;
+  save.set([78, 75, 73, 85, 82, 82, 89, 50, 1, 1], protagonist + 0x14);
+  const data = await loadOrdinaryDialogueData();
+  const hire = () =>
+    ordinaryBuildingEntry(save, 1, 0x04, true, [], [], data, [
+      "gossip",
+      "Alonzo Oreida",
+      "hire",
+      "yes",
+    ]);
+
+  // (1 + 1) × Knowledge 73 = 146 cannot beat (1 + 1) × 80 = 160.
+  const refused = hire();
+  assert.equal(refused.command?.disposition, "blocked");
+  assert.equal(refused.command?.dialogue.at(-1)?.rawIndex, 145);
+
+  // One Navigation Level: (2 + 1) × 73 = 219 always beats 160 + random(20).
+  save[protagonist + 0x1c] = 2;
+  const hired = hire();
+  assert.equal(hired.command?.disposition, "completed");
+  assert.equal(hired.command?.confidence, "decoded");
+});
+
 test("resolves Pub Meet and Lodge Gossip sailor hiring", async () => {
   const save = await originalSave();
   const base = slotOffset(1);
   const protagonistId = save[14]!;
   save[base + 0x0a] = 0;
   save[base + 0x5b6 + protagonistId * 14 + 13] = 7;
+  // Miguel's score is (7 + 6) × Charm 86 = 1,118. Navigation Level 10 gives
+  // the protagonist (10 + 1) × Charm 89 = 979, plus 70% for rank 7: 1,664.
+  save[base + 0x612 + protagonistId * 42 + 0x1c] = 10;
   save.fill(0xff, base + 0x1d85, base + 0x1d85 + 30);
-  for (let id = 6; id < 120; id++) {
+  for (let id = 0; id < 120; id++) {
+    if (id === protagonistId) continue;
     const status = base + 0x612 + id * 42 + 0x29;
     save[status] = save[status]! & ~0x20;
   }
 
+  // Personality bit 0x10 selects the Pub list; clear selects the Lodge list.
   const miguel = base + 0x612 + 85 * 42;
   save[miguel + 0x23] = 31;
   save[miguel + 0x24] = 0xff;
   save[miguel + 0x25] = 0;
   save[miguel + 0x26] = 0;
-  save[miguel + 0x29] = 0x60;
+  save[miguel + 0x27] = save[miguel + 0x27]! | 0x10;
+  save[miguel + 0x29] = 0x20;
 
   const roberto = base + 0x612 + 84 * 42;
   save[roberto + 0x23] = 0;
   save[roberto + 0x24] = 0xff;
   save[roberto + 0x25] = 0;
   save[roberto + 0x26] = 0;
+  save[roberto + 0x27] = save[roberto + 0x27]! & ~0x10;
   save[roberto + 0x29] = 0x20;
   const data = await loadOrdinaryDialogueData();
 
@@ -1238,7 +1289,7 @@ test("resolves Pub Meet and Lodge Gossip sailor hiring", async () => {
   assert.match(duel.command?.effects[0] ?? "", /duel engine/);
 
   save[miguel + 0x23] = 10;
-  save[miguel + 0x27] = save[base + 0x612 + protagonistId * 42 + 0x27]!;
+  save[miguel + 0x27] = save[base + 0x612 + protagonistId * 42 + 0x27]! | 0x10;
   save[miguel + 0x14] = 80;
   save.writeUInt32LE(100, base + 0x60a);
   const treat = ordinaryBuildingEntry(save, 1, 0x01, true, [], [], data, [
@@ -2641,6 +2692,12 @@ test("carries Pub enthusiasm from two Treats into Recruit Crew", async () => {
   const save = await visitSave();
   const protagonistId = save[14]!;
   addVisitShip(save);
+  // Leave nobody eligible for the Meet list, so it reports raw 38.
+  for (let id = 0; id < 120; id++) {
+    if (id === protagonistId) continue;
+    const status = slotOffset(1) + 0x612 + id * 42 + 0x29;
+    save[status] = save[status]! & ~0x20;
+  }
   const charm = save[slotOffset(1) + 0x612 + protagonistId * 42 + 0x1a]!;
   const entryEnthusiasm = Math.floor(charm / 3);
 
