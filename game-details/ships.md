@@ -263,6 +263,17 @@ new stock. The generator has no month check, so a calendar rollover alone
 does not refresh the list. Purchased slots remain empty while their port's
 record stays cached.
 
+Used Ship lists the front record (`0:5A18`) without comparing its port byte
+with the current port (`0x31E02–0x31E4C`). New stock is generated only by the
+port-entry routine at `0x20F8B`, whose one caller (`0x212FE`, in `0x211EE`) is
+reached from Port Call on the sea menu (`0x26731`), from fleet movement
+(`0x371EC`), and from landing on a port tile (`0x3AD7D`). Starting a new game
+passes through none of these, so the starting port shows the front record of
+the new-game data (`DATA1.015` offset `0x6E5C`): Balsa, Xebec, and Galleon,
+with port byte `0xFF` and the other two records empty. This opening list is
+the same in every game and remains until the fleet first enters a port from
+sea.
+
 The purchase writer at `0x30C2A..0x30DD2` takes crew bunks from the model's
 saved ship template, allocates its full catalog maximum gun spaces, and uses
 the remaining capacity for cargo. Its initial durability is

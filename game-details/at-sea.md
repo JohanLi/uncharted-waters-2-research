@@ -279,6 +279,57 @@ window, so a Telescope adds nothing there. The Telescope's doubled range only
 helps where the fleet is more than 12 tiles from the edge of the view: behind
 or to the side after the view has lagged, never ahead.
 
+### The sea menu
+
+The sea menu (`0x266AC`) takes its labels from `MENU.DAT` entry `0x2E`, which
+offers Sail, when bit `0x20` of `DS:0x1189` is set (the fleet is at anchor),
+and otherwise from entry `0x1D`, which offers Anchor (`0x266B4–0x266C2`),
+and dispatches through a jump table at `0x2670F`:
+
+| Entry | Command     | Handler                                   |
+| ----: | ----------- | ----------------------------------------- |
+|     0 | Auto Sail   | `0x26724`                                 |
+|     1 | Sail/Anchor | `0x2672B`                                 |
+|     2 | Port Call   | `0x26731`                                 |
+|     3 | Go Ashore   | `0x26738` ([Going ashore](#going-ashore)) |
+|     4 | View        | `0x2673F` → `0x255F9` (below)             |
+|     5 | Gossip      | `0x26746`                                 |
+|     6 | Battle      | `0x26754`                                 |
+|     7 | Options     | `0x2675B`                                 |
+
+### Another fleet's details and pirate disguises
+
+The sea menu's **View** command (menu entry 4, `0x2673F` → `0x255F9`) shows a chosen fleet's captain, a
+fleet type, a nation, its heading and speed, and its ships. The fleet type is
+chosen by the fleet's position in its block of ten: one label for
+positions 1–5 and another for 6–9. The nation is the captain's nation nibble
+(sailor `+0x29 & 0x0F`), except for a pirate, whose nibble is 6: the window
+shows nation **captain ID mod 6** instead (`0x2564A–0x2565C`). Every pirate
+captain therefore flies a fixed false flag:
+
+| False flag | Pirate captains (sailor ID)                                    |
+| ---------- | -------------------------------------------------------------- |
+| Portugal   | Mohommed Syarook (66), Hamid Lal (114)                         |
+| Spain      | Pierre Lugulan (61), Ulgu Ali (67), Henry Mancine (115)        |
+| Turkey     | Louis Scott (62), Jack Raccam (68), George Eggel (116)         |
+| England    | John Davis (63), Ivan Soledad (111), Jack Diffson (117)        |
+| Italy      | Khayr ad-Din (64), Antonio Pintado (112), Robert Donahue (118) |
+| Holland    | Idin Leis (65), Cizzaro Fedeliti (113), Richard Huxley (119)   |
+
+A new generic pirate captain is created with a random nation 0–5
+([Fleet regeneration](fleets.md#new-commanders)), so he shows that nation
+directly; the unmasking below still applies, because it tests the fleet, not
+the captain.
+
+After the list, for a fleet of the pirate block (IDs 60–69) other than fleet
+60, the game takes the highest Knowledge (sailor `+0x16`) among the player's
+hired mates (`DS:0x073A`; the protagonist is not included). If `random(90)`
+is below it, the first mate says, “Commodore, that fleet may look like a %s
+from %s, but I think they're really pirates.” (message 766), with the false
+fleet type and flag. With no mates, or a low roll, the disguise stands. Fleet
+60 is skipped explicitly (`0x25805`); its captain, Antonio Khan (sailor 60),
+is recorded as Portuguese, so it shows Portugal and is never unmasked.
+
 ## Fleet sprites
 
 The sea view is redrawn by `0xC022`. It draws the map, then the fleets from
@@ -495,8 +546,15 @@ The chosen tile is checked at `0x3AD49`:
 
 The three plain-land tiles are the same terrain in different climate bands and
 behave identically. The refused tiles include the sea and coast, mountains
-(`0x34`–`0x3F`), rivers and lakes, and the desert-edge tiles, including the
-pyramid and sphinx. There is no separate forest tile.
+(`0x34`–`0x3F`), rivers, and the desert-edge tiles, including the pyramid and
+sphinx. There is no separate forest tile.
+
+The river tiles follow the same three climate bands: `0x42`–`0x47` beside
+plain land `0x41`, `0x4A`–`0x4F` beside `0x49`, and `0x52`–`0x53` beside
+`0x51`. In each band the tiles are straight segments and the bends and ends
+where a river rises or meets the coast. On the world map they join into
+branching channels that run from the coast inland (`WORLDMAP.000`–`002`,
+decoded by `scripts/draw-world-map`; tile art `DATA1.011`).
 
 If the tile lies in a discovery's 2×2 block and the discovery's record has
 flag `0x80` clear, the game asks “Shall we land at this village?” (message 439) and opens the village menu. Otherwise it asks “Shall we land here?”
@@ -623,7 +681,26 @@ find anything.” (429).
 
 A found Monster attacks the party (message 430) and costs crew. Any other
 discovery is announced and marked found, and has a 1-in-16 chance
-(`random(16) = 7`) that some crew stay in the village. Finding a discovery
+(`random(16) = 7`) that some crew stay in the village.
+
+The announcement depends on the discovery type, the low 3 bits of byte `+6`
+(`0x3A690–0x3A73E`; type names at `DS:0x0AC2`):
+
+| Type                                           | Before the message                 | Message                                                        |
+| ---------------------------------------------- | ---------------------------------- | -------------------------------------------------------------- |
+| 0 Cultural Artifact                            | Treasure-chest picture, then sound | 431, “We discovered a Cultural Artifact!”                      |
+| 1 Monument                                     | Nothing                            | 431                                                            |
+| 4 Ruins                                        | Sound                              | 1404, “We discovered Ruins of an ancient civilization!”        |
+| 2, 3, 6 (Exotic Animal, Plant, Natural Wonder) | Sound                              | 431, “We discovered %s %s!” with “a” or “an” and the type name |
+
+The picture is graphics record `0x40`, drawn over the top of the sea view by
+`0x58B7` (arguments `0xA0`, `0x10`, `0x40`) after `0x20D3` resets a
+0x240-word table in the code segment to `0xFFFF`. The sound is an effect, not music: `0x9626` hands the FM
+driver the effect table at `DS:0x0D9C` (interrupt `0x66`, function 5), and
+`0x96C2` plays effect `0x3C` (function 6) when bit `0x08` of `DS:0x0E28`
+(save-slot offset `0x00`) is set. That byte also holds the **BGM** setting
+(bit `0x04`), but the Options screen (`0x26B59`) never changes bit `0x08`.
+Neither call waits, and the background music keeps playing. Finding a discovery
 gives no Fame, gold, or experience by itself.
 
 Crew losses in both cases, and after a counterattack during **Plunder**, use
@@ -888,12 +965,7 @@ Each epilogue begins with the in-game date and the protagonist's name.
 
 ## Open questions
 
-- **Terrain names.** The tile classes in
-  [Where a party can land](#where-a-party-can-land) are named from the tileset
-  image; tiles `0x42`–`0x47`, `0x4A`–`0x4F`, and `0x52`–`0x53` look like
-  rivers and lakes, but the code only treats them as not landable.
-- **Village Search effects.** The fanfare and picture calls in village Search
-  are identified only by where they are used.
+None remain.
 
 ## Evidence
 
