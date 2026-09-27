@@ -135,39 +135,58 @@ node[0x04]  neighbor 0 node ID, or 0xFFFF
 node[0x06]  neighbor 1 node ID, or 0xFFFF
 node[0x08]  neighbor 2 node ID, or 0xFFFF
 node[0x0A]  neighbor 3 node ID, or 0xFFFF
-node[0x0C]  cost of edge 0
+node[0x0C]  cost of edge 0 (unsigned byte)
 node[0x0D]  cost of edge 1
 node[0x0E]  cost of edge 2
 node[0x0F]  cost of edge 3
 ```
 
-Thus a node has at most four outgoing connections. Each connection also has an
-unsigned-byte value which the search accumulates, but, importantly, does not
-use to prioritize its work queue. This is a sparse authored sea-lane graph,
-not a waypoint list attached to each port.
+Thus a node has at most four outgoing connections, and every link is stored in
+both directions with the same cost byte. The cost is a strictly increasing
+function of the wrapped straight-line distance `d` between the two nodes and
+of nothing else: edges with the same offset always have the same byte, and a
+longer edge never has a smaller one. It fits `3.105 d + 0.0201 d² +
+0.00075 d³` to within 1.5 (rms 0.42), about 3.4 per tile for short edges and
+5.3 per tile at 43 tiles, and every edge of 46 tiles or more stores 255. It
+does not follow the water path between the nodes. This is a sparse authored
+sea-lane graph, not a waypoint list attached to each port.
 
 The route builder at `MAIN.EXE` `0x28A18–0x28F37` works as follows:
 
-1. `0x28939–0x28A17` scans the graph and selects the node with the smallest
-   squared wrapped-world distance from the fleet's current position.
-2. It repeats that scan for the final navigation target.
-3. It initializes a 768-entry word array to `0xFFFF`, seeds the destination
-   node, and visits neighbor links in a FIFO queue.
-4. It reconstructs a path from the current node toward the destination node.
+1. `0x28939–0x28A17` selects the node nearest the fleet by squared wrapped
+   distance, flagging an exact hit with bit 15, and repeats the scan for the
+   final navigation target. The scan runs from 622 down to 0 with a strict
+   `<`, so it includes the unused record 622, which duplicates node 621's
+   position and wins that tie; no node links to 622, so a search starting or
+   ending there finds no route.
+2. If the fleet stands exactly on a node that is also the target's nearest
+   node, it switches straight to the exact target (`0x28A49`).
+3. Otherwise it searches outward from the destination node with a queue of
+   `{node, cost}` entries (`bp−0x1B08`), taking nodes in first-discovery order.
+   Each edge adds its cost byte to the label (`0x28BDC–0x28BEB`); a node already
+   queued keeps the smaller label (`0x28B80–0x28BA9`). The search stops when
+   the fleet's node is queued.
+4. From the fleet's node it walks toward the destination, at each step taking
+   the first neighbour whose label plus the connecting edge equals the current
+   label (`0x28E3C–0x28E7A`).
 5. At `0x28F05–0x28F23` it stores as many as four successive node IDs in the
-   fleet's `+0x10..+0x16` cache and initializes the active route slot.
+   fleet's `+0x10..+0x16` cache.
 
-Although the routine accumulates the bytes at node offsets `+0x0C..+0x0F`, it
-marks a node visited on first discovery and uses a FIFO queue. It neither picks
-the lowest accumulated cost next nor relaxes an already visited node. The
-selected route therefore minimizes number of graph edges, with neighbor-slot
-order breaking ties. It is breadth-first graph traversal, not Dijkstra's
-algorithm. This implementation detail is the reason a shorter real-world route
-can lose to an extremely long route containing fewer authored graph links.
+A player fleet on auto-sail uses a copy of the loop (`0x28AAA–0x28C38`) that
+also skips nodes whose X lacks bit 15, set from a bitmap at `DS:0x11CA` by
+`0x0D88D`; computer fleets use `0x28C3B–0x28DBF`.
+
+Because nodes are taken in discovery order, a node's label is the cheapest
+route through the neighbours expanded before it, not the true cheapest route.
+Over all start and destination pairs, the chosen route is the cheapest possible
+about 64% of the time; it takes more graph hops than necessary about 18% of
+the time; and it differs from a plain fewest-hop search in about half of all
+cases. The costs exist only during the search: nothing stores the total, and
+no other code reads the cost bytes.
 
 ## Worked routes from Lisbon
 
-Running that breadth-first traversal over `DATA1.004`, using the count from
+Running that search over `DATA1.004`, using the count from
 `DATA1.005`, gives the following routes from Lisbon `(120,358)`. The node
 nearest Lisbon is node 184 at `(115,357)`.
 
@@ -182,7 +201,8 @@ boundary west, and then turns north to Pernambuco. The exact node sequence is:
 474, 473, 469, 468, 467, 466, 465, 464, 463
 ```
 
-Veracruz `(1736,532)` maps from node 184 to node 441 in 43 hops. Its route goes
+Veracruz `(1736,532)` maps from node 184 to node 441 in 43 hops, passing node
+420 where a plain fewest-hop search would take 421. Its route goes
 north from Lisbon, across the Ireland/Greenland corridor, and south along North
 America. Both corridors are therefore the graph search's intended output, not a
 local collision-avoidance accident.
@@ -234,56 +254,93 @@ final mission target
   -> incremental ship movement
 ```
 
-The movement routine at `MAIN.EXE` `0x1F456–0x1F71A` then moves between the
-selected coordinates. It works in a world of width `0x870` and height `0x438`,
-handles the horizontal wrap, intersects the intended line with the currently
-processed world-map block, tests candidate points with the terrain predicate
-at logical address `2DFF:387C`, and searches along a block edge when the first
-candidate is blocked.
+How the fleet then moves depends on whether it is inside the loaded 72 × 72
+sea area around the player:
 
-This routine supplies local land avoidance and incremental movement. It is not
-the long-distance route planner and cannot by itself produce the long corridors
-above; those come from the upstream graph traversal.
+- **Inside the area**, `0x2025D` moves it every tick. `0x36EC1` picks a heading
+  toward `+0x08/+0x0A` (Bresenham style, stepping one tile on the major axis
+  and 0 or 1 on the minor; heading 8, stop, when already there), and `0x200D0`
+  moves it with the terrain test `0x36E6C` on the 2 × 2 block. When the
+  heading and both neighbouring headings are blocked, the local search is run
+  again toward the same waypoint (`0x299CD`, `0x203F6`). Heading 8 sets fleet
+  flag `0x20` and skips the move (`0x2038E`).
+- **Outside the area**, the daily update (`0x1FE94`) runs the route state
+  (`0x29927`), resolves the target (`0x1F340`), and calls `0x1F456`, which
+  does not step at all: it places the fleet directly on the target. Only when
+  that point lies inside the loaded area does it put the fleet on the area's
+  border instead, scanning along the edge for a clear 2 × 2 spot
+  (`0x1F4CF–0x1F6AB`).
+
+### The local search
+
+`0x28FE5` fills the 72 × 72 cost grid (handle `DS:0x0E0C`) with `0x801` for
+tiles `0x34` and above and `0x800` otherwise, and fails at once if the target
+cell itself is land (`0x2904D`, a 1 × 1 test). It then floods outward from the
+target in eight directions, 2 per orthogonal step and 3 per diagonal (table
+`DS:0xB378`), staying inside the grid and admitting a cell only when it and
+the three cells to its right and below are water, the fleet's 2 × 2 block
+(`0x2913F–0x2915B`). It succeeds on reaching the fleet's cell.
+
+`0x291FD` then descends from the fleet's cell to the lowest neighbour, up to
+256 steps, and writes as the waypoint the first step, extended while the path
+keeps the same direction. The window origin is added to turn the local cell
+into world coordinates (`0x294C2`).
+
+When the target is not inside the area, `0x2980C` first tries `0x2976D`,
+which handles a target at the very edge of a 720-column map part, and
+otherwise `0x2965C`, which clips the target to the area's border along the
+line to the fleet (to column or row 0 or 70 of the window) and searches toward
+that point. If every attempt fails, the unsearched point stays in
+`+0x08/+0x0A` with flag `0x80` set.
 
 ## Temporary-waypoint deadlock
 
-The route-state routine gives the temporary waypoint priority and advances only
-on exact arrival. When flag `0x80` is set, `MAIN.EXE` `0x29819–0x29836`
-compares the fleet position at `+0x00/+0x02` with the waypoint at
-`+0x08/+0x0A`. If either coordinate differs, the routine returns without
-changing the route state. Neither it nor the incremental movement routine keeps
-a no-progress counter, timeout, or fallback.
+The route-state routine advances only on exact arrival. When flag `0x80` is
+set, `0x29819–0x29836` compares the fleet position with the waypoint at
+`+0x08/+0x0A` and returns unchanged if they differ. Nothing counts attempts or
+times out. A waypoint the fleet cannot reach exactly therefore holds it until
+the flag is cleared. Two faults produce such waypoints:
 
-Consequently, if the local search at `0x291FD–0x294DF` writes a waypoint that
-incremental movement never reaches exactly, the `0x80` flag is never cleared, a
-new local waypoint is never generated, and the global graph cache is never
-advanced. The fleet keeps its mission, exact target, and cached graph nodes,
-but the movement routine repeatedly tries to approach the same waypoint and
-performs only local block-edge avoidance. Because the `0x80` branch has
-priority, the cached graph nodes do not control movement meanwhile. This is a
-navigation deadlock caused by an unusable local waypoint, not by the FIFO
-world-graph route itself. It persists while the fleet remains inside the
-currently loaded sea-map area; it is not necessarily permanent once the player
-sails away.
+1. **The corner bug.** When the local search's start and target cells are the
+   same, `0x291FD` writes the window origin itself as the waypoint, without
+   the local offset (`0x2927D–0x2928C`), which is the area's top-left corner.
+   This happens whenever the fleet stands on the line where its target is
+   clipped: at column 70 heading east, column 0 heading west, or row 0 or 70
+   heading north or south, the clipped point is the fleet's own position.
+   Heading west or north, the fleet sails to the corner and stops there,
+   because every new search clips to the corner again. Heading east or south,
+   it turns back toward the corner and then out again, back and forth. If the
+   corner is land, the next search fails at `0x2904D` and the fleet stops
+   where it is.
+2. **An unusable border point.** The clipped point is taken at column or row
+   70 of the window, and if it is land, or has no 2 × 2 water path to the
+   fleet inside the window, the search fails and the raw point is kept. The
+   fleet steers straight at it until blocked, and every new search fails the
+   same way.
 
-## Off-screen recovery
+A simulation of these routines over the world map, with the area held still,
+puts about a fifth of route legs that start inside it at a parked corner, a
+third into corner oscillation or blockage, and an eighth into a failed border
+point; only a quarter leave the area normally. Examples: the leg from node 184
+to node 0 on the Lisbon–Veracruz route, with the area at `(48,288)`, parks at
+that corner; the leg from node 395 to 393, with the area at `(1776,192)`, turns
+at `(1846,216)` toward a land corner and stops at `(1777,193)`.
 
-The game explicitly discards a local temporary waypoint after a fleet leaves
-the currently loaded 72-by-72-cell sea-map area. The fleet loop at `MAIN.EXE`
-`0x2025D–0x20417` tests each active fleet with the same loaded-area predicate
-used by local navigation. Its off-screen branch at `0x203FD` clears
-`fleet[0x0D] & 0x80`. The ordinary updater at `0x1FE94–0x1FF39` also skips its
-world-coordinate movement while a fleet is inside that loaded area, but calls
-the graph-target selector and incremental movement routines when the fleet is
-outside it.
+## Recovery
 
-This provides a recovery path for the deadlock above: once the fleet is outside
-the loaded area, the unusable waypoint no longer controls it, and its mission
-is unchanged. The target selector resolves the selected world-graph node from
-the four-node cache, and the fleet advances its graph cache normally. The stale
-waypoint words remain at `+0x08/+0x0A`, but they are ignored after flag `0x80`
-has been cleared. This is visibility/loaded-area dependent rather than a
-no-progress timer attached to the fleet.
+Flag `0x80` is cleared in three places:
+
+- `0x203FD`, in the in-area loop, for a computer fleet whose own 2 × 2 block
+  is clear, but only while the player is in port (`DS:0x0E32` not `0xFF`) or
+  the fleet is outside the loaded area;
+- `0x299A6`, whenever the route state runs for a fleet outside the area; and
+- `0xBDD8`, when the loaded area shifts, which resets the route word to
+  `0x4000` for fleets whose waypoint falls in the new area on land, but skips
+  fleets with flag `0x20` set, which includes fleets stopped by heading 8.
+
+A stuck fleet is therefore released when the player enters port or when the
+player's movement shifts the loaded area far enough that the fleet falls
+outside it; being off screen alone is not enough.
 
 ## Coordinate seam
 
@@ -303,16 +360,26 @@ X units. Lisbon to Veracruz also chooses the westward Atlantic direction. The
 peculiar routes therefore do not arise from choosing the wrong side of the
 world seam.
 
-## What remains to extract
+## Tools
 
-The graph, node count, and basic search are now identified. Useful remaining
-work is to:
+- `pnpm draw-navigation-graph`
+  ([`scripts/fleet-navigation/draw-graph.ts`](../../scripts/fleet-navigation/draw-graph.ts))
+  draws the 622 nodes and their links over the world map, with the two worked
+  routes from Lisbon highlighted, to
+  `scripts/fleet-navigation/output/navigation-graph.png`. It needs the world
+  map from `pnpm draw-world-map`.
+- [`scripts/fleet-navigation/route.ts`](../../scripts/fleet-navigation/route.ts)
+  transcribes the nearest-node scan and the route search described above;
+  `pnpm navigation-route <from> <to>` prints the route between two port IDs or
+  raw `x,y` points, for example `pnpm navigation-route 0 5` for Lisbon to
+  Tunis.
 
-- plot all 622 nodes and their four possible links over the world map;
-- transcribe the FIFO search and four-node cache refill into reusable code;
-- identify the semantic purpose of the accumulated per-edge bytes; and
-- isolate the conditions under which the local terrain search can select a
-  waypoint that incremental movement never reaches exactly.
+![NPC navigation graph](../../scripts/fleet-navigation/output/navigation-graph.png)
+
+The graph has no link across the open Atlantic or Indian Ocean: its lanes
+follow the coasts, a corridor along the bottom edge of the map, and one across
+the far north. That is why the routes from Lisbon to Pernambuco and Veracruz
+are so long.
 
 ## Relevant code
 
@@ -322,7 +389,7 @@ work is to:
 - `DATA1.005`: active graph-node count, 622.
 - `DATA1.004`: 16-byte graph-node records.
 - `MAIN.EXE` `0x28939–0x28A17`: find the graph node nearest a world coordinate.
-- `MAIN.EXE` `0x28A18–0x28F37`: FIFO graph search and route reconstruction.
+- `MAIN.EXE` `0x28A18–0x28F37`: cost-labelled graph search and route reconstruction.
 - `MAIN.EXE` `0x28F05–0x28F23`: cache as many as four route-node IDs in a fleet.
 - `MAIN.EXE` `0x291FD–0x294DF`: construct a 72-by-72 local terrain route and
   write a temporary waypoint.
@@ -330,12 +397,17 @@ work is to:
 - `MAIN.EXE` `0x2980C–0x299CC`: advance cached graph nodes and rebuild route
   state.
 - `MAIN.EXE` `0x1F340–0x1F3E2`: resolve an NPC fleet's active movement target.
-- `MAIN.EXE` `0x1F456–0x1F71A`: wrapped-world incremental movement and local
-  terrain avoidance.
+- `MAIN.EXE` `0x1F456–0x1F71A`: place a fleet outside the loaded area on its
+  target, or on the area's border.
+- `MAIN.EXE` `0x28FE5`, `0x291FD–0x294DF`: 72 × 72 local flood and waypoint.
+- `MAIN.EXE` `0x2965C`, `0x2976D`: clip an outside target to the area's border.
+- `MAIN.EXE` `0x36EC1`, `0x200D0`: heading and step for fleets in the loaded
+  area.
+- `MAIN.EXE` `0xBDD8`: route reset when the loaded area shifts.
 - `MAIN.EXE` `0x1F94E–0x1F9CF`: refresh a moving fleet target for pursuit.
 - `MAIN.EXE` `0x1FE94–0x1FF39`: skip ordinary world movement for a fleet in
   the loaded sea area and update it normally when off-screen.
 - `MAIN.EXE` `0x2025D–0x20417`: active-fleet sea-area loop; the branch at
-  `0x203FD` clears the temporary-waypoint flag for an off-screen fleet.
+  `0x203FD` clears the temporary-waypoint flag (see [Recovery](#recovery)).
 - `MAIN.EXE` logical address `2DFF:387C`: terrain predicate used by the local
   movement routines.
