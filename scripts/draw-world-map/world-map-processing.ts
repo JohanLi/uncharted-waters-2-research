@@ -1,223 +1,119 @@
-import { cloneGrid, getCell, setCell, type ByteGrid } from "./grid.js";
+import type { ByteGrid } from "./grid.js";
 
-const LAND_TILES = new Set([
-  ...range(51, 65),
-  73,
-  81,
-  89,
-  97,
-  ...range(105, 127),
-]);
-const DESERT_TILES = new Set([
-  25, 26, 28, 29, 30, 31, 32, 89, 105, 106, 107, 108, 109, 110, 111, 112, 113,
-  114,
-]);
+// Terrain passes of the sea-view loader, MAIN.EXE 0x284F9. The game builds a
+// window of 3 × 3 blocks (72 × 72 tiles) around the fleet; these functions run
+// the same passes over a whole 1080 × 720 map part, which gives the same tiles
+// away from the window edges.
 
-interface Position {
-  readonly row: number;
-  readonly column: number;
+const FIRST_FIXED_LARGE_TILE = 0x13;
+const FIRST_KEPT_TILE = 0x34;
+const FIRST_LAND_TILE = 0x29;
+const DESERT = 0x59;
+const DESERT_OFFSET = 0x18;
+const WATER_TABLE = 0x100;
+
+/** Climate added to plain land, coasts and rivers: 0x41, 0x49 or 0x51. */
+export function climateOffset(row: number): number {
+  const blockRow = Math.floor(row / 24);
+  if (blockRow === 0 || blockRow === 44) return 0x10;
+  return blockRow >= 14 && blockRow <= 30 ? 0 : 8;
 }
 
-interface DesertCoastOffset extends Position {
-  readonly desertTiles: ReadonlySet<number>;
-}
-
-export interface ProcessingContext {
-  readonly possibleDesertCoasts: Position[];
-  readonly possibleDesertCoastKeys: Set<string>;
-}
-
-export function createProcessingContext(): ProcessingContext {
-  return { possibleDesertCoasts: [], possibleDesertCoastKeys: new Set() };
-}
-
-function range(start: number, end: number): number[] {
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
-}
-
-export function fillDeserts(worldMap: ByteGrid): ByteGrid {
-  for (let column = 0; column < worldMap.columns; column += 1) {
-    for (let row = 0; row < worldMap.rows; row += 1) {
-      if (getCell(worldMap, row, column) !== 89) {
-        continue;
-      }
-      if (
-        column + 1 < worldMap.columns &&
-        getCell(worldMap, row, column + 1) === 65
-      ) {
-        setCell(worldMap, row, column + 1, 89);
-      }
-      if (
-        row + 1 < worldMap.rows &&
-        getCell(worldMap, row + 1, column) === 65
-      ) {
-        setCell(worldMap, row + 1, column, 89);
-      }
-    }
-  }
-  return worldMap;
-}
-
-const NEIGHBOR_OFFSETS: ReadonlyArray<readonly [number, number]> = [
-  [-1, -1],
-  [0, -1],
-  [1, -1],
-  [1, 0],
-  [1, 1],
-  [0, 1],
-  [-1, 1],
-  [-1, 0],
-];
-
-export function replaceCoasts(
-  worldMap: ByteGrid,
-  coastalMap: Uint8Array,
-  context: ProcessingContext,
+/**
+ * First pass (0x282AA): large tiles 0x00–0x0F are already land/sea quadrants;
+ * larger ones keep only their tiles from 0x34 up, the rest become sea.
+ */
+export function keepLandTiles(
+  expanded: ByteGrid,
+  largeMap: ByteGrid,
 ): ByteGrid {
-  const original = cloneGrid(worldMap);
-
-  for (let row = 0; row < original.rows; row += 1) {
-    for (let column = 0; column < original.columns; column += 1) {
-      if (getCell(original, row, column) !== 0) {
-        continue;
+  const data = expanded.data.slice();
+  for (let row = 0; row < expanded.rows; row += 1) {
+    const largeRow = (row >> 1) * largeMap.columns;
+    for (let column = 0; column < expanded.columns; column += 1) {
+      const index = row * expanded.columns + column;
+      if (
+        largeMap.data[largeRow + (column >> 1)]! >= 0x10 &&
+        data[index]! < FIRST_KEPT_TILE
+      ) {
+        data[index] = 0;
       }
-
-      let signature = 1;
-      for (const [rowOffset, columnOffset] of NEIGHBOR_OFFSETS) {
-        const neighborRow = row + rowOffset;
-        const neighborColumn = column + columnOffset;
-        signature <<= 1;
-
-        if (
-          neighborRow < 0 ||
-          neighborColumn < 0 ||
-          neighborRow >= original.rows ||
-          neighborColumn >= original.columns
-        ) {
-          continue;
-        }
-
-        const neighbor = getCell(original, neighborRow, neighborColumn);
-        if (LAND_TILES.has(neighbor)) {
-          signature |= 1;
-          if (DESERT_TILES.has(neighbor)) {
-            const key = `${row},${column}`;
-            if (!context.possibleDesertCoastKeys.has(key)) {
-              context.possibleDesertCoastKeys.add(key);
-              context.possibleDesertCoasts.push({ row, column });
-            }
-          }
-        }
-      }
-
-      const coastTile = coastalMap[signature];
-      if (coastTile === undefined) {
-        throw new Error(`Missing coastal map entry ${signature}`);
-      }
-      setCell(worldMap, row, column, coastTile);
     }
   }
-
-  return worldMap;
+  return { rows: expanded.rows, columns: expanded.columns, data };
 }
 
-function desertCoastOffsets(
-  tile: number,
-  row: number,
-  column: number,
-): DesertCoastOffset[] {
-  const adjacentChecks: Readonly<Record<number, readonly number[]>> = {
-    1: [1, 2, 8],
-    2: [8],
-    3: [6, 7, 8],
-    4: [2],
-    5: [6],
-    6: [2, 3, 4],
-    7: [4],
-    8: [4, 5, 6],
-  };
-  const adjacent: Readonly<Record<number, DesertCoastOffset>> = {
-    1: { row: row - 1, column: column - 1, desertTiles: new Set([89, 105]) },
-    2: {
-      row,
-      column: column - 1,
-      desertTiles: new Set([89, 105, 106, 108, 110, 111]),
-    },
-    3: { row: row + 1, column: column - 1, desertTiles: new Set([89, 110]) },
-    4: {
-      row: row + 1,
-      column,
-      desertTiles: new Set([89, 108, 109, 110, 111, 112]),
-    },
-    5: { row: row + 1, column: column + 1, desertTiles: new Set([89, 112]) },
-    6: {
-      row,
-      column: column + 1,
-      desertTiles: new Set([89, 106, 107, 109, 111, 112]),
-    },
-    7: { row: row - 1, column: column + 1, desertTiles: new Set([89, 107]) },
-    8: {
-      row: row - 1,
-      column,
-      desertTiles: new Set([89, 105, 106, 107, 108, 109]),
-    },
-  };
-
-  return (adjacentChecks[tile] ?? []).map((number) => adjacent[number]!);
-}
-
-export function replaceDesertCoasts(
+/**
+ * Second pass (0x277C0): every tile below the desert is replaced through the
+ * DATA1.010 table, indexed by its eight neighbours (land = tile 0x29 or more,
+ * off-map neighbours repeat the nearest tile) plus 0x100 for a sea tile. A
+ * non-zero entry gets the climate offset, or 0x18 instead when a side
+ * neighbour is desert. Tiles are updated in place, so the tiles above and to
+ * the left are tested after their own update and desert spreads right and down.
+ * `firstRow` is the map row of the grid's first row, for the climate bands.
+ */
+export function applyCoastTable(
   worldMap: ByteGrid,
-  context: ProcessingContext,
+  coastTable: Uint8Array,
+  firstRow = 0,
 ): ByteGrid {
-  for (const coast of context.possibleDesertCoasts) {
-    const coastTile = getCell(worldMap, coast.row, coast.column);
-    const offsets = desertCoastOffsets(coastTile, coast.row, coast.column);
-    if (offsets.length === 0) {
-      continue;
-    }
+  const { rows, columns, data } = worldMap;
+  const land = data.map((tile) => (tile >= FIRST_LAND_TILE ? 1 : 0));
+  const isLand = (row: number, column: number): number =>
+    land[
+      Math.min(Math.max(row, 0), rows - 1) * columns +
+        Math.min(Math.max(column, 0), columns - 1)
+    ]!;
 
-    const isDesert = offsets.every((offset) =>
-      offset.desertTiles.has(getCell(worldMap, offset.row, offset.column)),
-    );
-    if (isDesert && coastTile !== 0) {
-      setCell(worldMap, coast.row, coast.column, coastTile + 24);
+  for (let row = 0; row < rows; row += 1) {
+    const climate = climateOffset(firstRow + row);
+    for (let column = 0; column < columns; column += 1) {
+      const index = row * columns + column;
+      if (data[index]! >= DESERT) continue;
+
+      const signature =
+        (isLand(row - 1, column - 1) << 7) |
+        (isLand(row, column - 1) << 6) |
+        (isLand(row + 1, column - 1) << 5) |
+        (isLand(row + 1, column) << 4) |
+        (isLand(row + 1, column + 1) << 3) |
+        (isLand(row, column + 1) << 2) |
+        (isLand(row - 1, column + 1) << 1) |
+        isLand(row - 1, column);
+      const tile = coastTable[signature | (land[index] ? 0 : WATER_TABLE)]!;
+      const besideDesert =
+        (row > 0 && data[index - columns] === DESERT) ||
+        (column > 0 && data[index - 1] === DESERT) ||
+        (column < columns - 1 && data[index + 1] === DESERT) ||
+        (row < rows - 1 && data[index + columns] === DESERT);
+      data[index] =
+        tile === 0 ? 0 : tile + (besideDesert ? DESERT_OFFSET : climate);
     }
   }
   return worldMap;
 }
 
-export function updateClimateTerrain(worldMap: ByteGrid): ByteGrid {
+/**
+ * Third pass (0x284F9): large tiles from 0x13 up are drawn exactly as stored,
+ * replacing whatever the coast pass made of them. Ports (0x10, 0x12) and
+ * villages (0x11) keep the coast-pass result; the game draws an unknown port
+ * or an unsighted village as plain land instead, which this reference map
+ * does not do.
+ */
+export function restoreFixedLargeTiles(
+  worldMap: ByteGrid,
+  expanded: ByteGrid,
+  largeMap: ByteGrid,
+): ByteGrid {
   for (let row = 0; row < worldMap.rows; row += 1) {
+    const largeRow = (row >> 1) * largeMap.columns;
     for (let column = 0; column < worldMap.columns; column += 1) {
-      const tile = getCell(worldMap, row, column);
-      if (!((tile >= 1 && tile <= 8) || (tile >= 65 && tile <= 72))) {
-        continue;
-      }
-
-      if (row < 24 || row >= worldMap.rows - 24) {
-        setCell(worldMap, row, column, tile + 16);
-      } else if (row < 24 * 14 || row >= 24 * 31) {
-        setCell(worldMap, row, column, tile + 8);
+      const largeTile = largeMap.data[largeRow + (column >> 1)]!;
+      if (largeTile >= FIRST_FIXED_LARGE_TILE) {
+        const index = row * worldMap.columns + column;
+        worldMap.data[index] = expanded.data[index]!;
       }
     }
   }
   return worldMap;
-}
-
-export function applyManualCorrections(worldMap: ByteGrid, part: number): void {
-  if (part === 0) {
-    setCell(worldMap, 444, 366, 28);
-    setCell(worldMap, 445, 366, 28);
-    setCell(worldMap, 489, 415, 27);
-    setCell(worldMap, 1055, 266, 23);
-    setCell(worldMap, 1055, 267, 23);
-  }
-
-  if (part === 2) {
-    setCell(worldMap, 890, 134, 26);
-    setCell(worldMap, 890, 135, 26);
-    setCell(worldMap, 1056, 417, 13);
-    setCell(worldMap, 1061, 435, 12);
-  }
 }

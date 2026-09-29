@@ -330,6 +330,189 @@ fleet type and flag. With no mates, or a low roll, the disguise stands. Fleet
 60 is skipped explicitly (`0x25805`); its captain, Antonio Khan (sailor 60),
 is recorded as Portuguese, so it shows Portugal and is never unmasked.
 
+## The sea map
+
+The world is stored as three parts of 720 × 1080 tiles (`WORLDMAP.000`
+Europe and Africa, `001` Asia, `002` the Americas), each a grid of 30 × 45
+blocks of 24 × 24 tiles. A block is stored as 12 × 12 **large tiles**, and each
+large tile names four regular tiles through the table in `DATA1.018`. Large
+tiles `0x00`–`0x0F` are not in that table: their four bits mark which quarters
+are land.
+
+### The window around the fleet
+
+The game never builds a whole part. When the fleet enters a new block, the
+sea view (`0xBE5A`, `0xC022`) builds the 3 × 3 blocks around it, 72 × 72
+tiles, with `0x284F9`. The window's top-left block is the fleet's block minus
+one in each direction, clamped to block columns 0–27 and rows 0–42, so a
+window never spans two parts. The same step marks those nine blocks as
+charted (bitmap `DS:0x0F6C`, 12 bytes per block row, one bit per block
+column).
+
+`0x284F9` makes three passes over the window:
+
+1. **Place** (`0x282AA`). Each large tile is unpacked. Quarter tiles
+   `0x00`–`0x0F` give plain land `0x41` or sea `0`. From a large tile `0x10` or
+   above, only the regular tiles `0x34` or higher are kept, and the rest become
+   sea.
+2. **Coast** (`0x277C0`). Every tile below desert (`0x59`) is replaced through
+   the 512-byte table in `DATA1.010`. The index has one bit for each of the
+   eight neighbours that is land (tile `0x29` or higher), plus `0x100` when the
+   tile itself is sea. At the window's edge a missing neighbour counts as the
+   nearest tile inside the window. The land half of the table is all `0x41`.
+   The sea half gives `0` for open sea, `0x01`–`0x08` for coasts, and
+   `0x42`–`0x47` for one-tile channels, which are the rivers. A non-zero entry
+   then gets a climate offset from the tile's block row:
+
+   | Block rows | Map rows        | Offset | Plain land |
+   | ---------- | --------------- | -----: | ---------: |
+   | 0 and 44   | 0–23, 1056–1079 | `0x10` |     `0x51` |
+   | 1–13       | 24–335          |    `8` |     `0x49` |
+   | 14–30      | 336–743         |    `0` |     `0x41` |
+   | 31–43      | 744–1055        |    `8` |     `0x49` |
+
+   A tile gets `0x18` instead when the tile above, below, left, or right of it
+   is desert. Plain land then becomes desert `0x59`, and a coast becomes a
+   desert coast (`0x19`–`0x20`). The pass works in place, left to right and top
+   to bottom. The neighbour bits come from the tiles as placed, but the desert
+   test reads the tiles above and to the left after their own update. So
+   desert spreads rightward and downward through connected plain land until
+   it reaches an edge tile such as `0x69`–`0x72`.
+
+3. **Fixed tiles** (`0x284F9` loop). Large tiles `0x13` and above are
+   written back exactly as stored, replacing whatever the coast pass made of
+   them. Their mountains, rivers, desert edges, and any coast or sea tiles
+   drawn into them therefore ignore climate and neighbours. Large tiles `0x10`
+   and `0x12` are ports and `0x11` is a village; they keep the result of the
+   coast pass, except that the game draws them as plain land in the climate
+   of their block row (or desert, when the tile to their left is desert):
+   - a port whose record lacks the known flag (port `+0x13` bit `0x10`,
+     [Known and visited ports](ports.md#known-and-visited-ports)), looked up by
+     position through `0x281F6`;
+   - a village whose discovery record lacks the sighted flag (`+6` bit `0x40`,
+     [Discovery flags](#discovery-flags)), looked up through `0x2824F`. This
+     includes every village not selected for the current game, since those can
+     never be sighted.
+
+The view shows 24 × 24 tiles starting 11 tiles left of and above the fleet
+([Candidates and the sea view](#candidates-and-the-sea-view)), so it always
+stays at least 12 tiles inside the window. Within the window, the only effect
+of its edges is that desert can stop spreading at the border, and that reaches
+at most 10 tiles in. The map is therefore the same wherever the window lies,
+and `scripts/draw-world-map` builds each part in one pass. Its
+`world-map.test.ts` checks every window position against the whole-part
+result.
+
+### Other map views
+
+The Chart and Port Map commands of the Info menu (`MENU.DAT` entry `0x1C`,
+dispatched at `0x265E9`) and the treasure-map view draw tiles at 8 pixels per
+tile, two blocks by two, through `0x22A7E`. For modes 0 and 1 each block is
+taken from the middle of its own 3 × 3 window, so the window edges never show.
+The mode argument selects the source:
+
+| Mode | Used by                  | Source                                                                                                                                |
+| ---: | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+|    0 | Chart (`0x22E10`)        | `0x284F9`, as at sea; a block not yet charted is left blank                                                                           |
+|    1 | Treasure map (`0x2308C`) | `0x286A6`, below                                                                                                                      |
+|    2 | Port Map (`0x232CF`)     | no loader: the tiles already in the view buffer. The command is offered only in port (disabled when `DS:0x0E32` is `0xFF`, `0x265C8`) |
+
+`0x286A6` runs the same place and coast passes, then its own fixed-tile pass
+(`0x28729–0x287A6`). It differs from `0x284F9` in three ways:
+
+- Every village is drawn, sighted or not (large tile `0x11` is written back as
+  stored).
+- Every port is drawn as plain land, known or not (large tiles `0x10` and
+  `0x12`), or as desert when the tile to its left is desert.
+- The climate for that land is re-read only every 24 large-tile rows (48
+  tiles; `0x286ED–0x286F4`) instead of every 12. The first 48 rows of the
+  window use the top block row's band and the last 24 use the middle one's.
+  The drawn middle block therefore takes the band of the block row above it
+  (block row 0, whose window cannot move up, is drawn correctly). A port
+  lands in the wrong band only at a band boundary: block row 1 gets `0x51`
+  instead of `0x49`, row 14 `0x49` instead of `0x41`, row 31 `0x41` instead
+  of `0x49`, and row 44 `0x49` instead of `0x51`. Coasts and other land come
+  from the coast pass and are unaffected.
+
+### Colours
+
+The map tiles are the first half of `DATA1.011`: 128 tiles of 16 × 16
+pixels, four bit-planes of 256 bits each, with the first plane as the lowest
+bit of the colour index. The palette is 16 entries of three bytes, stored as
+blue, red, and green, 0–15 each, and shifted left by two into the VGA DAC
+(`0x6B6B`, `0x6BDA`). Entries 0–7 are the same in every sea palette. Entries
+8–15, which include the sea, land, desert, and ice, come from one of five
+palettes at `DS:0xA892 + 0x30 × n`:
+
+|   n | Palette | Target                                        |
+| --: | ------- | --------------------------------------------- |
+|   0 | Night   | from 20:00 and from 00:00, and during a Storm |
+|   1 | Dawn    | from 04:00                                    |
+|   2 | Day     | from 08:00; the Port Map uses it too          |
+|   3 | Dusk    | from 16:00                                    |
+|   4 | Fog     | during Fog: greys                             |
+
+The hour picks the palette through the table at `DS:0xA88A`, indexed by the
+clock (`DS:0x0737`) divided by 12, that is, in four-hour slots
+(`0x1E9A0`). `scripts/draw-world-map` renders each map part in all five
+(`world-map0.png` for day, `world-map0-night.png`, and so on). The Chart and
+the treasure map fade to the sepia palette at `DS:0xAB3E` instead
+([Treasure maps](#treasure-maps)).
+
+### Fading between palettes
+
+The sea does not switch palettes at once. The game keeps two copies: the
+**target** palette `DS:0x9052`, which the routines above overwrite
+(`0x97BC`), and the **shown** palette `DS:0xC176`. A fade step (`0xEDD7`)
+moves every red, green, and blue value of the shown palette one level (of 16)
+toward the target, sends all 16 colours to the DAC, and reports whether
+anything changed.
+
+The per-tick routine `0x20447` runs one step at most per 20-minute tick,
+driven by the state byte `DS:0xA890`:
+
+- **State 0, idle.** With no anomaly active, at clock ticks 12, 24, 48, and
+  60 (04:00, 08:00, 16:00, and 20:00) it sets the target for the new slot and
+  moves to state 1 (`0x1E9FA`). There is no tick for midnight: the night
+  palette covers both 20:00–24:00 and 00:00–04:00.
+- **State 1, fading.** One fade step per tick (`0x9884` → `0xEDD7`). Once a
+  step changes nothing, the state returns to 0.
+- **State 2** would run the whole fade in one go (`0x98A7`, which repeats
+  the step with a short delay until nothing changes) and return to 0, but no
+  code stores 2 in `DS:0xA890`.
+
+A fade therefore begins on the tick after the change and takes as many ticks
+as the largest single-channel difference between the two palettes:
+
+| Change               | Steps | Game time | Ends at |
+| -------------------- | ----: | --------: | ------: |
+| Night → dawn (04:00) |     8 |  2 h 40 m |   06:40 |
+| Dawn → day (08:00)   |     5 |  1 h 40 m |   09:40 |
+| Day → dusk (16:00)   |     9 |   3 h 0 m |   19:00 |
+| Dusk → night (20:00) |     9 |   3 h 0 m |   23:00 |
+
+Weather uses the same fade. While an anomaly is active, the idle state makes
+no time-of-day change. At each four-hourly check that finds an anomaly
+(`0x1F302–0x1F314`), the target becomes the Storm or Fog palette, or the
+palette for the hour during No Wind (`0x1E9B4`), and the state becomes 1.
+The anomaly's own four-hourly effect then sets the target again at its end
+(`0x1F27A`). When the anomaly has just ended, that target is the palette for
+the current hour, so the sea fades back from the storm or fog colours while
+the state is still 1. From day, fading to Fog or to the Storm (night) palette
+takes 8 or 9 ticks.
+
+The code also supports a reduced-colour display mode, flag `DS:0xC770`, but
+nothing in `MAIN.EXE` turns it on. When set, it would keep the day palette at
+all hours and in all weather (`0x1E9B4`, `0x1E9FA`, `0x20480`, `0x204CB`),
+send every colour inverted (15 minus each value, `0xEE16–0xEE3F`), skip
+the two palette-cycling animations started at `0x1B6DB` and `0x111E3`, and
+merge text colour codes 0–3 into 0 and 4–6 into 4 (`0x9F17`). The flag lies
+in memory that starts at zero, outside the saved game. The only store to
+it is `0x1B367`, which clears it when a new game starts (`0x1C2C5`), and no
+pointer to it exists, so in this version it is always 0. What display the
+mode was meant for is not recorded; inverted colours and fewer text colours
+fit a monochrome screen.
+
 ## Fleet sprites
 
 The sea view is redrawn by `0xC022`. It draws the map, then the fleets from
@@ -554,7 +737,8 @@ plain land `0x41`, `0x4A`–`0x4F` beside `0x49`, and `0x52`–`0x53` beside
 `0x51`. In each band the tiles are straight segments and the bends and ends
 where a river rises or meets the coast. On the world map they join into
 branching channels that run from the coast inland (`WORLDMAP.000`–`002`,
-decoded by `scripts/draw-world-map`; tile art `DATA1.011`).
+decoded by `scripts/draw-world-map`; tile art `DATA1.011`). The coast pass
+makes them from one-tile sea channels ([The sea map](#the-sea-map)).
 
 If the tile lies in a discovery's 2×2 block and the discovery's record has
 flag `0x80` clear, the game asks “Shall we land at this village?” (message 439) and opens the village menu. Otherwise it asks “Shall we land here?”
@@ -616,8 +800,9 @@ lies 14 tiles in from the left and 16 from the top, and the Medallion Map's
 site (484, 784) lies 28 and 16 tiles in.
 
 The view is drawn from the world-map data with the whole area shown, charted
-or not (`0x22A7E` with mode 1). Port markers are replaced by sea, and no ports,
-fleets, or player ship are drawn (`0x286A6`). The X is the village tile
+or not (`0x22A7E` with mode 1). Port tiles are replaced by plain land, and no
+ports, fleets, or player ship are drawn (`0x286A6`,
+[Other map views](#other-map-views)). The X is the village tile
 itself: before drawing, the routine repaints the four village-icon tiles
 `0x7C–0x7F` as a diagonal cross on sea texture (`0x230BD–0x231A8`, masks at
 `DS:0xAC78`). **Every** discovery site inside the view therefore shows an X,
@@ -979,6 +1164,14 @@ None remain.
 - `MAIN.EXE 0x1BA38`, `0x37661–0x376E7`, `0x26C63`, `DS:0xAFD0`: sea-view
   window, scrolling, and the Scroll Range option; `DATA1.015` offset `0x05`:
   its new-game value.
+- `MAIN.EXE 0xBE5A`, `0x284F9`, `0x282AA`, `0x277C0`, `0x281F6`, `0x2824F`;
+  `DATA1.010`, `DATA1.018`, `WORLDMAP.000`–`002`: the sea map.
+- `MAIN.EXE 0x22A7E`, `0x22B1A–0x22B8F`, `0x286A6`, `0x265E9`: Chart, Port Map,
+  and treasure-map views.
+- `MAIN.EXE 0x6B6B`, `0x6BDA`, `0x97BC`, `0x1E9A0`, `0x1E9B4`, `0x1E9FA`,
+  `0x20447–0x20474`, `0xEDD7`, `0x1F302–0x1F314`, `DS:0xA88A`, `DS:0xA892`,
+  `DS:0x9052`, `DS:0xC176`, `DS:0xA890`: map colours, time-of-day palettes,
+  and fading.
 - `MAIN.EXE 0xC022`, `0xC1F6–0xC472`, `0x7A8C`, `0xD835`, `DS:0x8F12`: fleet
   sprites.
 - `MAIN.EXE 0x1E764`, `0x1E1CE`, `0x1E280`, `0x1E18E`, `0x1E3A3`: food, water,

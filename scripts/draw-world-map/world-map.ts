@@ -5,35 +5,30 @@ import { expandTileMap, type ByteGrid } from "./grid.js";
 import { readLargeTiles } from "./tilesets.js";
 import { readWorldMapBlocks } from "./world-map-blocks.js";
 import {
-  applyManualCorrections,
-  createProcessingContext,
-  fillDeserts,
-  replaceCoasts,
-  replaceDesertCoasts,
-  updateClimateTerrain,
+  applyCoastTable,
+  keepLandTiles,
+  restoreFixedLargeTiles,
 } from "./world-map-processing.js";
 
 export async function generateWorldMaps(
   rawDirectory: string,
 ): Promise<ByteGrid[]> {
-  const [largeTiles, coastalMap] = await Promise.all([
+  const [largeTiles, coastTable] = await Promise.all([
     readLargeTiles(join(rawDirectory, "DATA1", "DATA1.018")),
     readFile(join(rawDirectory, "DATA1", "DATA1.010")),
   ]);
-  const context = createProcessingContext();
   const maps: ByteGrid[] = [];
 
   for (let part = 0; part < 3; part += 1) {
-    const blocks = await readWorldMapBlocks(
+    const largeMap = await readWorldMapBlocks(
       join(rawDirectory, "WORLDMAP", `WORLDMAP.00${part}`),
     );
-    const worldMap = expandTileMap(blocks, largeTiles, 2, 2);
-    fillDeserts(worldMap);
-    replaceCoasts(worldMap, coastalMap, context);
-    replaceDesertCoasts(worldMap, context);
-    updateClimateTerrain(worldMap);
-    applyManualCorrections(worldMap, part);
-    maps.push(worldMap);
+    const expanded = expandTileMap(largeMap, largeTiles, 2, 2);
+    const worldMap = applyCoastTable(
+      keepLandTiles(expanded, largeMap),
+      coastTable,
+    );
+    maps.push(restoreFixedLargeTiles(worldMap, expanded, largeMap));
   }
 
   return maps;
