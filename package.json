@@ -23,6 +23,7 @@
     "extract-graph-art": "node --import tsx scripts/art/graph-art.ts",
     "extract-portraits-items-discoveries": "node --import tsx scripts/portraits-items-discoveries/index.ts",
     "extract-dueling": "node --import tsx scripts/dueling/index.ts",
+    "generate-temporary-sailors": "node --import tsx scripts/temporary-sailors/index.ts",
     "extract-dialog": "node --import tsx dialog-system/scripts/index.ts",
     "query-dialog": "node --import tsx dialog-system/scripts/query.ts",
     "extract-all": "node --import tsx scripts/extract-all.ts",

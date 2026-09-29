@@ -366,6 +366,41 @@ as commanders, is in [Fleet regeneration](fleets.md#fleet-regeneration).
 | 117 | Jack Diffson     | Piracy      |         71 |         71 |        54 |        58 |      62 |            79 |    41 |   88 |                5 |            8 |  27 | Gunnery, Celestial Navigation              |
 | 119 | Richard Huxley   | Piracy      |         51 |         69 |        48 |        83 |      87 |            67 |    50 |   75 |                1 |            2 |  22 | Gunnery                                    |
 
+### Generated portraits and names
+
+A sailor whose word `+0x12` has bits `0xC000` set gets a composed portrait
+instead of a fixed `KAO` picture (`MAIN.EXE 0xD05A`). The parts are a raw
+bank of 64-pixel-wide 3bpp rows after the last `KAO.LZW` archive entry, at
+`0x49F01 + nation × 0x60C0`, with one block for each of the seven nations
+(Piracy included), where nation is `+0x29 & 0x0F`. `0xCED6` builds the 64×80
+portrait from five parts chosen by the selector's bits:
+
+| Part  | Selector bits | Choices | Rows drawn | How                                         |
+| ----- | ------------- | ------: | ---------- | ------------------------------------------- |
+| Head  | 0–2           |       8 | 0–32       | copied                                      |
+| Body  | 3–5           |       8 | 33–79      | copied                                      |
+| Nose  | 6–7           |       4 | 29–52      | ORed onto the palette indices already there |
+| Eyes  | 8–10          |       8 | 21–38      | ORed                                        |
+| Mouth | 11–13         |       8 | 45–63      | ORed                                        |
+
+Colour 0 in a nose, eye, or mouth part therefore leaves the face beneath it
+unchanged. The new-sailor routine sets the selector to `random(0x3FFF) |
+0xC000` (`0x1D8D4`), so any combination except the all-highest one can occur.
+
+The same routine takes the name from `NAME.TBL`, which holds 16 first and
+last name pairs for each of the six nations (Piracy has none), 9 bytes each.
+It draws the first name and the last name separately from the nation's 16
+entries (`0x1D741`–`0x1D7B6`), and draws both again while any other record
+has the same full name. The game reads only `NAME.TBL`; `NAMELIST.TBL` is its
+text source, and five surnames there lost their second word in `NAME.TBL`:
+“La Bamba” and “El Toro” (Spain), “La Scala” (Italy), and “Van Dyke” and “de
+Klerk” (Holland) are stored as “La”, “El”, “La”, “Van”, and “de”. New sailors
+are always of nations 0–5 ([New generic sailors](fleets.md#new-generic-sailors)),
+so the Piracy parts are used only by the initial data's pirates and by
+`0xCFDA`, which draws one-off faces with a random selector and a random
+nation from all seven (`random(7)`).
+`scripts/temporary-sailors` generates random examples.
+
 ## Active NPC captains
 
 Sailor IDs `6–68` are active NPC captains. Their fleet assignments and ship compositions are documented in [fleets.md](fleets.md).
