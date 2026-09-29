@@ -4,3 +4,5 @@ node_modules/
 
 /scripts/**/output/
 /dialog-system/scripts/**/output/
+
+.scratchpad
