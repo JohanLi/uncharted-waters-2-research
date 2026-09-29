@@ -2,8 +2,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { writeWorldMapPng } from "./render.js";
-import { readRegularTiles } from "./tilesets.js";
+import { encodeWorldMap, writeWorldMapPng } from "./render.js";
+import {
+  readRegularTileIndices,
+  readSeaPalettes,
+  SEA_PALETTE_NAMES,
+} from "./tilesets.js";
 import { combineWorldMaps, generateWorldMaps } from "./world-map.js";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
@@ -13,17 +17,27 @@ const outputDirectory = join(scriptDirectory, "output");
 
 export async function run(): Promise<void> {
   await mkdir(outputDirectory, { recursive: true });
-  const [worldMaps, regularTiles] = await Promise.all([
+  const [worldMaps, tileIndices, palettes] = await Promise.all([
     generateWorldMaps(rawDirectory),
-    readRegularTiles(join(rawDirectory, "DATA1", "DATA1.011")),
+    readRegularTileIndices(join(rawDirectory, "DATA1", "DATA1.011")),
+    readSeaPalettes(join(rawDirectory, "MAIN.EXE")),
   ]);
   for (const [part, worldMap] of worldMaps.entries()) {
     const basename = `world-map${part}`;
     await writeFile(join(outputDirectory, `${basename}.bin`), worldMap.data);
-    await writeWorldMapPng(
-      join(outputDirectory, `${basename}.png`),
-      worldMap,
-      regularTiles,
+    // The day map keeps the plain name; the other palettes get a suffix.
+    const image = encodeWorldMap(worldMap, tileIndices);
+    await Promise.all(
+      SEA_PALETTE_NAMES.map((name) =>
+        writeWorldMapPng(
+          join(
+            outputDirectory,
+            `${basename}${name === "day" ? "" : `-${name}`}.png`,
+          ),
+          image,
+          palettes[name],
+        ),
+      ),
     );
   }
   await writeFile(

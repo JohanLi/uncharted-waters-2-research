@@ -4,6 +4,7 @@ import { expandTileMap, type ByteGrid } from "../draw-world-map/grid.js";
 import {
   readLargeTiles,
   readRegularTiles,
+  readSeaPalettes,
 } from "../draw-world-map/tilesets.js";
 import { decodePlanar, prepareOutput, repoRoot, writePng } from "../shared.js";
 
@@ -52,7 +53,8 @@ function montage(
 export async function run(): Promise<void> {
   const output = await prepareOutput("tilesets");
   const dataFile = join(repoRoot, "raw/DATA1/DATA1.011");
-  const regular = await readRegularTiles(dataFile);
+  const { day } = await readSeaPalettes(join(repoRoot, "raw/MAIN.EXE"));
+  const regular = await readRegularTiles(dataFile, day);
   await writePng(
     join(output, "regular-tileset.png"),
     montage(regular, 128, 16, 16, 16, 3),

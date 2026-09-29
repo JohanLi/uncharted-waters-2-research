@@ -29,57 +29,89 @@ export async function readLargeTiles(path: string): Promise<Uint8Array> {
   return tiles;
 }
 
-const DAY_PALETTE: Readonly<Record<number, readonly [number, number, number]>> =
-  {
-    0: [0x00, 0x00, 0x00],
-    1: [0x71, 0x71, 0x92],
-    3: [0x00, 0x82, 0xf3],
-    4: [0xd3, 0x41, 0x00],
-    5: [0xa2, 0x61, 0x00],
-    6: [0xf3, 0xa2, 0x61],
-    7: [0x00, 0xb2, 0x61],
-    8: [0x00, 0x41, 0xd3],
-    9: [0x00, 0x41, 0xc3],
-    10: [0x00, 0xa2, 0xf3],
-    11: [0x00, 0x71, 0x61],
-    13: [0xe3, 0xb2, 0x51],
-    14: [0xf3, 0xe3, 0xd3],
-    15: [0xf3, 0xe3, 0xd3],
-  };
+export type Rgb = readonly [number, number, number];
 
-function getBit(bytes: Uint8Array, bitIndex: number): number {
-  const byte = bytes[Math.floor(bitIndex / 8)];
-  if (byte === undefined) {
-    throw new Error(`Unexpected end of regular tileset at bit ${bitIndex}`);
-  }
-  return (byte >> (7 - (bitIndex % 8))) & 1;
+export const SEA_PALETTE_NAMES = [
+  "night",
+  "dawn",
+  "day",
+  "dusk",
+  "fog",
+] as const;
+export type SeaPaletteName = (typeof SEA_PALETTE_NAMES)[number];
+
+// MAIN.EXE's data segment, and the five sea palettes it holds at
+// DS:0xA892 + 0x30 × n (see game-details/at-sea.md#colours).
+const DATA_SEGMENT = 0x3657;
+const SEA_PALETTES = 0xa892;
+const PALETTE_BYTES = 16 * 3;
+
+/** A 0–15 palette channel as the VGA DAC shows it: 6 bits, scaled to 8. */
+function channel(value: number): number {
+  const dac = value << 2;
+  return (dac << 2) | (dac >> 4);
 }
 
-export async function readRegularTiles(path: string): Promise<Uint8Array> {
+/** The sea palettes, stored as blue, red, green per colour. */
+export async function readSeaPalettes(
+  mainExePath: string,
+): Promise<Record<SeaPaletteName, Rgb[]>> {
+  const exe = await readFile(mainExePath);
+  const dataSegment = exe.readUInt16LE(8) * 16 + DATA_SEGMENT * 16;
+  return Object.fromEntries(
+    SEA_PALETTE_NAMES.map((name, index) => {
+      const start = dataSegment + SEA_PALETTES + index * PALETTE_BYTES;
+      const colours = Array.from({ length: 16 }, (_, colour): Rgb => {
+        const [blue, red, green] = exe.subarray(
+          start + colour * 3,
+          start + colour * 3 + 3,
+        );
+        return [channel(red!), channel(green!), channel(blue!)];
+      });
+      return [name, colours];
+    }),
+  ) as Record<SeaPaletteName, Rgb[]>;
+}
+
+/**
+ * Palette index of every pixel of the 128 map tiles in the first half of
+ * DATA1.011: four bit-planes per tile, the first plane being bit 0.
+ */
+export async function readRegularTileIndices(
+  path: string,
+): Promise<Uint8Array> {
   const file = await readFile(path);
   const bytes = file.subarray(0, Math.floor(file.length / 2));
-  const bitsPerTile = REGULAR_TILE_SIZE * REGULAR_TILE_SIZE * 4;
-  const tileCount = Math.floor((bytes.length * 8) / bitsPerTile);
   const pixelsPerTile = REGULAR_TILE_SIZE * REGULAR_TILE_SIZE;
-  const output = new Uint8Array(tileCount * pixelsPerTile * 3);
+  const tileCount = Math.floor((bytes.length * 8) / (pixelsPerTile * 4));
+  const output = new Uint8Array(tileCount * pixelsPerTile);
 
   for (let tile = 0; tile < tileCount; tile += 1) {
-    const tileBitOffset = tile * bitsPerTile;
     for (let pixel = 0; pixel < pixelsPerTile; pixel += 1) {
       let paletteIndex = 0;
       for (let plane = 0; plane < 4; plane += 1) {
-        paletteIndex =
-          (paletteIndex << 1) |
-          getBit(bytes, tileBitOffset + pixel + plane * pixelsPerTile);
+        const bit = (tile * 4 + plane) * pixelsPerTile + pixel;
+        paletteIndex |= ((bytes[bit >> 3]! >> (7 - (bit & 7))) & 1) << plane;
       }
-
-      const color = DAY_PALETTE[paletteIndex];
-      if (color === undefined) {
-        throw new Error(`Missing day palette color ${paletteIndex}`);
-      }
-      output.set(color, (tile * pixelsPerTile + pixel) * 3);
+      output[tile * pixelsPerTile + pixel] = paletteIndex;
     }
   }
 
   return output;
+}
+
+export function colourTiles(
+  indices: Uint8Array,
+  palette: readonly Rgb[],
+): Uint8Array {
+  const output = new Uint8Array(indices.length * 3);
+  indices.forEach((index, pixel) => output.set(palette[index]!, pixel * 3));
+  return output;
+}
+
+export async function readRegularTiles(
+  path: string,
+  palette: readonly Rgb[],
+): Promise<Uint8Array> {
+  return colourTiles(await readRegularTileIndices(path), palette);
 }

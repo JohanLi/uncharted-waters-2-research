@@ -5,7 +5,7 @@
   "packageManager": "pnpm@11.18.0",
   "type": "module",
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=24.11.0"
   },
   "scripts": {
     "save-editor": "tsx watch --clear-screen=false save-editor/server.ts",
