@@ -922,12 +922,115 @@ Investigation / Ask Info`:
 The tip is charged before the four-command waitress menu. Leaving a nested
 selection returns through that menu and then to the main Pub menu.
 
-**Gamble** begins at `0x2D249`. With no gold it displays `MESSAGE2.DAT` raw
-index 10 (combined index 1010), “I don't deal with paupers.” Otherwise it
-opens the Black Jack/Dice game selector and hands control to the two gambling
-engines. `MESSAGE2.DAT` raw indices 0–9 contain the gambler's invitations,
-win/loss reactions, replay prompts, and responses to quitting. Those messages
-belong to the gambling engine rather than to the ordinary Pub speaker loop.
+#### Gamble
+
+**Gamble** begins at `0x2D249` and is always available: the Pub menu's
+grey-out mask (`0x2D4BA–0x2D4DB`) never disables it, and it does not depend
+on time, port, Fame, rank, or nation. With no gold it displays
+`MESSAGE2.DAT` raw index 10 (combined index 1010), “I don't deal with
+paupers.” Otherwise it offers **Black Jack** and **Dice** (labels at
+`DS:0xB58A` and `0xB595`, not in `MENU.DAT`) and dispatches through
+`DS:0xB59A` to Black Jack at `0x34BC0` or Dice at `0x35FF9`. Each game
+refuses silently with less than 10 gold.
+
+The opponents are not Pub patrons. Each is a generated portrait with selector
+`random(0x3FFF) | 0xC000` and a random face bank `random(7)`, drawn by
+`0xCFDA` ([Generated portraits and names](sailors.md#generated-portraits-and-names)):
+one dealer for Black Jack, two players for Dice.
+
+Bets are in gold pieces, from 10 to `min(500, gold)`; the prompt, raw 962
+“Place yer bet (10-500).”, is fixed. The entry cannot be cancelled and repeats
+until the amount is in range (`0x3450C`, `0x5742`). Carried gold is one 32-bit
+counter; the “Gold Ingots” line (raw 960) shows it divided by 10,000 beside
+“Gold Pieces” (raw 959), so a bet draws on the same total. Gambling changes
+nothing but gold: no Fame, Luck, time, or Loyalty, no limit per visit, and
+Luck does not affect cards or dice.
+
+##### Black Jack
+
+Every round shuffles a fresh 52-card deck (`0x34348`: 208 swaps with
+`random(52)`). The player's first card is dealt face up **before** the bet;
+the dealer's first card stays face down. After the second card the player
+chooses HIT or STAND (`DS:0xBA01`, `0xBA07`; Esc counts as HIT) until
+standing, busting, or holding 7 cards (`0x34A8A`). An Ace counts 11 unless
+that would bust, and J, Q, and K count 10 (`0x346B4`, `0x344D0`). The dealer
+then draws to 17 or more, standing on soft 17, up to 6 cards (`0x34AEF`,
+`0x34AF4`), even after the player has busted.
+
+Settlement (`0x346C7`) pays only when the player's total is higher than the
+dealer's; a tie goes to the dealer. A winning hand returns (stake included):
+
+| Winning hand                                       | Returned | Message                  |
+| -------------------------------------------------- | -------: | ------------------------ |
+| Ace and the Jack of suit 0 (card IDs 0 and 10)     |       6× | 966, “… Jack of Spades!” |
+| Ace and J, Q, or K                                 |       3× | 967                      |
+| Three 7s                                           |       4× | 969                      |
+| Three cards totalling 21 with consecutive card IDs |       4× | 970, “Sequence …”        |
+| Five or more cards without busting                 |       4× | 971                      |
+| Any other win, including Ace and a 10              |       2× | 968                      |
+
+The same hands cost the player extra when the dealer wins with them: 5× the
+bet in all for the Jack of suit 0, 2× for Ace and a face card, and 3× for the
+other three (messages 972–977); if the gold cannot cover it, it drops to 0
+(`0x34974–0x349B4`). The consecutive-ID test does not check suits, so a Queen
+and King of one suit with the next suit's Ace (IDs 11, 12, 13) also counts.
+Suit 0 is assumed to be Spades from message 966.
+
+##### Dice
+
+Dice is poker dice against two opponents: each of the three rolls five dice
+(the columns 1–5) up to three times (`0x3576D`, `random(6)` at `0x357E0`).
+The player can stop early (raw 984, “Is this throw final?”) or hold dice,
+which stay held for the rest of the turn. An opponent holds every die that
+matches another and always takes all three throws (`0x34FE9`). A one counts
+as six (`0x35D2E`), so ones are the highest face; stored die value 0 is
+assumed to be the one-pip face.
+
+Hands rank five of a kind, four of a kind, full house, three of a kind, two
+pair, one pair, and nothing; there are no straights (`0x35067`). Within a
+category the set's value decides; a full house compares the triple, then the
+pair. Two pair compares the lower pair first unless it is a pair of ones.
+Kickers are never compared (`0x3522B`, `0x350F3`).
+
+For bets under 200, the opponents haggle first (`0x3598B`, messages 985–994):
+with probability 3/4 one proposes `bet + floor(bet × k / 10)`, with `k` from 1 to 10 for
+bets under 100 and from 1 to 5 for 100–199.
+Accepting makes that the bet. Refusing keeps the bet with probability 1/3;
+otherwise the bet becomes the proposal or the average of the two, equally
+likely. The result is capped at `min(gold, 500)`.
+
+| Result (`0x35DFA–0x35F93`)                            | Returned | Message |
+| ----------------------------------------------------- | -------: | ------: |
+| The player beats both opponents                       |       3× |     997 |
+| The player ties one opponent and beats the other      |     1.5× |    1000 |
+| All three tie                                         |       1× |     999 |
+| Either opponent wins, or the opponents tie each other |        0 |     998 |
+
+When all three have one pair of the same value, or all three have nothing,
+the comparison reports the second opponent as the winner, so the player
+loses instead of getting the stake back.
+
+##### Odds
+
+Monte Carlo runs of the routines above give Dice, played like the opponents,
+an expected return of about −0.3% of the bet. Black Jack with a flat bet and
+the best simple strategy (stand on hard 14 or more and soft 19 or more)
+returns about −16%, but it depends on the first card, which is seen before
+betting: about +41% of the bet with an Ace, −1% with a ten-value card, and
+−19% to −38% with 2–9. Betting 500 on a first Ace and 10 otherwise wins about
+14 gold a round.
+
+##### Messages
+
+Black Jack uses `MESSAGE.DAT` raw 959–983: 963–965 react to the bet, 966–971
+announce the player's wins, 972–977 the dealer's, 978 is the total, and
+979–983 open and close the game (980 when the gold falls below 10, 982 and
+983 on leaving more than 500 up or down). Dice uses raw 984–999 and
+`MESSAGE2.DAT` raw 0–9 (combined 1000–1009): 1001–1002 open the game,
+1003–1004 when the player is broke, 1005 replays, and 1006–1009 on leaving
+more than 500 up or down. These are called through `push cs; call 0x39336`,
+a near call, so `general-message-call-sites.json` (which scans far calls)
+does not list them.
 
 ### Shipyard command dialogue
 
