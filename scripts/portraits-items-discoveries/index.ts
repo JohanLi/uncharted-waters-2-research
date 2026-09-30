@@ -115,7 +115,7 @@ async function itemText(output: string): Promise<void> {
     const price = executable.readUInt16LE(cursor) * 100;
     cursor += 2;
     const rating = executable[cursor++]!;
-    const category = executable[cursor++]! + 1;
+    const category = executable[cursor++]!;
     const description = descriptions[index]!;
     // Unused records; the treasure maps and royal artifacts follow "Reserve".
     if (
@@ -131,7 +131,7 @@ async function itemText(output: string): Promise<void> {
       description === "Expiation"
     )
       continue;
-    items[String(index + 1)] = {
+    items[String(index)] = {
       name,
       description,
       price,
@@ -142,7 +142,7 @@ async function itemText(output: string): Promise<void> {
   }
   const categories: Record<string, string> = {};
   cursor = 245902;
-  for (let index = 1; index < 15; index++) {
+  for (let index = 0; index < 14; index++) {
     const end = executable.indexOf(0, cursor);
     categories[String(index)] = new TextDecoder()
       .decode(executable.subarray(cursor, end))

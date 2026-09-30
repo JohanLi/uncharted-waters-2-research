@@ -37,8 +37,8 @@ These are screen positions, not saved coordinates or ship movement positions.
 and ship type to the sprite drawing routine.
 
 The picture used for a ship comes from the **ship type** in its ship-instance
-record, not its name or condition. Ship types are zero-based in the save;
-`display ship ID = saved type + 1`. The extracted images are
+record, not its name or condition. Ship types are zero-based, as in
+[ships.md](ships.md#ship-catalog). The extracted images are
 [`GRAPH.DAT` records 28–52](../scripts/ships/graph-ships.ts), 128 × 96 pixels
 each, arranged in type order in
 [`scripts/ships/output/ships.png`](../scripts/ships/output/ships.png). The

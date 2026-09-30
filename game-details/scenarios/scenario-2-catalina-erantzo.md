@@ -130,7 +130,7 @@ building route exists in this last subsection.
 [^rebel]:
     `SNR2.DAT 0x06C4–0x0735`: `FB 48` adds sailor 72 and `DC 00 03 48 26` /
     `1D 00 03` sets his duty to 3. `F9 0A 05` creates a pending ship of type
-    `0x0A` (display ship 11, Galleon) and `FA 0A 009E` names it from message
+    `0x0A` (ship 10, Galleon) and `FA 0A 009E` names it from message
     159, “Rebel”. The script then writes slot 0's crew word `+0x00 = 120`, gun
     byte `+0x06 = 50`, and ORs status byte `+0x08` with `0x04`, which sets the
     gun type in its low three bits to 4, the Culverin

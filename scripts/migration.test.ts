@@ -67,32 +67,32 @@ test("all migrated domain extractors produce compatible artifacts", async () => 
     [
       "ports",
       "ports.json",
-      "aab4be1cf566734d7b70cfe5a469c87bccfc0a70d56e91c828666f8901035d15",
+      "f1fb72c8514b7699877a88474e990e25804ef456cdb1aca8c3bfc3b780348646",
     ],
     [
       "ships",
       "ships.json",
-      "86e32760e75e8a5792df0c01af40df16e13c17454c1a8bd4a872c824f948dda2",
+      "b47f1e74c438d9661398de4b97764f53e23950c0584704ba68624f23481866c2",
     ],
     [
       "ships",
       "portToShipyard.json",
-      "b0d272efcff599e007fa37305e2960ac0c7e511924f251f063d0ad70c71be593",
+      "8b6a2150179eb117b2cd78e0567cd845ad68ab14f13ca132fedd112f5938a4ad",
     ],
     [
       "ships",
       "shipyardToShips.json",
-      "c8c565cbc690fee0067db42ba4a7647daa9d2e6f458dce92c4c7fd18db909466",
+      "b6ee34087f7c8e2d43e69e803ce6dbd744c7ed7da50a36b6d9627ac5db62a6ac",
     ],
     [
       "portraits-items-discoveries",
       "items.json",
-      "b1bf260ddc960687945c39f2580336edf903184ead205cf74787bc0cb5063eb4",
+      "32507b996b19f02698c1a1cbed85d2104611b5e3d36a575613dd36b861651fdc",
     ],
     [
       "portraits-items-discoveries",
       "itemTypes.json",
-      "bead6632158f1dc5d08433fadcbfb3ef3a9fc2c979a075425cfaa508138e4a1b",
+      "5ede03b79bf103ca3491bcd4e051fc623dbabc71028441db505ea92e356e82a4",
     ],
   ];
   for (const [domain, file, expected] of expectedJson)

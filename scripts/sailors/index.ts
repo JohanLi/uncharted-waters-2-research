@@ -82,7 +82,7 @@ function fleetShips(koukai: Uint8Array, fleet: number): number[] {
     if ((koukai[offset + 8]! & 0x30) !== 0x10) continue;
     const instance =
       SHIP_INSTANCE_TABLE + koukai[offset + 7]! * SHIP_INSTANCE_SIZE;
-    ships.push(koukai[instance + 0x11]! + 1);
+    ships.push(koukai[instance + 0x11]!);
   }
   return ships;
 }

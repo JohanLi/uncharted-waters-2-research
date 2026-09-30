@@ -26,7 +26,6 @@ slot. The ship-instance reference is slot byte
 ship_instance_id = slot[0x07]
 ship_instance = 0x4893 + ship_instance_id * 0x18
 ship_type_id = ship_instance[0x11]
-display_ship_id = ship_type_id + 1
 ```
 
 ## Current player's fleet
@@ -53,7 +52,6 @@ ship-instance reference is at slot byte `+0x07`:
 ship_instance_id = slot[0x07]
 ship_instance    = slot base + 0x47FC + ship_instance_id × 0x18
 ship_type_id     = ship_instance[0x11]
-display_ship_id  = ship_type_id + 1
 ```
 
 The remaining slot bytes contain the ship's current crew, durability, tacking,

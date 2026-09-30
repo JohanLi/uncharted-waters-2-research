@@ -14,14 +14,14 @@ async function ships(): Promise<Record<string, Ship>> {
   const data = await readFile(join(repoRoot, "raw/DATA1/DATA1.015"));
   const result: Record<string, Ship> = {};
   let cursor = 19388;
-  for (let id = 1; id <= 25; id++, cursor += 24)
+  for (let id = 0; id < 25; id++, cursor += 24)
     result[id] = {
       name: decodeCString(data.subarray(cursor, cursor + 16)),
       usedGuns: data[cursor + 19]!,
       usedCrew: data.readUInt16LE(cursor + 20),
     };
   cursor = 19988;
-  for (let id = 1; id <= 25; id++, cursor += 12)
+  for (let id = 0; id < 25; id++, cursor += 12)
     Object.assign(result[id]!, {
       industryRequirement: data[cursor]! * 10,
       durability: data[cursor + 1]!,
@@ -31,12 +31,12 @@ async function ships(): Promise<Record<string, Ship>> {
       minimumCrew: data[cursor + 5]!,
       capacity: data.readUInt16LE(cursor + 6),
       maximumGuns: data[cursor + 8]!,
-      sailType: data[cursor + 9]! + 1,
+      sailType: data[cursor + 9]!,
       basePrice: data.readUInt16LE(cursor + 10) * 10,
     });
   const messages = await readFile(join(repoRoot, "raw/MESSAGE.DAT"));
   cursor = 9683;
-  for (let id = 1; id <= 25; id++) {
+  for (let id = 0; id < 25; id++) {
     const end = messages.indexOf(0, cursor);
     result[id]!.description = new TextDecoder()
       .decode(messages.subarray(cursor, end))
@@ -52,7 +52,7 @@ async function shipyards(allShips: Record<string, Ship>) {
   ).split(/(?<=\n)/);
   const portToShipyard: Record<string, string> = {},
     shipyardToShips: Record<string, unknown[]> = {};
-  let yard = 0;
+  let yard = -1;
   for (const [lineIndex, line] of lines.entries()) {
     if (lineIndex === 0) continue;
     if (line === "\n") {
