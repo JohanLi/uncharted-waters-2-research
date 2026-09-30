@@ -103,7 +103,7 @@ test("executes a shared Transport Goods progress route", async () => {
     })),
     [
       {
-        messages: [28, 34],
+        messages: [27, 33],
         effects: [
           "answer Yes (set scenario flag 1 to 1)",
           "advance section when the interpreter returns",
@@ -112,7 +112,7 @@ test("executes a shared Transport Goods progress route", async () => {
         ],
       },
       {
-        messages: [28, 34],
+        messages: [27, 33],
         effects: [
           "answer No (set scenario flag 1 to 0)",
           "suppress normal building menu and force exit",
@@ -159,7 +159,7 @@ test("uses fleet free capacity in the shared Transport Goods offer", async () =>
     result.sharedScenario.outcomes.map((outcome) =>
       outcome.dialogue.map((line) => line.messageId),
     ),
-    [[14]],
+    [[13]],
   );
 });
 
@@ -195,8 +195,8 @@ test("follows the cached royal invitation into the visible Palace offer", async 
       executionSubsection: 1,
       route: 0xa315,
       messages: [
-        [155, 156, 162, 164],
-        [155, 156, 162, 163],
+        [154, 155, 161, 163],
+        [154, 155, 161, 162],
       ],
     },
   );
@@ -226,7 +226,7 @@ test("selects destination and home ruler document-mission transcripts", async ()
     destination.sharedScenario.outcomes.map((outcome) =>
       outcome.dialogue.map((line) => line.messageId),
     ),
-    [[174]],
+    [[173]],
   );
 
   save[base + 0x0a] = 0;
@@ -242,7 +242,7 @@ test("selects destination and home ruler document-mission transcripts", async ()
     home.sharedScenario.outcomes.map((outcome) =>
       outcome.dialogue.map((line) => line.messageId),
     ),
-    [[166, 0]],
+    [[165, 0]],
   );
   // D9 selector 4 presents the promotion from MESSAGE.DAT after the rank
   // increment, as recorded in q04-snr0-diplomatic-return.mp4.
@@ -377,7 +377,7 @@ test("resolves Ernst's Mercator-contract branch and renewal effects", async () =
     mercatorResult.outcomes.flatMap((outcome) =>
       outcome.dialogue.map((line) => line.messageId),
     ),
-    [77],
+    [76],
   );
 
   const gerard = Buffer.from(mercator);
@@ -395,7 +395,7 @@ test("resolves Ernst's Mercator-contract branch and renewal effects", async () =
     gerardResult.outcomes.flatMap((outcome) =>
       outcome.dialogue.map((line) => line.messageId),
     ),
-    [78, 79, 80, 81],
+    [77, 78, 79, 80],
   );
   assert.deepEqual(gerardResult.outcomes[0]!.effects, [
     "activate Mercator cartographer contract",
@@ -423,7 +423,7 @@ test("distinguishes Pietro's forced Church exit from his usable Lodge", async ()
   );
   assert.deepEqual(
     church.outcomes[0]!.dialogue.map((line) => line.messageId),
-    [97, 98],
+    [96, 97],
   );
   assert.ok(
     church.outcomes[0]!.effects.includes(
@@ -443,7 +443,7 @@ test("distinguishes Pietro's forced Church exit from his usable Lodge", async ()
   );
   assert.deepEqual(
     lodge.outcomes[0]!.dialogue.map((line) => line.messageId),
-    [99, 100],
+    [98, 99],
   );
   assert.ok(
     !lodge.outcomes[0]!.effects.includes(
@@ -1001,7 +1001,7 @@ test("resolves Guild assignment rows and cached Country Info", async () => {
     routed.sharedScenario.outcomes.map((outcome) =>
       outcome.dialogue.map((entry) => entry.messageId),
     ),
-    [[2], [2]],
+    [[1], [1]],
   );
 
   save = setGold(save, 1, 500);
@@ -2307,7 +2307,7 @@ test("decodes Pietro's one-gold-ingot Pub gate independently of Adventure Fame",
     shared,
   );
   assert.notEqual(at.confidence, "none");
-  assert.equal(at.outcomes[0]!.dialogue[0]!.messageId, 109);
+  assert.equal(at.outcomes[0]!.dialogue[0]!.messageId, 108);
 });
 
 test("resolves Catalina's 1,500 and 2,000 Piracy Fame transitions", async () => {
@@ -2348,7 +2348,7 @@ test("resolves Catalina's 1,500 and 2,000 Piracy Fame transitions", async () => 
     scenario,
     shared,
   );
-  assert.equal(rumor.outcomes[0]!.dialogue[0]!.messageId, 230);
+  assert.equal(rumor.outcomes[0]!.dialogue[0]!.messageId, 229);
   assert.ok(
     rumor.outcomes[0]!.effects.includes(
       "advance subsection when the interpreter returns",
@@ -2419,17 +2419,17 @@ test("resolves Catalina's Lucia wait counter and calendar-day rollover", async (
     );
   };
 
-  assert.deepEqual(await messagesFor("lodge", 0), [511, 512]);
-  assert.deepEqual(await messagesFor("lodge", 1), [513, 514]);
+  assert.deepEqual(await messagesFor("lodge", 0), [510, 511]);
+  assert.deepEqual(await messagesFor("lodge", 1), [512, 513]);
   assert.deepEqual(
     await messagesFor("lodge", 2),
-    [502, 503, 504, 505, 509, 510],
+    [501, 502, 503, 504, 508, 509],
   );
-  assert.deepEqual(await messagesFor("lodge", 3), [506, 507, 508, 509, 510]);
-  assert.deepEqual(await messagesFor("lodge", 2, 9), [515, 516, 517, 518, 519]);
-  assert.deepEqual(await messagesFor("pub", 1), [496, 497]);
-  assert.deepEqual(await messagesFor("pub", 2), [498, 499]);
-  assert.deepEqual(await messagesFor("pub", 2, 9), [500, 501]);
+  assert.deepEqual(await messagesFor("lodge", 3), [505, 506, 507, 508, 509]);
+  assert.deepEqual(await messagesFor("lodge", 2, 9), [514, 515, 516, 517, 518]);
+  assert.deepEqual(await messagesFor("pub", 1), [495, 496]);
+  assert.deepEqual(await messagesFor("pub", 2), [497, 498]);
+  assert.deepEqual(await messagesFor("pub", 2, 9), [499, 500]);
 });
 
 test("reads port metadata and market definitions with the executable's framing", async () => {
@@ -2608,7 +2608,7 @@ test("sets the opposing captain and leaves the post-battle fleet unknown", async
     parseQueryAction("after-battle:60"),
   );
   assert.equal(result.confidence, "ambiguous");
-  assert.equal(result.outcomes[0]!.dialogue[0]!.messageId, 604);
+  assert.equal(result.outcomes[0]!.dialogue[0]!.messageId, 603);
   assert.match(result.outcomes[0]!.uncertainties[0]!, /0x1EA3/);
   assert.ok(result.notes.some((note) => /sailor 60/.test(note)));
 });

@@ -83,7 +83,7 @@ is not a precise way to set Fame.
 
 Collect Debt also has a Trade-only penalty. If the debt has been collected but the protagonist returns without enough
 gold to hand it over, the client says, "It doesn't look like you have the money with you," and "It seems I was a fool to
-trust you. Go, leave me." (messages 128 and 130). `SNR0` then halves Trade Fame with the same rounding
+trust you. Go, leave me." (messages 127 and 129). `SNR0` then halves Trade Fame with the same rounding
 (`0x148E–0x14A7`), leaves Piracy Fame unchanged, and ends the assignment:
 
 ```text

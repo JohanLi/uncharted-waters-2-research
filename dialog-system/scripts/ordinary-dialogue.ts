@@ -51,7 +51,6 @@ export type OrdinaryEntryDisposition =
 export interface OrdinaryDialogueLine {
   readonly bank: GeneralMessage["bank"];
   readonly rawIndex: number;
-  readonly entryNumber: number;
   readonly combinedIndex: number;
   readonly text: string;
   readonly speaker: string;
@@ -556,7 +555,6 @@ function line(
   return {
     bank: message.bank,
     rawIndex: message.rawIndex,
-    entryNumber: message.entryNumber,
     combinedIndex: message.combinedIndex,
     text: substitute(message.text, substitutions),
     speaker,

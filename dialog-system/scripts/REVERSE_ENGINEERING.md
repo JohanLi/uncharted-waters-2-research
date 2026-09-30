@@ -36,8 +36,8 @@ little-endian x86.
 
 The first `u32` is both the first string offset and four times the message
 count. It is followed by one `u32` offset per message. Each offset points to a
-null-terminated string. Stored message indices are zero-based; public JSON IDs
-are one-based.
+null-terminated string. Stored message indices are zero-based, and public JSON IDs
+use the same zero-based values.
 
 For `SNR1.MES`:
 
@@ -656,10 +656,10 @@ section byte at `0x30475`.
 
 `F8` returns the forced-building-exit/menu-suppression result. Its handler at
 `MAIN.EXE` file offset `0x38EE3` writes zero through the caller-provided control
-pointer held in the interpreter frame. Messages 97–98 at `SNR5.DAT 0x0489` end
-in `F8 F2` and eject Pietro from the Genoa Church, while messages 99–100 at
+pointer held in the interpreter frame. Messages 96–97 at `SNR5.DAT 0x0489` end
+in `F8 F2` and eject Pietro from the Genoa Church, while messages 98–99 at
 `0x049A` end in `F2` alone and leave the Lodge usable. Ejecting Pub messages
-90–91 and wildcard messages 101–102 likewise end in `F8 F2`. In a
+89–90 and wildcard messages 100–101 likewise end in `F8 F2`. In a
 before-battle `0xA1` route the same cleared word cancels the battle instead
 (code 8, `0x150FD`): no fight, message, Fame, or spoils, but the end-of-battle
 diplomacy still applies the naval Relation loss and personal-Friendship
@@ -730,8 +730,8 @@ changes from sea to port. Arrival's separate one-tick clock increment is at
 `MAIN.EXE 0x20521`; it is not a departure cost.
 
 `0x0862` is a DAT dialogue-instruction offset, not another route key. Message
-190 at that offset ("Well this is a surprise...") can appear in both the Bank
-and Lodge, while message 188 at `0x0851` ("Just a little advice...") can appear
+189 at that offset ("Well this is a surprise...") can appear in both the Bank
+and Lodge, while message 187 at `0x0851` ("Just a little advice...") can appear
 at the Guild. These are branches of João's wildcard scenario handler, not
 building-specific ordinary greetings. They are selected by `EB 00 0003` using
 the deterministic protagonist-scenario seed described above. Route keys are
@@ -746,7 +746,7 @@ C0 <position> CC <character-index:u16be> C8 <message-index:u16be> C7
 ```
 
 `position` is currently observed as `1` or `2`. Character and message indices
-are stored zero-based and converted to one-based JSON IDs.
+are stored zero-based, and the JSON IDs use the same zero-based values.
 
 Runtime captures resolve the positions spatially: position 1 is the upper
 dialogue panel and position 2 is the lower panel. Multiple consecutive lines
@@ -829,16 +829,16 @@ All offsets below point to the leading `C0`, not the following position byte.
 
 | Event               | First public message |     DAT offset | Completion candidate         |
 | ------------------- | -------------------: | -------------: | ---------------------------- |
-| Mother at night     |                    2 | `0x0082` (130) | `2C 01 01` at `0x0123` (291) |
-| Father introduction |                   23 | `0x0160` (352) | `2C 00 01` at `0x02C4` (708) |
-| Initial pub scene   |                   63 | `0x02E1` (737) | `2C 04 01` at `0x0323` (803) |
+| Mother at night     |                    1 | `0x0082` (130) | `2C 01 01` at `0x0123` (291) |
+| Father introduction |                   22 | `0x0160` (352) | `2C 00 01` at `0x02C4` (708) |
+| Initial pub scene   |                   62 | `0x02E1` (737) | `2C 04 01` at `0x0323` (803) |
 
 Examples:
 
 ```text
-C0 02 CC 0000 C8 0016 C7  João, position 2, public message 23
-C0 01 CC 0013 C8 0001 C7  Duchess, position 1, public message 2
-C0 01 CC 0061 C8 003E C7  Carlotta, position 1, public message 63
+C0 02 CC 0000 C8 0016 C7  João, position 2, public message 22
+C0 01 CC 0013 C8 0001 C7  Duchess, position 1, public message 1
+C0 01 CC 0061 C8 003E C7  Carlotta, position 1, public message 62
 ```
 
 The repeated three-byte form `2C <small index> <0|1>` occurs where one-shot
@@ -846,8 +846,8 @@ conversations complete. It is therefore classified as a likely Boolean
 scenario-state write. Its placement and the save-game comparison below both
 support that interpretation.
 
-After João sees the initial Pub introduction, a later visit displays message 62
-at `0x02D4` instead of replaying message 63 at `0x02E1`. The introduction writes
+After João sees the initial Pub introduction, a later visit displays message 61
+at `0x02D4` instead of replaying message 62 at `0x02E1`. The introduction writes
 `2C 04 01` at `0x0323`, while nearby branches reference flag 4 at `0x02D0` and
 `0x02DD`. Boolean flag 4 therefore records whether the opening Pub scene has
 already played.
@@ -903,14 +903,14 @@ the flag is clear.
 The initial pub introduction contains two commands between dialogue runs:
 
 ```text
-0x02FC  message 66: "Oh, don’t worry, Lucia and I have been friends forever!"
+0x02FC  message 65: "Oh, don’t worry, Lucia and I have been friends forever!"
 0x0305  C4
 0x0306  CA 04
-0x0308  message 67: "By the way, ... Rocco came by here looking for you."
+0x0308  message 66: "By the way, ... Rocco came by here looking for you."
 ```
 
-There is a brief pause and screen clear after message 66. The João theme then
-starts when message 67 appears, replacing the ordinary Pub music. These are
+There is a brief pause and screen clear after message 65. The João theme then
+starts when message 66 appears, replacing the ordinary Pub music. These are
 independent instructions: `C4` closes every open dialogue panel, while
 `CA <track ID>` selects music.
 
@@ -995,7 +995,7 @@ and ends the duel at either endpoint. The extractor records all five calls as
 `duelStartCandidates`. Combat rules and the circumstances of each encounter
 are documented in [Dueling](../../game-details/dueling.md).
 
-Immediately before message 293, the scenario executes:
+Immediately before message 292, the scenario executes:
 
 ```text
 0x0D3B  C0 03 CB 0070 0018 00
@@ -1063,7 +1063,7 @@ protagonist:
 | Otto, Catalina      | Piracy fame    |
 | Ali                 | Trade fame     |
 
-Catalina's first comparison uses Piracy Fame 1 and selects message 173,
+Catalina's first comparison uses Piracy Fame 1 and selects message 172,
 Emilio's warning about a harbor rumor. The ordinary Harbor dispatcher adds no
 higher effective Fame requirement.
 
@@ -1077,7 +1077,7 @@ Seville's raw
 port coordinate is `(142, 372)`. Thus the fleets spawn immediately outside
 Seville and pursue Catalina from there.
 
-At 1,500 Piracy Fame, an eligible ordinary building selects messages 230–239
+At 1,500 Piracy Fame, an eligible ordinary building selects messages 229–238
 and advances the subsection. The route continues only when the current port ID
 is **below 42**.
 
@@ -1085,15 +1085,15 @@ At 1,999 Fame, the section-2 Pub questioning repeats indefinitely. At 2,000,
 the same visible questioning runs once but `F1` advances to section 3. The next
 Pub visit in section 3/subsection 0 deliberately has no story dialogue and uses
 `F0` to advance the subsection. A third Pub visit then selects messages
-257–259, beginning with Andreas's reminder that they still have not found João.
+256–258, beginning with Andreas's reminder that they still have not found João.
 
 Catalina's section-4 search contains a similar-looking but structurally
 different transition. After the first Pub questioning at Perot's selected
 port, the next subsection's table gives the Pub, Palace, and context `0x15`
-explicit stop routes. Messages 372–375—the decision to wait for João—are on
+explicit stop routes. Messages 371–374—the decision to wait for João—are on
 the `0xA3FF` route and run only when the current port still equals Perot's
 stored destination. Entering an eligible ordinary building selects this route;
-returning to the Pub then produces messages 377–388. Thus the correct sequence
+returning to the Pub then produces messages 376–387. Thus the correct sequence
 is Pub → wildcard-routed non-Pub building → Pub, not three consecutive Pub
 visits.
 
@@ -1180,8 +1180,8 @@ writes through it.
 
 Ernst's Mercator routes use this mechanism in every story section 1–4; the
 first is at `SNR4.DAT 0x035F`. It reads Mercator's byte, masks it with `0x10`,
-and selects message 77 when Mercator is active. A clear Mercator bit selects
-messages 78–81, accusing Ernst of holding another cartographer's contract. The
+and selects message 76 when Mercator is active. A clear Mercator bit selects
+messages 77–80, accusing Ernst of holding another cartographer's contract. The
 following writes reactivate Mercator and clear the other four records, and
 `0x03EF–0x0412` then halves Ernst's Trade, Piracy, and Adventure Fame (words
 `+0`, `+2`, and `+4` of Fame record 3). Thus visiting Mercator after signing
@@ -1191,7 +1191,7 @@ Comparison lower bounds are inclusive and upper bounds are exclusive. João's
 2,000-adventure-Fame event is armed by visiting a regular-port Harbor, not by
 calling at port, advancing time, Navigation experience, or a port-call counter.
 The primary `0xA303` route advances subsection 0 when its Fame check passes;
-the subsequent Pub route then selects message 227.
+the subsequent Pub route then selects message 226.
 
 This matches the SNR exactly. The primary `0xA303` route is the regular-port
 Harbor context. It checks João's affiliation and adventure fame against 2,000,
@@ -1217,28 +1217,28 @@ The resulting Pub handler at `0x0A23` reads system value 5, now statically
 identified as the current port ID, and rejects IDs 0, 1, and 2: Lisbon, Seville,
 and Istanbul. Barcelona (3), Valencia (6), and Bordeaux (27) are confirmed or
 reported to work. It also accepts time ticks `0x0D` through `0x33` inclusive
-(04:20–17:00) before starting message 227 at `0x0A9F`. Since the Pub itself
+(04:20–17:00) before starting message 226 at `0x0A9F`. Since the Pub itself
 does not open until 08:00, the effective player-observed window is 08:00–17:00.
 Checking into the Lodge and advancing time while remaining in port still allows
 the event as long as the Pub is entered by 17:00.
 
 The Pub dialogue sets flag 0. The optional first Lodge visit shows messages
-270–271 and sets flag 8; revisiting then shows message 269. Flag 0 alone permits
-the Shipyard confrontation beginning with message 274. The Shipyard sequence
+269–270 and sets flag 8; revisiting then shows message 268. Flag 0 alone permits
+the Shipyard confrontation beginning with message 273. The Shipyard sequence
 sets flag 1 and clears flag 0, while the Port revelation beginning at message
-240 advances subsection 1 to 2. The home confrontation and successful duel set
+239 advances subsection 1 to 2. The home confrontation and successful duel set
 flag 5 at `0x10D8`, and the Palace trial sets flag 2 at `0x126C`. Section
 1/subsection 2 remains active after the trial.
 
-Returning to João's father after the trial presents message 310 and its player
+Returning to João's father after the trial presents message 309 and its player
 choice, then sets flag 3 at `0x0F60`. During this departure stage, entering a
-building other than the Harbor makes Prince Alberto say messages 394–395—
+building other than the Harbor makes Prince Alberto say messages 393–394—
 “$n, it was certainly fun, but we both have things that we must do” and
 “Let me walk you to the port. Let’s go.”—without ejecting João from that
 building. The reminder can therefore recur while the player continues using
 town buildings.
 
-Visiting the Harbor selects a different scene, messages 361–362: Alberto says
+Visiting the Harbor selects a different scene, messages 360–361: Alberto says
 he must return to the Palace, and João says farewell. The route then sets flag
 4 at `0x1159`. Flag 3 remains a historical departure-stage marker after
 Alberto has left; it is not simply “Prince currently present.” Flag 4 is
@@ -1252,13 +1252,13 @@ aftermath → optional building detours → Harbor farewell → set sail → at-
 `0xA001` route runs on voyage day 1; its `F1` transition clears all four
 scenario-flag bytes.
 
-The father-house aftermath presents message 310 as a player choice:
+The father-house aftermath presents message 309 as a player choice:
 “Hmm... I wonder. $n, what do you want to do? Are you going to quit sea
 travel?” Unlike ordinary lines, its selected-message instruction is followed by
 `E9 10` rather than `C7`. `E9` is a choice prompt; operand 16 is immediately
 tested as a flag. The set branch leads to messages
-311–317, where João offers to stay and help his father. The clear branch leads
-to messages 318–320, where he chooses to continue seeking Atlantis. This choice
+310–316, where João offers to stay and help his father. The clear branch leads
+to messages 317–319, where he chooses to continue seeking Atlantis. This choice
 controls dialogue within the scene; both branches eventually continue the
 scenario.
 
@@ -1306,15 +1306,15 @@ variable 0.
 Subsequent Pub or other-building visits can produce port-dependent warnings.
 The handler reads the current port into variable 1 and compares it with the Pub
 port retained in variable 0. Continuing in Seville and entering the Lodge shows
-messages 440–441. It then executes `EB 00 00 02`, selecting either 0 or 1, and
+messages 439–440. It then executes `EB 00 00 02`, selecting either 0 or 1, and
 Catalina appears only when the result is zero, giving a 50% chance on an
-eligible visit. Her branch shows messages 444–447, plays `CA 10` (the battle
+eligible visit. Her branch shows messages 443–446, plays `CA 10` (the battle
 theme “The Chase”), and
 sets flag 1. The following Harbor scene clears flags 0 and 1, sets flag 2, and
 prepares an at-sea-day-1 transition. This begins a longer multi-subsection
 Catalina pursuit that ultimately includes a naval encounter with her.
 
-The Harbor scene is messages 429–437. João asks whether Rocco is all right;
+The Harbor scene is messages 428–436. João asks whether Rocco is all right;
 Rocco returns and says he tied Catalina up in the merchant's storage room, then
 urges João to leave. The following `0xA001` voyage-day-1 route requires flag 2,
 clears it, and executes `F0`, advancing the story to subsection 2.

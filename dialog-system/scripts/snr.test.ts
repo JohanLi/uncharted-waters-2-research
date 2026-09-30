@@ -249,14 +249,14 @@ test("disassembles João's building dialogue and one-shot state writes", async (
 
   const lines = opening.dialogueRuns.flatMap((run) => run.lines);
   assert.deepEqual(
-    [23, 2, 63].map((messageId) => {
+    [22, 1, 62].map((messageId) => {
       const line = lines.find((candidate) => candidate.messageId === messageId);
       return [line?.offset, line?.characterId, line?.position];
     }),
     [
-      [352, 1, 2],
-      [130, 20, 1],
-      [737, 98, 1],
+      [352, 0, 2],
+      [130, 19, 1],
+      [737, 97, 1],
     ],
   );
   assert.deepEqual(
@@ -519,12 +519,12 @@ test("sequential VM decoding follows table-relative control flow", async () => {
 
   const joaoAfterTrial = scenarios[1]!.sections[1]!.dialogueRuns.flatMap(
     (run) => run.lines,
-  ).find((line) => line.messageId === 310);
+  ).find((line) => line.messageId === 309);
   assert.deepEqual(joaoAfterTrial, {
     offset: 0x0e23,
     position: 1,
-    characterId: 19,
-    messageId: 310,
+    characterId: 18,
+    messageId: 309,
     body: "Hmm... I wonder. $n, what do you want to do? Are you going to quit sea travel?",
     presentation: "choice-prompt",
     choiceFlag: 16,
@@ -534,7 +534,7 @@ test("sequential VM decoding follows table-relative control flow", async () => {
     (run) => run.lines,
   );
   assert.deepEqual(
-    [155, 174].map((messageId) => {
+    [154, 173].map((messageId) => {
       const line = sharedCourierLines.find(
         (candidate) => candidate.messageId === messageId,
       );
@@ -553,12 +553,12 @@ test("sequential VM decoding follows table-relative control flow", async () => {
   );
   const sharedGuildOffer = scenarios[0]!.sections[0]!.dialogueRuns.flatMap(
     (run) => run.lines,
-  ).find((line) => line.messageId === 2);
+  ).find((line) => line.messageId === 1);
   assert.deepEqual(sharedGuildOffer, {
     offset: 0x051c,
     position: 0,
-    speakerMessageId: 1,
-    messageId: 2,
+    speakerMessageId: 0,
+    messageId: 1,
     body: "I’ve got a job for you. I need you to transport some goods from the port of $r32 to $r33. Will you take on this job?",
     speakerLabel: "Old Guild Worker",
     presentation: "choice-prompt",
@@ -567,12 +567,12 @@ test("sequential VM decoding follows table-relative control flow", async () => {
   });
   const sharedNoCargoSpace = scenarios[0]!.sections[1]!.dialogueRuns.flatMap(
     (run) => run.lines,
-  ).find((line) => line.messageId === 14);
+  ).find((line) => line.messageId === 13);
   assert.deepEqual(sharedNoCargoSpace, {
     offset: 0x0a3b,
     position: 0,
-    speakerMessageId: 13,
-    messageId: 14,
+    speakerMessageId: 12,
+    messageId: 13,
     body: "You don’t have any room to store cargo on your ship right now. Come back once you’ve made room.",
     speakerLabel: "Head Trader",
     rawHex: "c000c8000cc8000dc7",
@@ -597,18 +597,18 @@ test("sequential VM decoding follows table-relative control flow", async () => {
   );
   assert.equal(accountedSharedMessageIds.size, 272);
   assert.deepEqual(
-    Array.from({ length: 272 }, (_, index) => index + 1).filter(
+    Array.from({ length: 272 }, (_, index) => index).filter(
       (messageId) => !accountedSharedMessageIds.has(messageId),
     ),
     [],
   );
   assert.deepEqual(
-    sharedLines.find((line) => line.messageId === 30),
+    sharedLines.find((line) => line.messageId === 29),
     {
       offset: 0x0b51,
       position: 0,
-      speakerMessageId: 29,
-      messageId: 30,
+      speakerMessageId: 28,
+      messageId: 29,
       body: "You’ve only got a few hours left. Maybe it’s too tough an assignment for you?",
       speakerLabel: "Head Trader",
       presentation: "choice-prompt",
@@ -618,7 +618,7 @@ test("sequential VM decoding follows table-relative control flow", async () => {
     },
   );
   assert.deepEqual(
-    [148, 149].map((messageId) => {
+    [147, 148].map((messageId) => {
       const line = sharedLines.find(
         (candidate) => candidate.messageId === messageId,
       );

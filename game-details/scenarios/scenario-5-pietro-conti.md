@@ -76,7 +76,7 @@ Mordes in Bordeaux) clears Marco's bit. In every story subsection of
 sections 1–3, the Franco home's first route reads that bit. If it is clear:
 
 1. Marco asks whether Pietro holds other contracts and insists that he renew
-   the one with the Duchess (messages 104–108 and their later copies).
+   the one with the Duchess (messages 103–107 and their later copies).
 2. The route sets Marco's contract bit again and clears bit `0x10` on
    collector records 1–4.
 3. It halves all three of Pietro's Fame values, Trade, Piracy, and Adventure,
@@ -101,20 +101,20 @@ the story.
 
 1. Visit the **Genoa Harbor**. The harbormaster demands the money that
    Pietro's father owed and mentions that Camillo is in town and walking
-   toward the Pub (messages 26–34). The scene writes `-10` to the Bank's
+   toward the Pub (messages 25–33). The scene writes `-10` to the Bank's
    signed hundreds word (save `0x060E`), putting Pietro **1,000 gold** in debt
    at the Bank, sets flag 0, and ejects him. Later Harbor visits ask, “Have ye
    run into Camillo?” and eject him again.
 2. Visit the **Genoa Pub**. Before the Harbor scene, the barkeeper only jokes
-   about Pietro's unpaid tab and ejects him (messages 1–2). Afterward, the Pub
-   plays Pietro's theme and Camillo's offer (messages 3–21): the Duchess will
+   about Pietro's unpaid tab and ejects him (messages 0–1). Afterward, the Pub
+   plays Pietro's theme and Camillo's offer (messages 2–20): the Duchess will
    sponsor Pietro and take care of his debts, and Camillo hands him command
    of a ship, which Pietro names the _Falcon_.
 3. The scene then sets up the voyage (`0x0120–0x0157`):
    - Camillo (sailor 76) joins the mate roster (`FB 4C`) and becomes First
      Mate (duty byte `+0x26 = 3`).
    - A **Caravela Latina** (ship model 5) is created in the player fleet and
-     commissioned as the _Falcon_ (`F9 05`, `FA` with message 22), with
+     commissioned as the _Falcon_ (`F9 05`, `FA` with message 21), with
      Pietro as captain.
    - Fleet slot 0 receives 10 crew, and its supply record receives 100
      tenths each of water and food, that is, 10 barrels of each.
@@ -134,13 +134,13 @@ slot 0.
 
 | Building                           | Before the Camillo scene                                                         | After the Camillo scene                                                         |
 | ---------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Harbor                             | The debt scene, then “Have ye run into Camillo?”; both eject Pietro.             | Camillo's reminder that provisions are low (message 92). Pietro is not ejected. |
-| Pub                                | The barkeeper's joke (messages 1–2), ejecting Pietro; then the Camillo scene.    | Another joke about Pietro's tab (messages 90–91), ejecting him.                 |
-| Bank                               | The banker asks about repayment (messages 35–38) and ejects Pietro.              | Similar exchange (messages 93–96), also ejecting.                               |
-| Church                             | The priest asks for a donation or repayment (messages 39–40); Pietro is ejected. | Similar exchange (messages 97–98), also ejecting.                               |
-| Lodge                              | The keeper offers to hide Pietro (messages 41–42). The Lodge stays usable.       | Similar offer (messages 99–100); the Lodge stays usable.                        |
+| Harbor                             | The debt scene, then “Have ye run into Camillo?”; both eject Pietro.             | Camillo's reminder that provisions are low (message 91). Pietro is not ejected. |
+| Pub                                | The barkeeper's joke (messages 0–1), ejecting Pietro; then the Camillo scene.    | Another joke about Pietro's tab (messages 89–90), ejecting him.                 |
+| Bank                               | The banker asks about repayment (messages 34–37) and ejects Pietro.              | Similar exchange (messages 92–95), also ejecting.                               |
+| Church                             | The priest asks for a donation or repayment (messages 38–39); Pietro is ejected. | Similar exchange (messages 96–97), also ejecting.                               |
+| Lodge                              | The keeper offers to hide Pietro (messages 40–41). The Lodge stays usable.       | Similar offer (messages 98–99); the Lodge stays usable.                         |
 | Palace and House of Fortune        | Explicit empty routes: ordinary behavior.                                        | Explicit empty routes: ordinary behavior.                                       |
-| Market, Shipyard, Item Shop, Guild | The Genoa wildcard: “$n, you dirty crook!” (messages 43–44), ejecting Pietro.    | The same creditor (messages 101–102), ejecting Pietro.                          |
+| Market, Shipyard, Item Shop, Guild | The Genoa wildcard: “$n, you dirty crook!” (messages 42–43), ejecting Pietro.    | The same creditor (messages 100–101), ejecting Pietro.                          |
 
 The Palace entry includes context `0x15`, the Meet Ruler dispatch; it also has
 an explicit empty route.
@@ -155,9 +155,9 @@ routes and an any-port Harbor reminder:
 | Franco home              | Marco shows Pietro and Camillo in. The Duchess's scene plays (below) and ejects Pietro.                 | No story route: Marco's ordinary collector menu.                   |
 | Lisbon Harbor            | Camillo says they have not met the sponsor yet and that she lives in the biggest house in town; ejects. | The departure conversation, then section 1 (below).                |
 | Other Lisbon buildings   | Camillo: “$n, we had better hurry up and see the Duchess.” The building stays usable.                   | No story route.                                                    |
-| Any other regular Harbor | Camillo's reminder to head for Lisbon because provisions are low (message 103).                         | Same reminder until the Lisbon departure. Pietro is never ejected. |
+| Any other regular Harbor | Camillo's reminder to head for Lisbon because provisions are low (message 102).                         | Same reminder until the Lisbon departure. Pietro is never ejected. |
 
-The Duchess's scene (messages 45–75) makes the following changes
+The Duchess's scene (messages 44–74) makes the following changes
 (`0x033E–0x03B4`):
 
 - Pietro's carried gold is **set** to 5,000 (`E4`). This replaces the amount
@@ -178,7 +178,7 @@ bytecode checks such a report; it is story motivation for sections 2 and 3.
 
 Returning to the **Lisbon Harbor** then plays Camillo's reaction to Pietro's
 bluntness and Pietro's choice to begin with the Nile and Alexandria (messages
-79–88). The route clears flag 0 and advances to section 1. It does not eject
+78–87). The route clears flag 0 and advances to section 1. It does not eject
 Pietro, so the Harbor menu remains available for departure.
 
 ## Section 1: the Gold Medallion (1 Gold Ingot)
@@ -190,7 +190,7 @@ following are true:
 
 - `EA` reports at least **1 Gold Ingot**, meaning at least 10,000 gold on hand.
   Bank savings do not count. At 9,999 gold the Pub behaves normally; at 10,000
-  it reaches message 109, “Ye’re $n, the adventurer, right?”
+  it reaches message 108, “Ye’re $n, the adventurer, right?”
 - The current port ID is **42 or higher**. This excludes Europe and the
   Mediterranean, including Lisbon, Genoa, and Alexandria, and admits the New
   World (42–56), Madeira (57), and every port farther east or south. Adventure
@@ -203,10 +203,10 @@ The patron explains the Gold Medallion and El Dorado and offers a map for
 **2,000 gold** (`E9 0A`):
 
 - **Yes**: Pietro calls him a liar but pays **2,000**. The patron then repeats
-  the story of the pirates and the Portuguese adventurer (messages 131–139).
+  the story of the pirates and the Portuguese adventurer (messages 130–138).
 - **No**: Pietro says the tale “Sounds like bunk to me,” and the patron drops
   the price to **1,000**. There is no second prompt: Pietro pays 1,000 and
-  hears the same story in another wording (messages 120–130).
+  hears the same story in another wording (messages 119–129).
 
 Refusing is therefore cheaper. Neither branch can fail for lack of money,
 because the route has already required 10,000 gold.
@@ -253,7 +253,7 @@ home's contract check and the any-port Harbor route `0xA303`:
 1. Enter the **Harbor** of any regular port while carrying the Gold
    Medallion (item 97) in any of the twenty inventory slots (`0x07B0`).
 2. Pietro's theme plays over event art: Camillo admires the medallion and
-   they resolve to search for El Dorado (messages 145–149).
+   they resolve to search for El Dorado (messages 144–148).
 3. The route adds **1,000 Adventure Fame**, capped at 50,000, and advances to
    section 2. The Medallion stays in the inventory.
 
@@ -266,8 +266,8 @@ map alone does nothing.
 
 | Stage              | Required action                                                                                   | What changes                                                                                                                                                                   |
 | ------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Meet João          | With at least 10,000 Adventure Fame and the Duchess's contract intact, visit the **Franco home**. | Marco asks Pietro to wait; the Duchess introduces João, who asks Pietro to find Poseidon's Staff and bring it to Massawa (messages 155–175). Flag 0 is set; Pietro is ejected. |
-| Doubts at the pier | Visit the **Lisbon Harbor**.                                                                      | Camillo doubts the job; Pietro decides to head for Arabia (messages 176–180). Flag 0 is cleared; the subsection advances.                                                      |
+| Meet João          | With at least 10,000 Adventure Fame and the Duchess's contract intact, visit the **Franco home**. | Marco asks Pietro to wait; the Duchess introduces João, who asks Pietro to find Poseidon's Staff and bring it to Massawa (messages 154–174). Flag 0 is set; Pietro is ejected. |
+| Doubts at the pier | Visit the **Lisbon Harbor**.                                                                      | Camillo doubts the job; Pietro decides to head for Arabia (messages 175–179). Flag 0 is cleared; the subsection advances.                                                      |
 
 Only these two Lisbon routes exist in this subsection. Reaching 10,000 Fame
 anywhere else changes nothing until the Franco home is visited.
@@ -286,25 +286,25 @@ The route sequence is:
 
 1. Enter a **Pub** in a port with ID **72–80**: Aden, Hormuz, Massawa, Cairo,
    Basra, Mecca, Quatar, Shiraz, or Muscat. Pietro asks about the legend
-   (messages 195–197). On the first such visit, the bartender says the
-   fortune teller in the port of variable 16 may know (message 198). Variable
+   (messages 194–196). On the first such visit, the bartender says the
+   fortune teller in the port of variable 16 may know (message 197). Variable
    17 records this Pub's port and flag 0 is set. Pubs outside 72–80 have no
    story route in this subsection.
 2. Visit the **House of Fortune** in the named port (variable 16). The fortune
    teller tells the Staff's legend and sends Pietro to the Pub in the port of
-   variable 18, where her family will say more (messages 184–194). Flag 1 is
+   variable 18, where her family will say more (messages 183–193). Flag 1 is
    set and Pietro is ejected before the ordinary House of Fortune menu, so no
    reading fee is charged. A House of Fortune in any other port behaves
    normally.
 3. Enter the **Pub** in the brother's port (variable 18). After the ordinary
-   legend exchange and message 200, Pietro repeats the fortune teller's
+   legend exchange and message 199, Pietro repeats the fortune teller's
    message; the brother explains his family's oath to the Atlanteans and
-   gives Pietro the map (messages 201–213).
+   gives Pietro the map (messages 200–212).
 
 The Pub questioning contains a roll, `random(200)`, meant to be compared with
-Pietro's Luck, with message 200, “You said it yourself - it’s only a legend,”
+Pietro's Luck, with message 199, “You said it yourself - it’s only a legend,”
 as the failure. As encoded, the roll can never fail.[^luck-address] Once flag 0
-is set, other 72–80 Pubs play message 200 and Pietro's “Thanks.” The Pub that
+is set, other 72–80 Pubs play message 199 and Pietro's “Thanks.” The Pub that
 gave the lead repeats the same fortune-teller port.
 
 The brother's port is rolled each time the fortune teller's scene plays. That
@@ -335,7 +335,7 @@ map's site and **Search**. The Map of Staff is replaced by Poseidon's Staff.
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | Harbor in the brother's port        | After the fortune teller's scene: “We’re supposed to ask at the pub in this port.”                        |
 | Harbor in the fortune teller's port | After the first lead: “Do you think the fortune teller in this town really knows about Poseidon’s Staff?” |
-| Any other Harbor with port ID 72–80 | Camillo suggests asking at the Pub (messages 218–219).                                                    |
+| Any other Harbor with port ID 72–80 | Camillo suggests asking at the Pub (messages 217–218).                                                    |
 | Any other regular Harbor            | “$n, let’s get on our way to Arabia.”                                                                     |
 
 None of these Harbor lines ejects Pietro. The checks are made in the order
@@ -348,11 +348,11 @@ After the map is handed over, the subsection's table (`0x0CEF`) adds Massawa
 
 | Building                                      | Story behavior                                                                                                                                                                                                                                      |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Massawa Pub                                   | With Poseidon's Staff in any slot: the slot is emptied, event art shows the Staff, and Pietro gives it to João, asking about El Dorado (messages 224–228). **+5,000 Adventure Fame**, capped at 50,000; section 3 begins. Without it: ordinary Pub. |
-| Massawa special building                      | With the Staff: Meconbe says João is probably in the Pub, and Pietro is ejected (messages 229–231). Without it: ordinary behavior.                                                                                                                  |
+| Massawa Pub                                   | With Poseidon's Staff in any slot: the slot is emptied, event art shows the Staff, and Pietro gives it to João, asking about El Dorado (messages 223–227). **+5,000 Adventure Fame**, capped at 50,000; section 3 begins. Without it: ordinary Pub. |
+| Massawa special building                      | With the Staff: Meconbe says João is probably in the Pub, and Pietro is ejected (messages 228–230). Without it: ordinary behavior.                                                                                                                  |
 | Other Massawa buildings, Harbor included      | With the Staff: “Joao is over in the pub.” The building stays usable. Without it: ordinary behavior.                                                                                                                                                |
 | House of Fortune in the fortune teller's port | “Did you find Poseidon’s Staff?” With the Staff: Pietro shows it and she urges him to Massawa. Without it: “You haven’t found it yet?” The House of Fortune stays usable.                                                                           |
-| Pub in the brother's port                     | The brother asks the same question, with equivalent answers (messages 238–241).                                                                                                                                                                     |
+| Pub in the brother's port                     | The brother asks the same question, with equivalent answers (messages 237–240).                                                                                                                                                                     |
 | Any other regular Harbor                      | With the Staff: “Let’s take the staff to Joao in Massawa. Hoist those sails!” Without it: ordinary behavior.                                                                                                                                        |
 
 ## Section 3: El Dorado and Raul Franco (40,000 Fame)
@@ -361,9 +361,9 @@ After the map is handed over, the subsection's table (`0x0CEF`) adds Massawa
 
 | Stage                | Required action                                                                | What changes                                                                                                                                                     |
 | -------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ali's message        | With at least 40,000 Adventure Fame, visit the **Harbor** of any regular port. | Ali Vezas relays João's message: the golden country of Zipangu lies near 35°N 135°E (messages 248–256). The subsection advances; the Harbor menu remains usable. |
-| First Japanese port  | Visit the **Harbor** in Sakai (98) or Nagasaki (99).                           | Camillo: this is Zipangu, but not El Dorado (messages 260–261). Flag 0 records Sakai; flag 1 records Nagasaki.                                                   |
-| Second Japanese port | Visit the **Harbor** in the other Japanese port.                               | Ernst von Bohr suggests South America, near the equator, 50–70°W (messages 262–272). The Raul threshold is rolled and the subsection advances.                   |
+| Ali's message        | With at least 40,000 Adventure Fame, visit the **Harbor** of any regular port. | Ali Vezas relays João's message: the golden country of Zipangu lies near 35°N 135°E (messages 247–255). The subsection advances; the Harbor menu remains usable. |
+| First Japanese port  | Visit the **Harbor** in Sakai (98) or Nagasaki (99).                           | Camillo: this is Zipangu, but not El Dorado (messages 259–260). Flag 0 records Sakai; flag 1 records Nagasaki.                                                   |
+| Second Japanese port | Visit the **Harbor** in the other Japanese port.                               | Ernst von Bohr suggests South America, near the equator, 50–70°W (messages 261–271). The Raul threshold is rolled and the subsection advances.                   |
 
 Revisiting the first Japanese Harbor does nothing. Both ports are required, in
 either order. The scenario does not change either port's discovery status, so
@@ -376,15 +376,15 @@ Caribbean port IDs 42–56 except 46.
 ### Raul Franco
 
 1. Visit the **Harbor** of a port with ID 42–56. Camillo remarks that South
-   America is big (message 276).
+   America is big (message 275).
 2. If the current port ID is **at least** variable 16, Pietro and Camillo find
    the injured Raul Franco. Over event art, Raul tells of El Dorado, the
    medallion he gave to the villagers, his imprisonment by the renegade
    Portuguese army, and his son Leon. Pietro realizes that Raul is Duke Leon's
-   father and decides to take him home (messages 277–336). The subsection
+   father and decides to take him home (messages 276–335). The subsection
    advances.
 3. Otherwise Pietro says the search will be tough and suggests asking in port
-   (messages 337–338).
+   (messages 336–337).
 
 The comparison is `port < variable 16 → fail`, not an equality test
 (`0x1302`). Every port from the rolled ID through 56 works, and Cayenne (56)
@@ -392,7 +392,7 @@ always does. Panama can succeed whenever the roll is 46 or lower. Pietro shows
 Raul the medallion in the dialogue, but the route does not check for the item.
 
 While the search is active, other buildings in ports 42–56 play a local's “Just
-a legend, my friend” exchange about El Dorado (messages 339–342) without
+a legend, my friend” exchange about El Dorado (messages 338–341) without
 ejecting Pietro. The Palace, Church, Bank, and House of Fortune have explicit
 empty routes and behave normally.
 

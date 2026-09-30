@@ -148,9 +148,9 @@ Each table entry points to a null-terminated string. The strings use `printf`-
 style placeholders such as `%s`, `%d`, and `%ld`; `MAIN.EXE` supplies their
 runtime values.
 
-Executable references are normally zero-based, while prose inventories often
-number entries for humans. Any citation should say whether it is a **raw
-index** or a **one-based entry number**. This avoids an easy off-by-one error.
+Executable references are zero-based, and citations in this repository give
+that **raw index**, never a one-based entry number. This avoids an easy
+off-by-one error.
 
 `MAIN.EXE` loads `MESSAGE.DAT` into the handle at `DS:0x05DC` and
 `MESSAGE2.DAT` into the handle at `DS:0x05DE`. The loader is at file offsets
@@ -168,8 +168,8 @@ Callers see the pair as one continuous zero-based namespace:
 
 The dispatcher at `0x39336` performs the `1000` comparison (at `0x39339`) and
 subtraction.
-Consequently, an executable operand of `1047` means raw index `47` (one-based
-entry 48) in `MESSAGE2.DAT`; it is not an out-of-range `MESSAGE.DAT` index.
+Consequently, an executable operand of `1047` means raw index `47` in
+`MESSAGE2.DAT`; it is not an out-of-range `MESSAGE.DAT` index.
 
 Two recurring presentation call families use this namespace: far calls to
 `0000:8D95`, used by the ordinary upper building panel, and calls to
@@ -188,8 +188,8 @@ An MES file begins with a big-endian `u32` offset table. As with the general
 message files, the first string offset is the size of the table; dividing it by
 four gives the message count. Each offset points to a null-terminated string.
 
-Scenario bytecode stores zero-based message indices. The extractor exposes
-one-based `messageId` values in JSON and readable transcripts.
+Scenario bytecode stores zero-based message indices. The extractor exposes the
+same zero-based values as `messageId` in JSON and readable transcripts.
 
 Some strings begin with a label such as:
 
@@ -241,8 +241,8 @@ For protagonist scenarios:
 - selectors `0xA1` and `0xA2` are before- and after-naval-battle hooks
   ([Naval battle](../game-details/naval-battle.md#how-a-battle-ends)).
 
-The known building qualifiers use zero-based values compared with the
-one-based building IDs documented in [Buildings](../game-details/buildings.md):
+The known building qualifiers are the zero-based building IDs documented in
+[Buildings](../game-details/buildings.md):
 
 | Qualifier | Building/context                                        |
 | --------: | ------------------------------------------------------- |
@@ -318,7 +318,7 @@ C0 02 CC 0000 C8 0016 C7
 ```
 
 selects slot 2, character index 0, and raw message index `0x16`; the generated
-transcript reports character 1 and public message 23.
+transcript reports character 0 and public message 22.
 
 ### Indirect portrait dialog
 
@@ -370,7 +370,7 @@ entries therefore make one visible line, not two successive lines.
 
 Ordinary vendor portraits are selected separately from scenario `CC`
 characters. Zero-based `GRAPH.DAT` records 6–17 map in order to building IDs
-1–12, with record 20 replacing the Church portrait in Mosque ports. Special
+0–11, with record 20 replacing the Church portrait in Mosque ports. Special
 residences always retain record 13 even when a named collector, cartographer,
 teacher, or story character supplies the dialogue. See
 [Buildings](../game-details/buildings.md#vendor-portraits-and-dialogue-panels).
@@ -402,7 +402,7 @@ Markdown explicitly warns that file order is not necessarily runtime order.
 
 `E9 <flag>` replaces the usual final `C7` presentation with a choice prompt.
 The result is stored in the named scenario flag and can control later branches.
-For example, João's message 310 uses `E9 10` and records the answer in flag 16.
+For example, João's message 309 uses `E9 10` and records the answer in flag 16.
 
 ## Presentation, state, and game actions
 
@@ -436,14 +436,14 @@ The following operations matter when describing what the player experiences:
 João's initial Pub introduction contains:
 
 ```text
-message 66
+message 65
 C4
 CA 04
-message 67
+message 66
 ```
 
-A brief screen clear follows message 66, and João's theme begins with
-message 67. Elsewhere, raw `CA 10` selects the battle theme, `CA 05` selects
+A brief screen clear follows message 65, and João's theme begins with
+message 66. Elsewhere, raw `CA 10` selects the battle theme, `CA 05` selects
 Catalina's theme, `CA 06` selects Otto's theme, and `CA 13` selects the Pub
 theme (“Fiddler's Green”). Track operands in byte dumps are hexadecimal;
 generated JSON writes their numeric value in decimal.

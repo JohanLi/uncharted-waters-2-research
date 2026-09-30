@@ -730,8 +730,8 @@ function presentDialogue(
       : { characterVariable: presentation.characterVariable }),
     ...(speakerMessageIndex === undefined
       ? {}
-      : { speakerMessageId: speakerMessageIndex + 1 }),
-    messageId: messageIndex + 1,
+      : { speakerMessageId: speakerMessageIndex }),
+    messageId: messageIndex,
     body: message.body,
     ...(speakerMessage?.speakerLabel
       ? { speakerLabel: speakerMessage.speakerLabel }
@@ -1136,7 +1136,7 @@ function executeRoute(
     } else if (instruction.opcode === 0xc4) {
       delete state.presentation;
     } else if (state.presentation && instruction.opcode === 0xcc) {
-      state.presentation.characterId = bytes.readUInt16BE(1) + 1;
+      state.presentation.characterId = bytes.readUInt16BE(1);
       delete state.presentation.characterVariable;
       state.presentation.instructionOffsets.push(instruction.offset);
       state.presentation.rawParts.push(instruction.rawHex);
@@ -2304,7 +2304,7 @@ function formatOrdinaryCommand(
     lines.push("  No fixed command dialogue is displayed.");
   for (const dialogue of command.dialogue)
     lines.push(
-      `  ${dialogue.bank} raw ${dialogue.rawIndex} (entry ${dialogue.entryNumber}) · ${dialogue.speaker}: ${dialogue.text}`,
+      `  ${dialogue.bank} raw ${dialogue.rawIndex} · ${dialogue.speaker}: ${dialogue.text}`,
     );
   lines.push(
     command.menu.length > 0
@@ -2388,7 +2388,7 @@ export function formatQueryResult(result: ScenarioQueryResult): string {
       lines.push("  No ordinary greeting or access message is displayed.");
     for (const dialogue of ordinary.dialogue)
       lines.push(
-        `  ${dialogue.bank} raw ${dialogue.rawIndex} (entry ${dialogue.entryNumber}) · ${dialogue.speaker}: ${dialogue.text}`,
+        `  ${dialogue.bank} raw ${dialogue.rawIndex} · ${dialogue.speaker}: ${dialogue.text}`,
       );
     lines.push(
       ordinary.menu.length > 0

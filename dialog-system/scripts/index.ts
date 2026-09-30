@@ -39,13 +39,13 @@ export async function run(): Promise<void> {
       continue;
     }
     if (cursor + 7 > dat.length) break;
-    const characterId = dat.readUInt16BE(cursor) + 1;
+    const characterId = dat.readUInt16BE(cursor);
     cursor += 2;
     cursor++;
-    const messageId = dat.readUInt16BE(cursor) + 1;
+    const messageId = dat.readUInt16BE(cursor);
     cursor += 2;
     cursor += 2;
-    const message = messages[messageId - 1];
+    const message = messages[messageId];
     if (message) {
       message.characterId = String(characterId);
       message.position = first;

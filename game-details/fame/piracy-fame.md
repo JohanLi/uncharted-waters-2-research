@@ -171,7 +171,7 @@ Piracy Fame, each capped at 50,000:
 | After the Santo Domingo battle, before the Amazon search  | `0x173C–0x175A` |       1,000 |
 
 Each award runs in an after-naval-battle route (`0xA2FF`), following messages
-387–389 and 395–398 respectively.
+386–388 and 394–397 respectively.
 
 Catalina receives Piracy Fame through the ordinary naval-victory calculation
 during her combat-focused story; her scenario bytecode does not contain an

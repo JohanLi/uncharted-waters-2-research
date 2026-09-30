@@ -90,7 +90,7 @@ points toward the intended sequence.
    Harbor says that Father Felippe was looking for João and ejects him before
    he can use the Harbor menu.
 5. Visit the **Shipyard** to receive the newly built _Hermes II_. `FA` at
-   `0x0603` commissions the pending ship under the name in message 139 and
+   `0x0603` commissions the pending ship under the name in message 138 and
    sets flag 3.
 6. Recruit enough sailors at the **Pub** to put a crew aboard the _Hermes II_.
    This is an ordinary engine requirement, not a João-scenario flag:
@@ -131,7 +131,7 @@ points toward the intended sequence.
 | Item Shop                                | Before the briefing, the shopkeeper says Rocco was looking for João and ejects him. Afterward, Marco's prepaid rapier (raw item `0x03`) is written directly into the second inventory slot on the first visit (`0x0816–0x0821`, flag 9). Every later visit repeats the reminder to equip it. No other route tests flag 9.                                                                                                                                                                                                                               |
 | Guild, Bank, Lodge, and House of Fortune | These buildings have no specific opening route, so all use the Lisbon wildcard route. On each visit before the briefing, `EB 00 0003` selects one of three runs: a greeting followed by the news that Rocco was looking for João; advice to visit Carlotta's Pub; or the generic “Are you avoiding something?” exchange. After the briefing, it selects one of three other runs: João asking to be treated like a regular sailor; encouragement about finding Atlantis; or a remark that João will be leaving soon. None advances the opening sequence. |
 
-The Church's gold offer (`C9` at `0x04A3`, menu text message 104) sets flag 8
+The Church's gold offer (`C9` at `0x04A3`, menu text message 103) sets flag 8
 whatever the answer:
 
 | Choice     | Result                                                                                                 |
@@ -174,7 +174,7 @@ remains ordinary.
 ### Buildings while the event is forced
 
 - Between the rumor and the Shipyard confrontation, the **Lodge** gives the
-  direct clue (messages 270–271, flag 8); a repeat visit repeats the clue.
+  direct clue (messages 269–270, flag 8); a repeat visit repeats the clue.
   Other ordinary buildings ask, “Are you sure he said Domingo was at the
   lodge?” until the clue is heard, and afterward say, “We'd better get to the
   shipyard... and fast!” Both eject João. A **Harbor** visit at this point
@@ -198,7 +198,7 @@ remains ordinary.
   Palace turns João away because it is the day of the trial; the Harbor asks
   about getting the Prince to the Palace. The Palace cannot clear the
   accusation until the home scene is complete.
-- After the trial, the **Franco home** gives the message 310 Yes/No choice.
+- After the trial, the **Franco home** gives the message 309 Yes/No choice.
   The two answers change João's words, but both send him back to sea to seek
   Atlantis, and both add 1,000 Piracy Fame and 1,000 Adventure Fame, each
   capped at 50,000 (`0x0F19–0x0F4B`). Only **No** (João will not quit) leads
@@ -529,7 +529,7 @@ Taphali's reward scans the inventory for `0x62` and replaces the first match
 with raw item `0x2C`, the Royal Crown (`0x2B0C–0x2B32`). The scene does not
 test for the Staff beforehand: if João no longer carries it, the dialogue,
 Fame award, and advance still happen, but no crown is given. The same scene
-also copies message 900, “Massawa”, into port 74's name field
+also copies message 899, “Massawa”, into port 74's name field
 (`0x2B35–0x2B3D`, record group `0C`, field `+0x04`).
 
 While João carries the Staff (after Pietro's arrival and before Taphali's
@@ -641,7 +641,7 @@ time, and Navigation state, so re-entering at the same moment repeats it.
     “Pirate Rudolph” has no separate sailor record. The scene
     repurposes sailor ID 60, normally Antonio Khan: it writes `0x3B`
     to the record's displayed-character/portrait selector at `+0x12`, loads the
-    strings “Pirate” and “Rudolph” (messages 1053 and 1054, `D4 041C` and
+    strings “Pirate” and “Rudolph” (messages 1052 and 1053, `D4 041C` and
     `D4 041D`), and copies them into the two nine-byte name fields at `+0x00`
     and `+0x09`. It then starts the duel with `E8 3C`. The scenario does not
     write the eight attributes at `+0x14..+0x1B` or the Navigation and Battle
@@ -778,7 +778,7 @@ Choosing **Yes** lets the battle proceed but deliberately makes the scenario
 unwinnable. Both routes apply the same mechanical punishment
 ([Stats](../stats.md)):[^ally-attack-failure]
 
-- João's first name is replaced with message 1160 “Spiteful” or 1170
+- João's first name is replaced with message 1159 “Spiteful” or 1169
   “Nitwit”.
 - Leadership, Seamanship, Knowledge, Intuition, Courage, and Swordsmanship are
   set to `10`.

@@ -914,7 +914,7 @@ The ashore bits are cleared whenever a landing menu opens, so leaving by
 
 ## Items at sea
 
-The item menu offers **Equip** and **Use** (`MENU.DAT` record 34, handler
+The item menu offers **Equip** and **Use** (`MENU.DAT` entry 33, handler
 `0x2F91B`), so an item cannot be dropped at sea. **Use** (`0x2F8C4`) picks a
 handler from the low four bits of the item's type byte `+0x15`: measuring
 instruments (7) at `0x2F75F`, voyager's aids (8) at `0x2F5C9`, emergency

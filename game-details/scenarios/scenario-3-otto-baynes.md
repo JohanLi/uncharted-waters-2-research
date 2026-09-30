@@ -102,7 +102,7 @@ mate roster, set his duty byte to 3 (First Mate), and execute `F0`.
 
 [^idiot]:
     `SNR3.DAT 0x03F3–0x0415`: `F9 05` starts a pending ship of raw type 5
-    (Caravela Latina), and `FA 05 0055` commissions it with message 86,
+    (Caravela Latina), and `FA 05 0055` commissions it with message 85,
     “Idiot”. The script then writes crew word 20 to fleet slot 0 and 200
     tenths of Water and of Food to supply record 0. It sets flag 1.
 
@@ -159,7 +159,7 @@ section 1 also skips its pursuit story (below).
     `SNR3.DAT 0x07B3–0x087D`. The scene plays `CA 13`, shows `EVENT3.DAT`
     record 4, and then clears the active bit `0x10` of fleet slot 0 and writes
     `0xFF` to byte `+0x11` of ship instance 0. `F9 0A` and `FA 0A 00A6` create
-    raw type 10, a Galleon, named with message 167, “Fools”. In an ordinary game
+    raw type 10, a Galleon, named with message 166, “Fools”. In an ordinary game
     the _Idiot_ is Otto's only ship, so slot 0 and instance 0 are the ones
     reused. The slot receives 150 crew, 70 guns, and durability 100/100 (bytes
     `+0x00`, `+0x06`, `+0x02`, and `+0x03`). ORing `0x04` into status byte
@@ -457,9 +457,9 @@ clear.
 
 [^ezequiel-record]:
     `SNR3.DAT 0x1B31–0x1BA3`, repeated at `0x1D65–0x1DD7` for the
-    second chance. `D4` and the selector-0 string copy write message 466,
+    second chance. `D4` and the selector-0 string copy write message 465,
     “Ezequiel”, to the last-name field `+0x09` of sailor 60 (normally Antonio
-    Khan) and message 467, “Roberto”, to the first-name field `+0x00`. A word
+    Khan) and message 466, “Roberto”, to the first-name field `+0x00`. A word
     write of 25 sets portrait byte `+0x12` to Ezequiel's portrait and also
     zeroes byte `+0x13`. The attributes at `+0x14..+0x1B` become Leadership
     98, Seamanship 96, Knowledge 97, Intuition 97, Courage 98, Swordsmanship
