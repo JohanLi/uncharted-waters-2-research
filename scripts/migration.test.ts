@@ -87,7 +87,7 @@ test("all migrated domain extractors produce compatible artifacts", async () => 
     [
       "portraits-items-discoveries",
       "items.json",
-      "ab2d46ffefb0fc8fb2498b5458bbb15afa9657aee9a84b8dc6be6159d37ade0b",
+      "b1bf260ddc960687945c39f2580336edf903184ead205cf74787bc0cb5063eb4",
     ],
     [
       "portraits-items-discoveries",

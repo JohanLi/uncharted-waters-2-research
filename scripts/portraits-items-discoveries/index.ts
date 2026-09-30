@@ -117,14 +117,20 @@ async function itemText(output: string): Promise<void> {
     const rating = executable[cursor++]!;
     const category = executable[cursor++]! + 1;
     const description = descriptions[index]!;
+    // Unused records; the treasure maps and royal artifacts follow "Reserve".
     if (
-      ["106", "bendadecan", "chakuses", "Expiation", "Pardon", "null"].includes(
-        name,
-      ) ||
+      [
+        "106",
+        "bendadecan",
+        "chakuses",
+        "Expiation",
+        "Pardon",
+        "null",
+        "Reserve",
+      ].includes(name) ||
       description === "Expiation"
     )
       continue;
-    if (name === "Reserve") break;
     items[String(index + 1)] = {
       name,
       description,
