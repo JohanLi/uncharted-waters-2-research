@@ -313,10 +313,10 @@ including all six protagonists.
 - **`0x40`** keeps an unemployed sailor from drifting between ports
   (`0x1DC7E`); it has no other use on a sailor. Among the
   [permanent vagabonds](sailors.md#permanent-vagabonds), 80, 82, 83, 85, 87,
-  93, 97, 98, 103, 108, 110, 114, 116, and 118 never move, while 79, 91, 94,
+  93, 97, 98, 103, 108, 110, and 118 never move, while 79, 91, 94,
   99, 101, 102, and 109 can. Among the
   [temporary vagabonds](sailors.md#temporary-vagabonds), 86, 88–90, 92, 100,
-  106, and 107 stay put and 81, 84, 95, 96, 104, and 105 can move. A
+  106, 107, and 116 stay put and 81, 84, 95, 96, 104, and 105 can move. A
   regenerated sailor loses the bit and drifts.
 
 ## Open questions
