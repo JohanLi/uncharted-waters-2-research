@@ -912,6 +912,58 @@ Choosing Go Ashore again returns to the same place without moving the fleet.
 The ashore bits are cleared whenever a landing menu opens, so leaving by
 **Sail** clears them.
 
+## Items at sea
+
+The item menu offers **Equip** and **Use** (`MENU.DAT` record 34, handler
+`0x2F91B`), so an item cannot be dropped at sea. **Use** (`0x2F8C4`) picks a
+handler from the low four bits of the item's type byte `+0x15`: measuring
+instruments (7) at `0x2F75F`, voyager's aids (8) at `0x2F5C9`, emergency
+items (9) at `0x2F6C2`, and maps (`0x0C`) at `0x2F8BC`
+([Treasure maps](#treasure-maps)). Any other item answers that it cannot be
+used here (`0x2F4E4`). An emergency item (Rat Poison, Balm, Lime Juice) is
+used up whether or not it had anything to do (`0x2F6EF`).
+
+### Measuring latitude and longitude
+
+Using the Quadrant, Sextant, or Theodolite (`0x2F75F`) in port only says,
+“Measure longitude and latitude on the ship.” (message 756). At sea it needs
+Celestial Navigation (skill bit `0x10`): the protagonist's own, or, after
+message 757, a mate with the skill chosen from a list (`0x2F70C`). Without
+one, the protagonist tries anyway (messages 759 and 761), and a single
+`random(100) + 1` is added to both readings (`0x2F7ED`, `0x2F871–0x2F896`).
+
+The reading is rounded down to a multiple of the instrument's rating byte
+`+0x14`, in degrees (`0x2F82C–0x2F86A`):
+
+| Instrument | Item   | Reading rounded down to |
+| ---------- | ------ | ----------------------: |
+| Quadrant   | `0x14` |                      5° |
+| Sextant    | `0x15` |                      2° |
+| Theodolite | `0x16` |                      1° |
+
+Only the Theodolite therefore gives the exact degree, even with the skill.
+Instruments are not used up.
+
+### Voyager's aids
+
+- **Telescope** (`0x18`) and **Cat** (`0x19`) work while carried. Setting
+  sail scans the 20 inventory slots and sets bit `0x80` (Telescope) or `0x40`
+  (Cat) of `DS:0xC1EC` (`0xD8DA–0xD901`); nothing else writes that byte. The
+  lookout range reads the Telescope bit ([Lookout range](#lookout-range)) and
+  the rat check the Cat bit ([Rats and scurvy](#rats-and-scurvy)). Using
+  either only shows a line (“We can see far!”, “Meow!”). Because the bits are
+  set only on departure, a Telescope or Cat gained at sea would not count
+  until the next departure, but no source adds one at sea: fleets carry only
+  items 50–69 as spoils ([Gold and items](naval-battle.md#gold-and-items)),
+  and the other sources are in port.
+- The second **Telescope** record (`0x1B`) does nothing: the departure scan
+  tests only `0x18`, and its rating 0 means Item Shops will not buy it.
+- **Pocket Watch** (`0x17`, `0x2F533`) shows the time of day with the format
+  `%2u:%02u %s`. The hour is `floor(tick / 3) mod 12`, shown as 12 for 0,
+  but the minutes are `(tick mod 3) × 30` although a tick is 20 minutes, so
+  it shows only :00, :30, and :60 (8:40 reads “8:60”). It shows AM only while
+  the tick is below 24, so 8:00–11:40 AM read as PM.
+
 ## Rats and scurvy
 
 Both are resolved in the midnight routine after food and water, and both are

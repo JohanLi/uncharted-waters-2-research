@@ -113,9 +113,11 @@ though in-game tip 1299 says a Chief Navigator's skills improve quickly.
 - Lookout uses the highest Intuition among the protagonist and **all** hired
   mates, whatever their duty (`0x36BB3`).
 - Measuring latitude and longitude (`0x2F75F`) does not depend on duty. A
-  protagonist with Celestial Navigation measures exactly. Otherwise message 757
-  lets the player choose any mate with that skill, and cancelling makes the
-  protagonist guess with an error of `random(100) + 1`.
+  protagonist with Celestial Navigation measures without error. Otherwise
+  message 757 lets the player choose any mate with that skill, and cancelling
+  makes the protagonist guess with an error of `random(100) + 1`. Either way
+  the instrument rounds the reading down to 5°, 2°, or 1°; see
+  [Measuring latitude and longitude](at-sea.md#measuring-latitude-and-longitude).
 
 ### Assigning duties
 
