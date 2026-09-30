@@ -1709,6 +1709,48 @@ Thus Amsterdam has a cartographer, while Naples has the astronomer Professor
 Juliano rather than a cartographer. All of these occupants use the shared
 special-residence interior and vendor portrait.
 
+### Story residences
+
+A scenario route whose key is the port ID followed by qualifier `07` targets
+that port's residence. Only five of the eleven story residences have such
+routes, and `SNR0.DAT` (guild jobs and royal missions) has none:
+
+| Port (ID)    | Occupant                               | Stories                                                                                                                                                                                                                                        | Routes                                         |
+| ------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Seville (1)  | Naval headquarters, Commander Ezequiel | [Catalina, section 0](scenarios/scenario-2-catalina-erantzo.md#section-0-michaels-death-and-the-mutiny); [Otto, section 5](scenarios/scenario-3-otto-baynes.md#section-5-ezequiel-and-the-bordeaux-appointment-30000-fame)                     | `0x0107` in `SNR2.DAT` and `SNR3.DAT`          |
+| Istanbul (2) | An empty house, owned by Howell        | [Ali, every section](scenarios/scenario-6-ali-vezas.md#section-5-sapha-rustem-and-the-house): the house is for sale, Howell owns it, and after the purchase it is Ali's home                                                                   | 18 × `0x0207` in `SNR6.DAT`                    |
+| Massawa (74) | Lord Taphali and Meconbe               | [João, section 3](scenarios/scenario-1-joao-franco.md#section-3-massawa-and-poseidons-staff-16000-fame); [Catalina, section 6](scenarios/scenario-2-catalina-erantzo.md#section-6-massawa-and-the-turkish-fleet-15000-fame); Pietro, section 2 | `0x4A07` in `SNR1.DAT`, `SNR2.DAT`, `SNR5.DAT` |
+| Changan (97) | Paula's family home                    | [Ernst, section 4](scenarios/scenario-4-ernst-von-bohr.md#section-4-zipangu-and-paulas-home-40000-fame) (his ending)                                                                                                                           | `0x6107` in `SNR4.DAT`                         |
+| Sakai (98)   | Brother Enrico                         | [João, section 5](scenarios/scenario-1-joao-franco.md#section-5-neo-atlantis-40000-fame)                                                                                                                                                       | `0x6207` in `SNR1.DAT`                         |
+
+Entering a residence runs the same route matchers as any other building
+(`0x20A1B`, `0x20A39`), with the residence as building 7. They scan the table
+in order and take the first route whose port byte equals the port (or is
+`A3`, any regular port) and whose building byte equals 7 or is `FF`
+(`0x390D9–0x39113`, `0x3922E–0x39266`). A whole-port or any-port route
+therefore also plays in a residence, unless an earlier `07` route catches it:
+Otto's `SNR3.DAT` has a bare `F2` route `0xA307` placed before his `0xA3FF`
+route, which keeps that any-port line out of residences.
+
+Cairo (75), Mecca (77), Goa (85), Calicut (92), and Nagasaki (99) have no
+residence route of their own and no occupant record, so after any matching
+route the residence handler (`0x342C7`) says, “Commodore, this building is
+locked,” unless the route ejects the player first. What they can show comes
+from wider routes:
+
+- **All five**: any-port lines in João's, Catalina's, and Otto's stories,
+  such as Catalina's “Let's go back to Massawa” (`SNR2.DAT 0x24C8`).
+- **Cairo and Mecca**: João's reminder that the Turks have attacked Massawa
+  (ports 72–80, `SNR1.DAT 0x25E2`).
+- **Nagasaki**: João's arrival with Enrico (`0x63FF`, `SNR1.DAT 0x2EAF`),
+  Ali asking about Pietro (`0x63FF`, `SNR6.DAT 0x2346`), and two of Ernst's
+  scenes for the ports near Changan (`SNR4.DAT 0xCA8`, `0xF11`).
+
+Ernst's and Pietro's other region-wide checks (`SNR4.DAT 0xB09`,
+`SNR5.DAT 0xB23`) sit inside Harbor-only and Pub-only routes and never reach
+a residence. No route reads Timbuktu (64), so its residence always answers,
+“Commodore, this building is locked.”
+
 ## Port availability
 
 The lists below are derived from `scripts/ports/output/ports.json`, which in
