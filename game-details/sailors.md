@@ -299,7 +299,7 @@ joins the player and cannot be hired. He is an antagonist during Otto’s story.
 |  74 | Edmund Gilbert  | England     |         62 |         52 |        90 |        35 |      37 |            42 |    55 |   15 |                1 |            1 |  30 | —                                |
 |  75 | Matthew Loy     | England     |         81 |         75 |        52 |        74 |      77 |            70 |    69 |   95 |                7 |           10 |  27 | Gunnery, Celestial Navigation    |
 |  76 | Camillo Stefano | Italy       |         71 |         72 |        66 |        78 |      51 |            60 |    68 |   75 |                3 |            2 |  31 | Accounting, Celestial Navigation |
-|  77 | Hans Starten    | Portugal    |         74 |         85 |        80 |        69 |      42 |            38 |    71 |   89 |               10 |            2 |  37 | Celestial Navigation             |
+|  77 | Hans Starten    | Holland     |         74 |         85 |        80 |        69 |      42 |            38 |    71 |   89 |               10 |            2 |  37 | Celestial Navigation             |
 |  78 | Salim Jahan     | Turkey      |         82 |         80 |        84 |        44 |      71 |            79 |    60 |   65 |                3 |            7 |  19 | Gunnery, Celestial Navigation    |
 
 ## Permanent vagabonds
@@ -329,8 +329,6 @@ move up to two port IDs a month; the rest stay put
 | 108 | Georg Scholl     | Holland     |         57 |         71 |        58 |        78 |      67 |            83 |    71 |   76 |                3 |            4 |  26 | Celestial Navigation                                                |
 | 109 | Patrick Toman    | Holland     |         82 |         57 |        52 |        51 |      57 |            86 |    84 |   50 |                7 |            9 |  38 | Cartography, Celestial Navigation                                   |
 | 110 | Jacob Walweik    | Holland     |         64 |         52 |        82 |        53 |      88 |            77 |    67 |   51 |                5 |            3 |  18 | Accounting                                                          |
-| 114 | Hamid Lal        | Piracy      |         72 |         66 |        71 |        81 |      52 |            76 |    89 |   66 |                9 |           15 |  22 | Gunnery, Celestial Navigation                                       |
-| 116 | George Eggel     | Piracy      |         69 |         87 |        73 |        59 |      81 |            72 |    76 |   72 |                1 |            1 |  29 | Gunnery                                                             |
 | 118 | Robert Donahue   | Piracy      |         69 |         67 |        62 |        62 |      73 |            89 |    82 |   86 |                9 |           12 |  26 | Gunnery, Celestial Navigation                                       |
 
 ## Temporary vagabonds
@@ -365,6 +363,7 @@ as commanders, is in [Fleet regeneration](fleets.md#fleet-regeneration).
 | 112 | Antonio Pintado  | Piracy      |         70 |         44 |        65 |        87 |      82 |            75 |    46 |   67 |                1 |            1 |  21 | —                                          |
 | 113 | Cizzaro Fedeliti | Piracy      |         85 |         62 |        68 |        80 |      74 |            70 |    59 |   81 |                1 |            2 |  21 | Gunnery                                    |
 | 115 | Henry Mancine    | Piracy      |         60 |         72 |        58 |        61 |      78 |            70 |    43 |   11 |                2 |            3 |  20 | Gunnery                                    |
+| 116 | George Eggel     | Piracy      |         69 |         87 |        73 |        59 |      81 |            72 |    76 |   72 |                1 |            1 |  29 | Gunnery                                    |
 | 117 | Jack Diffson     | Piracy      |         71 |         71 |        54 |        58 |      62 |            79 |    41 |   88 |                5 |            8 |  27 | Gunnery, Celestial Navigation              |
 | 119 | Richard Huxley   | Piracy      |         51 |         69 |        48 |        83 |      87 |            67 |    50 |   75 |                1 |            2 |  22 | Gunnery                                    |
 
@@ -405,7 +404,8 @@ nation from all seven (`random(7)`).
 
 ## Active NPC captains
 
-Sailor IDs `6–68` are active NPC captains. Their fleet assignments and ship compositions are documented in [fleets.md](fleets.md).
+Sailor IDs `6–68` are active NPC captains, and so is Hamid Lal (114), who
+captains pirate fleet 61. Their fleet assignments and ship compositions are documented in [fleets.md](fleets.md).
 Pirate captains (nationality Piracy) are shown at sea under a false flag,
 nation `ID mod 6`, until a mate unmasks them; see
 [pirate disguises](at-sea.md#another-fleets-details-and-pirate-disguises).
@@ -475,6 +475,7 @@ nation `ID mod 6`, until a mate unmasks them; see
 |  66 | Mohommed Syarook | Piracy      |         87 |         78 |        78 |        66 |      85 |            92 |    76 |   87 |               20 |           31 |  28 | Gunnery, Cartography, Celestial Navigation                 |
 |  67 | Ulgu Ali         | Piracy      |         52 |         79 |        62 |        88 |      60 |            74 |    59 |   87 |               21 |           28 |  35 | Gunnery, Cartography, Celestial Navigation                 |
 |  68 | Jack Raccam      | Piracy      |         88 |         66 |        68 |        88 |      51 |            78 |    96 |   70 |                9 |           13 |  24 | —                                                          |
+| 114 | Hamid Lal        | Piracy      |         72 |         66 |        71 |        81 |      52 |            76 |    89 |   66 |                9 |           15 |  22 | Gunnery, Celestial Navigation                              |
 
 ## Open questions
 
