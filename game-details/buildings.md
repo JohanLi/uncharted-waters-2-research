@@ -65,38 +65,36 @@ the acknowledge helper at `MAIN.EXE 0x30AB0`; only afterward does the handler
 construct and show the Palace menu. The greeting remains visible behind the
 menu.
 
-The entry messages map to `MESSAGE.DAT` as follows. Indices are raw,
-zero-based indices; entry numbers are included to make prose citations
-unambiguous.
+The entry messages map to `MESSAGE.DAT` raw indices as follows:
 
-| Building or branch            | Message raw index (entry) | Message-call offset | Selection and substitutions                                                                                                                                                                                                                                     |
-| ----------------------------- | ------------------------: | ------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Market                        |            0 (1) or 1 (2) |           `0x2B023` | Below 1,000 Trade Fame it uses “How may I help you?”; otherwise “Hello, %s %s!” with the protagonist's first and last names.                                                                                                                                    |
-| Pub, Carlotta                 |                   17 (18) |           `0x2D472` | “Hello %s, would you like some %s?” with the protagonist's first name and the Pub specialty. Carlotta speaks it when protagonist byte `+0x29` bit `0x10` is clear and a waitress record at this port has flags `0x08` and `0x40` (only Carlotta, Lisbon).       |
-| Pub                           |                   18 (19) |           `0x2D499` | `%s` is the port's Pub specialty. With protagonist byte `+0x29` bit `0x10` set, the attendant would add raw 308 “Welcome!” or, after a finished investigation, raw 307, but no sailor ever has that bit ([Sailor flags](fleets.md#sailor-flags-0x10-and-0x40)). |
-| Shipyard                      |                   77 (78) |           `0x329EE` | Fixed.                                                                                                                                                                                                                                                          |
-| Harbor                        |                   56 (57) |           `0x2DD5E` | Fixed; other Harbor modes contain equivalent call sites.                                                                                                                                                                                                        |
-| Lodge                         |                   66 (67) |           `0x2EB5D` | Fixed.                                                                                                                                                                                                                                                          |
-| Palace, titled admission      |                 444 (445) |           `0x30A9C` | `%s %s` is the protagonist's title and last name.                                                                                                                                                                                                               |
-| Palace, invited commoner      |                 576 (577) |           `0x30AAA` | Fixed Palace Guard line.                                                                                                                                                                                                                                        |
-| Palace, rejected commoner     |                   84 (85) |           `0x30A60` | Acknowledged, then returns outside without a menu.                                                                                                                                                                                                              |
-| Palace, hostile reception     |                 443 (444) |           `0x30A08` | Uses the protagonist's names and diverts into the hostile Palace path.                                                                                                                                                                                          |
-| Guild                         |                   85 (86) |           `0x332FC` | Fixed.                                                                                                                                                                                                                                                          |
-| Bank, Amsterdam               |                   97 (98) |           `0x2F166` | Selected when current port ID is 13.                                                                                                                                                                                                                            |
-| Bank, regional branch         |                   98 (99) |           `0x2F17D` | Selected at every other Bank.                                                                                                                                                                                                                                   |
-| Item Shop, daytime            |                 235 (236) |           `0x2FCC6` | Used during the 8:00 AM–8:00 PM opening.                                                                                                                                                                                                                        |
-| Item Shop, secret hour        |                 764 (765) |           `0x2FCB9` | Used during the 2:00–3:00 AM opening: “For a limited time only...”                                                                                                                                                                                              |
-| Church                        |                   91 (92) |           `0x32C67` | Computed as `91 + 712 × mosque`; Church uses zero.                                                                                                                                                                                                              |
-| Mosque                        |                 803 (804) |           `0x32C67` | The same computation uses one for a Mosque.                                                                                                                                                                                                                     |
-| House of Fortune              |                 298 (299) |           `0x33534` | Fixed.                                                                                                                                                                                                                                                          |
-| Collector, no contract        |                 477 (478) |           `0x339F2` | “May I help you?”                                                                                                                                                                                                                                               |
-| Collector, active contract    |                 478 (479) |           `0x339E4` | “Oh, %s %s. I was waiting for you!” with “Ms.” for Catalina (protagonist 1), otherwise “Sir”, and the last name.                                                                                                                                                |
-| Cartographer, no contract     |                 493 (494) |           `0x33F7A` | “May I help you?”                                                                                                                                                                                                                                               |
-| Cartographer, active contract |                 494 (495) |           `0x33F7A` | “Oh, %s %s. I was waiting for you.” with the same honorific and last name.                                                                                                                                                                                      |
+| Building or branch            | Message raw index | Message-call offset | Selection and substitutions                                                                                                                                                                                                                                     |
+| ----------------------------- | ----------------: | ------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Market                        |            0 or 1 |           `0x2B023` | Below 1,000 Trade Fame it uses “How may I help you?”; otherwise “Hello, %s %s!” with the protagonist's first and last names.                                                                                                                                    |
+| Pub, Carlotta                 |                17 |           `0x2D472` | “Hello %s, would you like some %s?” with the protagonist's first name and the Pub specialty. Carlotta speaks it when protagonist byte `+0x29` bit `0x10` is clear and a waitress record at this port has flags `0x08` and `0x40` (only Carlotta, Lisbon).       |
+| Pub                           |                18 |           `0x2D499` | `%s` is the port's Pub specialty. With protagonist byte `+0x29` bit `0x10` set, the attendant would add raw 308 “Welcome!” or, after a finished investigation, raw 307, but no sailor ever has that bit ([Sailor flags](fleets.md#sailor-flags-0x10-and-0x40)). |
+| Shipyard                      |                77 |           `0x329EE` | Fixed.                                                                                                                                                                                                                                                          |
+| Harbor                        |                56 |           `0x2DD5E` | Fixed; other Harbor modes contain equivalent call sites.                                                                                                                                                                                                        |
+| Lodge                         |                66 |           `0x2EB5D` | Fixed.                                                                                                                                                                                                                                                          |
+| Palace, titled admission      |               444 |           `0x30A9C` | `%s %s` is the protagonist's title and last name.                                                                                                                                                                                                               |
+| Palace, invited commoner      |               576 |           `0x30AAA` | Fixed Palace Guard line.                                                                                                                                                                                                                                        |
+| Palace, rejected commoner     |                84 |           `0x30A60` | Acknowledged, then returns outside without a menu.                                                                                                                                                                                                              |
+| Palace, hostile reception     |               443 |           `0x30A08` | Uses the protagonist's names and diverts into the hostile Palace path.                                                                                                                                                                                          |
+| Guild                         |                85 |           `0x332FC` | Fixed.                                                                                                                                                                                                                                                          |
+| Bank, Amsterdam               |                97 |           `0x2F166` | Selected when current port ID is 13.                                                                                                                                                                                                                            |
+| Bank, regional branch         |                98 |           `0x2F17D` | Selected at every other Bank.                                                                                                                                                                                                                                   |
+| Item Shop, daytime            |               235 |           `0x2FCC6` | Used during the 8:00 AM–8:00 PM opening.                                                                                                                                                                                                                        |
+| Item Shop, secret hour        |               764 |           `0x2FCB9` | Used during the 2:00–3:00 AM opening: “For a limited time only...”                                                                                                                                                                                              |
+| Church                        |                91 |           `0x32C67` | Computed as `91 + 712 × mosque`; Church uses zero.                                                                                                                                                                                                              |
+| Mosque                        |               803 |           `0x32C67` | The same computation uses one for a Mosque.                                                                                                                                                                                                                     |
+| House of Fortune              |               298 |           `0x33534` | Fixed.                                                                                                                                                                                                                                                          |
+| Collector, no contract        |               477 |           `0x339F2` | “May I help you?”                                                                                                                                                                                                                                               |
+| Collector, active contract    |               478 |           `0x339E4` | “Oh, %s %s. I was waiting for you!” with “Ms.” for Catalina (protagonist 1), otherwise “Sir”, and the last name.                                                                                                                                                |
+| Cartographer, no contract     |               493 |           `0x33F7A` | “May I help you?”                                                                                                                                                                                                                                               |
+| Cartographer, active contract |               494 |           `0x33F7A` | “Oh, %s %s. I was waiting for you.” with the same honorific and last name.                                                                                                                                                                                      |
 
 Religious rejection uses the same upper-panel helper but does not enter the
-menu. A Muslim entering a Church receives raw index 90 (entry 91), while a
-Christian entering a Mosque receives raw index 802 (entry 803). The executable
+menu. A Muslim entering a Church receives raw index 90, while a
+Christian entering a Mosque receives raw index 802. The executable
 computes the normal Church/Mosque greeting dynamically, which is why neither
 greeting appears as a literal direct-reference row in the generated call-site
 inventory.
@@ -105,7 +103,7 @@ inventory.
 
 The House of Fortune handler begins at `MAIN.EXE 0x3351B`. **Life**,
 **Career**, **Love**, and **Mates** all use the same payment sequence. The
-fortune teller asks for 50 gold pieces with raw index 299 (entry 300). Refusing
+fortune teller asks for 50 gold pieces with raw index 299. Refusing
 returns to the main menu. If the player cannot pay, raw index 300 says, “You
 don't seem to have enough,” and the visit ends. Otherwise the game deducts 50
 gold, displays raw index 301, “Very well. Take a seat,” and performs the
@@ -267,7 +265,7 @@ navigation is:
 navigation crew = floor(current crew × navigation allocation / 100)
 ```
 
-If this is zero on any ship, raw index 57 (entry 58) refuses departure:
+If this is zero on any ship, raw index 57 refuses departure:
 “Some ships have no crew assigned for navigation. We won't get anywhere.”
 Otherwise the projected endurance is calculated across the fleet:
 
@@ -279,12 +277,12 @@ Water and food are stored in tenths of a barrel, so this division directly
 produces days at the game's crew-consumption rate. The result selects one of
 four messages:
 
-| Condition                 | Raw index (entry) | Result                                                                 |
-| ------------------------- | ----------------: | ---------------------------------------------------------------------- |
-| Projected days are zero   |           59 (60) | Refuses departure with the “no provisions” response.                   |
-| Projected days are 1–9    |           60 (61) | Warns that the fleet cannot sail for long and asks for confirmation.   |
-| Projected days are 10–180 |           61 (62) | Displays the exact number of days and asks for confirmation.           |
-| Projected days exceed 180 |           58 (59) | Says the fleet can sail for more than six months and asks to cast off. |
+| Condition                 | Raw index | Result                                                                 |
+| ------------------------- | --------: | ---------------------------------------------------------------------- |
+| Projected days are zero   |        59 | Refuses departure with the “no provisions” response.                   |
+| Projected days are 1–9    |        60 | Warns that the fleet cannot sail for long and asks for confirmation.   |
+| Projected days are 10–180 |        61 | Displays the exact number of days and asks for confirmation.           |
+| Projected days exceed 180 |        58 | Says the fleet can sail for more than six months and asks to cast off. |
 
 Accepting a permitted departure resets the current-voyage midnight counter
 to zero, changes the protagonist's fleet state to at sea, initializes the
@@ -315,7 +313,7 @@ lumber price = floor( 90 × (port byte +0x19 + 50) / 100)
 shot price   = floor(120 × (port byte +0x12 + 50) / 100)
 ```
 
-The corresponding prompts are raw indices 62–65 (entries 63–66). If not even
+The corresponding prompts are raw indices 62–65. If not even
 one unit is affordable, raw index 28 says, “Commodore, we have no gold!” A
 positive purchase immediately adds the selected resource and deducts its
 price; water and food quantities are multiplied by ten when stored. Dumping
@@ -413,28 +411,28 @@ that position. Item IDs are zero-based.
 
 **Buy** uses these `MESSAGE.DAT` raw indices:
 
-| Condition or stage              | Raw index (entry) | Result                                                                                                                                     |
-| ------------------------------- | ----------------: | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| No gold                         |         236 (237) | “It seems you have no gold.” The command ends.                                                                                             |
-| All 20 inventory slots occupied |         237 (238) | The command ends.                                                                                                                          |
-| First item selection            |         238 (239) | “I'm sure you'll find something you like.”                                                                                                 |
-| Later item selections           |         242 (243) | “Are you interested in anything else?”                                                                                                     |
-| Duplicate restricted item       |         332 (333) | “You already have one.” The executable applies this only to item types whose low type nibble is below 7.                                   |
-| Selected item                   |         240 (241) | Supplies the item name and its price in gold, then asks for confirmation.                                                                  |
-| Insufficient gold               |         239 (240) | The purchase is not performed.                                                                                                             |
-| Confirmed purchase              |                 — | Deducts the price, puts the item in the first empty inventory slot, then repeats with the “interested in anything else?” selection prompt. |
+| Condition or stage              | Raw index | Result                                                                                                                                     |
+| ------------------------------- | --------: | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| No gold                         |       236 | “It seems you have no gold.” The command ends.                                                                                             |
+| All 20 inventory slots occupied |       237 | The command ends.                                                                                                                          |
+| First item selection            |       238 | “I'm sure you'll find something you like.”                                                                                                 |
+| Later item selections           |       242 | “Are you interested in anything else?”                                                                                                     |
+| Duplicate restricted item       |       332 | “You already have one.” The executable applies this only to item types whose low type nibble is below 7.                                   |
+| Selected item                   |       240 | Supplies the item name and its price in gold, then asks for confirmation.                                                                  |
+| Insufficient gold               |       239 | The purchase is not performed.                                                                                                             |
+| Confirmed purchase              |         — | Deducts the price, puts the item in the first empty inventory slot, then repeats with the “interested in anything else?” selection prompt. |
 
 **Sell** uses this sequence:
 
-| Condition or stage            | Raw index (entry) | Result                                                                                                                     |
-| ----------------------------- | ----------------: | -------------------------------------------------------------------------------------------------------------------------- |
-| No carried items              |         243 (244) | “You don't have any items.” The command ends.                                                                              |
-| First item selection          |         244 (245) | “What would you like to sell?”                                                                                             |
-| Later item selections         |         248 (249) | “What else can you sell me?”                                                                                               |
-| Item is currently equipped    |         333 (334) | It cannot be sold.                                                                                                         |
-| Item is not accepted by shops |         929 (930) | “Sorry, but I can't buy this item.” Its stored byte `+0x14` is zero, or its initial offer (below) is zero.                 |
-| Initial offer                 |         245 (246) | Supplies the item name and the base sale price. Accepting sells immediately.                                               |
-| Successful counteroffer       |         246 (247) | Rejecting the initial offer performs a Luck-based roll. Success produces a higher offer; failure returns to the item list. |
+| Condition or stage            | Raw index | Result                                                                                                                     |
+| ----------------------------- | --------: | -------------------------------------------------------------------------------------------------------------------------- |
+| No carried items              |       243 | “You don't have any items.” The command ends.                                                                              |
+| First item selection          |       244 | “What would you like to sell?”                                                                                             |
+| Later item selections         |       248 | “What else can you sell me?”                                                                                               |
+| Item is currently equipped    |       333 | It cannot be sold.                                                                                                         |
+| Item is not accepted by shops |       929 | “Sorry, but I can't buy this item.” Its stored byte `+0x14` is zero, or its initial offer (below) is zero.                 |
+| Initial offer                 |       245 | Supplies the item name and the base sale price. Accepting sells immediately.                                               |
+| Successful counteroffer       |       246 | Rejecting the initial offer performs a Luck-based roll. Success produces a higher offer; failure returns to the item list. |
 
 Raw index 247 (“I'll take it for %ld gold pieces.”) is adjacent to the sale
 messages but is not referenced by this Item Shop sell routine. A confirmed
@@ -464,7 +462,7 @@ of that roll cannot be predicted from a save alone.
 The four Bank commands are separate routines: **Deposit** at `0x2EBF2`,
 **Withdraw** at `0x2ED63`, **Borrow** at `0x2EE8F`, and **Repay** at
 `0x2EFF9`. The main handler begins at `0x2F146`. Each command returns to the
-Bank menu. Leaving that menu displays raw index 164 (entry 165), “Thank you for
+Bank menu. Leaving that menu displays raw index 164, “Thank you for
 choosing Marco Polo Bank,” and waits for acknowledgement before returning
 outside.
 
@@ -487,32 +485,32 @@ credit line = 10,000 × rank² + signed account balance + 1,000
 A nonpositive result fails the credit test. The loan is recorded by subtracting
 the borrowed amount from the signed balance.
 
-| Command  | Branch or stage                         |        Raw index (entry) | Substitution or continuation                                             |
-| -------- | --------------------------------------- | -----------------------: | ------------------------------------------------------------------------ |
-| Deposit  | On-hand gold is at most 1,000           |                100 (101) | Refuses the deposit.                                                     |
-| Deposit  | Savings have reached 1,000,000          |                101 (102) | Refuses the deposit.                                                     |
-| Deposit  | Account is in debt                      |                102 (103) | Requires repayment first.                                                |
-| Deposit  | Existing positive savings               |                103 (104) | Supplies the current balance.                                            |
-| Deposit  | Empty account                           |                104 (105) | “You don't have any gold in your account.”                               |
-| Deposit  | Amount prompt                           |                105 (106) | Maximum is limited by on-hand gold and remaining account capacity.       |
-| Deposit  | Positive amount entered                 |                106 (107) | Supplies the deposited amount, then raw index 103 shows the new balance. |
-| Withdraw | Account is empty or in debt             |                104 (105) | The command ends.                                                        |
-| Withdraw | Less than 100 gold of carrying room     |                107 (108) | Refuses because the protagonist already has enough gold.                 |
-| Withdraw | Amount prompt                           |                108 (109) | Maximum is the positive savings balance.                                 |
-| Withdraw | Result would exceed 600,000,000 on hand |                109 (110) | Refuses the withdrawal.                                                  |
-| Withdraw | Valid amount                            |                110 (111) | Supplies the amount, then raw index 103 shows the remaining savings.     |
-| Borrow   | Account contains savings                |                111 (112) | Refuses a loan while savings remain.                                     |
-| Borrow   | Rank/debt credit test fails             |                113 (114) | “With your poor credit history...”                                       |
-| Borrow   | At least 1,000,000 gold already on hand |                112 (113) | Refuses because the loan is unnecessary.                                 |
-| Borrow   | Eligible                                |                114 (115) | Shows the calculated credit line.                                        |
-| Borrow   | Amount prompt                           |                115 (116) | Maximum is the calculated credit line.                                   |
-| Borrow   | Positive amount entered                 |  116, then 117 (117–118) | Shows the loan amount and the 10% monthly-interest warning.              |
-| Repay    | Account is not in debt                  |                118 (119) | “You don't owe us any money.”                                            |
-| Repay    | Existing debt                           |                149 (150) | Supplies the current debt as a positive amount.                          |
-| Repay    | Amount prompt                           |                119 (120) | Maximum is limited by the debt and on-hand gold.                         |
-| Repay    | Positive amount entered                 |                120 (121) | Confirms payment.                                                        |
-| Repay    | Debt remains                            | 149, then 117 (150, 118) | Shows the remainder and repeats the interest warning.                    |
-| Repay    | Debt cleared                            |                382 (383) | Confirms that the debt is fully paid.                                    |
+| Command  | Branch or stage                         |     Raw index | Substitution or continuation                                             |
+| -------- | --------------------------------------- | ------------: | ------------------------------------------------------------------------ |
+| Deposit  | On-hand gold is at most 1,000           |           100 | Refuses the deposit.                                                     |
+| Deposit  | Savings have reached 1,000,000          |           101 | Refuses the deposit.                                                     |
+| Deposit  | Account is in debt                      |           102 | Requires repayment first.                                                |
+| Deposit  | Existing positive savings               |           103 | Supplies the current balance.                                            |
+| Deposit  | Empty account                           |           104 | “You don't have any gold in your account.”                               |
+| Deposit  | Amount prompt                           |           105 | Maximum is limited by on-hand gold and remaining account capacity.       |
+| Deposit  | Positive amount entered                 |           106 | Supplies the deposited amount, then raw index 103 shows the new balance. |
+| Withdraw | Account is empty or in debt             |           104 | The command ends.                                                        |
+| Withdraw | Less than 100 gold of carrying room     |           107 | Refuses because the protagonist already has enough gold.                 |
+| Withdraw | Amount prompt                           |           108 | Maximum is the positive savings balance.                                 |
+| Withdraw | Result would exceed 600,000,000 on hand |           109 | Refuses the withdrawal.                                                  |
+| Withdraw | Valid amount                            |           110 | Supplies the amount, then raw index 103 shows the remaining savings.     |
+| Borrow   | Account contains savings                |           111 | Refuses a loan while savings remain.                                     |
+| Borrow   | Rank/debt credit test fails             |           113 | “With your poor credit history...”                                       |
+| Borrow   | At least 1,000,000 gold already on hand |           112 | Refuses because the loan is unnecessary.                                 |
+| Borrow   | Eligible                                |           114 | Shows the calculated credit line.                                        |
+| Borrow   | Amount prompt                           |           115 | Maximum is the calculated credit line.                                   |
+| Borrow   | Positive amount entered                 | 116, then 117 | Shows the loan amount and the 10% monthly-interest warning.              |
+| Repay    | Account is not in debt                  |           118 | “You don't owe us any money.”                                            |
+| Repay    | Existing debt                           |           149 | Supplies the current debt as a positive amount.                          |
+| Repay    | Amount prompt                           |           119 | Maximum is limited by the debt and on-hand gold.                         |
+| Repay    | Positive amount entered                 |           120 | Confirms payment.                                                        |
+| Repay    | Debt remains                            | 149, then 117 | Shows the remainder and repeats the interest warning.                    |
+| Repay    | Debt cleared                            |           382 | Confirms that the debt is fully paid.                                    |
 
 A Deposit that passes the three refusals always shows raw 103 or 104 before
 the raw 105 amount prompt, including when the entered amount is zero.
@@ -524,16 +522,16 @@ indices are computed as `church index + 712 × mosque`, allowing the same code
 to select the paired Christian and Muslim text. **Pray** begins at `0x32AA8`;
 **Donate** begins at `0x32AF0`. Both return to the Pray/Donate menu.
 
-| Stage                  | Church raw index (entry) | Mosque raw index (entry) | Continuation or effect                                                                                       |
-| ---------------------- | -----------------------: | -----------------------: | ------------------------------------------------------------------------------------------------------------ |
-| Pray                   |                  92 (93) |                804 (805) | Displays the prayer. The first Pray command during a visit also adds a random 0 or 1 to Luck, capped at 100. |
-| Donation amount prompt |                  93 (94) |                805 (806) | Accepts an amount up to all on-hand gold.                                                                    |
-| Smaller donation       |                  94 (95) |                806 (807) | Selected when `floor(gold before donation / donation) > 10`.                                                 |
-| Large donation         |                  95 (96) |                807 (808) | Selected when `floor(gold before donation / donation) <= 10`.                                                |
-| Leave the building     |                  96 (97) |                808 (809) | Displays a farewell, waits for acknowledgement, then returns outside.                                        |
+| Stage                  | Church raw index | Mosque raw index | Continuation or effect                                                                                       |
+| ---------------------- | ---------------: | ---------------: | ------------------------------------------------------------------------------------------------------------ |
+| Pray                   |               92 |              804 | Displays the prayer. The first Pray command during a visit also adds a random 0 or 1 to Luck, capped at 100. |
+| Donation amount prompt |               93 |              805 | Accepts an amount up to all on-hand gold.                                                                    |
+| Smaller donation       |               94 |              806 | Selected when `floor(gold before donation / donation) > 10`.                                                 |
+| Large donation         |               95 |              807 | Selected when `floor(gold before donation / donation) <= 10`.                                                |
+| Leave the building     |               96 |              808 | Displays a farewell, waits for acknowledgement, then returns outside.                                        |
 
 Attempting **Donate** with no gold instead clears to a system-message layout and
-displays raw index 28 (entry 29), “Commodore, we have no gold!” A zero donation
+displays raw index 28, “Commodore, we have no gold!” A zero donation
 simply returns to the menu. A positive donation is deducted immediately. Luck
 can change only in the large-donation branch, when
 `floor(gold before donation / donation) <= 10` selects raw index 95 (mosque
@@ -553,23 +551,23 @@ work to the larger routine at `0x2A336`. Cancelling a command returns to the
 four-command Market menu; leaving that menu returns outside without a farewell.
 
 **Buy Goods** constructs its selection list from the current port's stock.
-The first screen uses raw index 3 (entry 4), “What are you looking for today?”,
-and raw index 406 (entry 407) as the goods/rate heading. Selecting a commodity
+The first screen uses raw index 3, “What are you looking for today?”,
+and raw index 406 as the goods/rate heading. Selecting a commodity
 then follows this dialogue:
 
-| Stage or condition               |   Raw index (entry) | Continuation                                                                              |
-| -------------------------------- | ------------------: | ----------------------------------------------------------------------------------------- |
-| Commodity is unavailable         |               4 (5) | Supplies the goods name and returns to the list.                                          |
-| Commodity is the local specialty |               5 (6) | “%s %s the local specialty.” with the name and “are” for Glass Beads and Arms, else “is”. |
-| Quantity prompt                  |              9 (10) | Supplies the goods name; the input is limited by stock, cargo room, and available gold.   |
-| Ordinary price confirmation      |           150 (151) | Supplies the goods name and per-lot price.                                                |
-| Mate's price assessment          |       23–25 (24–26) | Classifies the price as a bargain, expensive, or acceptable.                              |
-| Gold below half the price        |             22 (23) | Spoken by the crew spokesman; the purchase is not performed.                              |
-| Counteroffer prompt              |               6 (7) | Supplies the highest permitted offer.                                                     |
-| Offer is much too low            |             11 (12) | Rejects the offer.                                                                        |
-| Seller makes a counteroffer      |             12 (13) | Supplies the revised unit price.                                                          |
-| Unprofitable attempted trick     |           851 (852) | Rejects the offer and supplies the lowest still-profitable price.                         |
-| Successful negotiated price      | 10 or 852 (11, 853) | Accepts directly or yields with a revised price.                                          |
+| Stage or condition               | Raw index | Continuation                                                                              |
+| -------------------------------- | --------: | ----------------------------------------------------------------------------------------- |
+| Commodity is unavailable         |         4 | Supplies the goods name and returns to the list.                                          |
+| Commodity is the local specialty |         5 | “%s %s the local specialty.” with the name and “are” for Glass Beads and Arms, else “is”. |
+| Quantity prompt                  |         9 | Supplies the goods name; the input is limited by stock, cargo room, and available gold.   |
+| Ordinary price confirmation      |       150 | Supplies the goods name and per-lot price.                                                |
+| Mate's price assessment          |     23–25 | Classifies the price as a bargain, expensive, or acceptable.                              |
+| Gold below half the price        |        22 | Spoken by the crew spokesman; the purchase is not performed.                              |
+| Counteroffer prompt              |         6 | Supplies the highest permitted offer.                                                     |
+| Offer is much too low            |        11 | Rejects the offer.                                                                        |
+| Seller makes a counteroffer      |        12 | Supplies the revised unit price.                                                          |
+| Unprofitable attempted trick     |       851 | Rejects the offer and supplies the lowest still-profitable price.                         |
+| Successful negotiated price      | 10 or 852 | Accepts directly or yields with a revised price.                                          |
 
 Before the list opens, a pre-check at `0x29E0F` refuses the command: raw
 index 26 or 27 from the First-Mate-first spokesman when the fleet has no
@@ -654,8 +652,8 @@ market's rates, and with them the purchase prices that follow, at no cost to
 the proceeds of that sale.
 
 **Sell Goods** first compacts the fleet's cargo list and displays raw indices
-407 and 408 (entries 408–409) as its `Goods / Load / Rate` table and row
-format. If no saleable goods remain, raw index 21 (entry 22) ends the command.
+407 and 408 as its `Goods / Load / Rate` table and row
+format. If no saleable goods remain, raw index 21 ends the command.
 Otherwise, the selected quantity is removed, its proceeds are added to
 on-hand gold, the selected category rate and the smaller market-wide adjustment
 are lowered, and the revised list is shown again. Cancelling the cargo list
@@ -666,16 +664,16 @@ metadata record: metadata `+0x04` for the Market and `+0x08` for the Shipyard.
 It does not raise Economy or Industry directly. Both commands share the same
 dialogue and reward thresholds:
 
-| Condition or amount                | Raw index (entry) | Result                                                         |
-| ---------------------------------- | ----------------: | -------------------------------------------------------------- |
-| Current port is a national capital |             2 (3) | Supplies the port and nation names; investment is unavailable. |
-| Accumulated investment is 50,000   |             7 (8) | Refuses further investment.                                    |
-| Investment is available            |             8 (9) | Opens the amount input.                                        |
-| No gold is available               |           28 (29) | Ends the command.                                              |
-| Zero entered                       |           13 (14) | “Come back again.”                                             |
-| 1–499 gold                         |           14 (15) | “What? Is this all?! Thanks for nothing!”                      |
-| 500–9,999 gold                     |           15 (16) | “Thank you very much.”                                         |
-| At least 10,000 gold               |           16 (17) | “I won't forget your generosity.”                              |
+| Condition or amount                | Raw index | Result                                                         |
+| ---------------------------------- | --------: | -------------------------------------------------------------- |
+| Current port is a national capital |         2 | Supplies the port and nation names; investment is unavailable. |
+| Accumulated investment is 50,000   |         7 | Refuses further investment.                                    |
+| Investment is available            |         8 | Opens the amount input.                                        |
+| No gold is available               |        28 | Ends the command.                                              |
+| Zero entered                       |        13 | “Come back again.”                                             |
+| 1–499 gold                         |        14 | “What? Is this all?! Thanks for nothing!”                      |
+| 500–9,999 gold                     |        15 | “Thank you very much.”                                         |
+| At least 10,000 gold               |        16 | “I won't forget your generosity.”                              |
 
 The entered amount is capped by the remaining room below 50,000 in the
 accumulated-investment word. A positive investment deducts the gold, adds the
@@ -709,8 +707,8 @@ rises by `r`. A rate moved by trading therefore recovers by only 1–5 points
 (3 on average) per month change unless further trading moves it back.
 
 **Market Rate** builds a ten-goods working list, then displays the present
-port's commodity information in successive tables. Raw index 151 (entry 152)
-supplies a commodity category and its price index; raw index 379 (entry 380)
+port's commodity information in successive tables. Raw index 151
+supplies a commodity category and its price index; raw index 379
 is the repeated `Goods / Sells at / Buys at` heading. Acknowledging the last
 table returns to the Market menu.
 
@@ -724,14 +722,14 @@ character list rather than on fixed text alone.
 
 **Recruit Crew** begins at `0x2B68A` and delegates its checks and prompts to
 `0x2B16D–0x2B3C5`. It refuses when the fleet already has enough
-sailors (raw index 29, entry 30) or when fewer than 10 gold pieces are available
-(raw index 30, entry 31). Otherwise it may warn that drinks are needed to
+sailors (raw index 29) or when fewer than 10 gold pieces are available
+(raw index 30). Otherwise it may warn that drinks are needed to
 attract recruits (raw 31), ask whether to recruit (raw 32), and call for sailors
 (raw 33). The result is one of:
 
-- raw index 121 (entry 122), with the full number rounded up;
-- raw index 122 (entry 123), with only part of the requested number; or
-- raw index 123 (entry 124), when nobody comes forward.
+- raw index 121, with the full number rounded up;
+- raw index 122, with only part of the requested number; or
+- raw index 123, when nobody comes forward.
 
 Raw 33 is spoken by the protagonist; raws 29–32 and 121–123 by the First Mate
 (see [Crew spokesmen](#crew-spokesmen)). The amount and cost prompt is
@@ -758,9 +756,9 @@ chosen, crew is distributed through the fleet-wide assignment screen.
 **Dismiss Crew** begins at `0x2B739` and delegates assignment to `0x2B50E`. It
 enumerates the fleet's ships and captains, using `MESSAGE2.DAT` raw indices
 396–400 (combined indices 1396–1400) for the captain, Navigation, Lookout,
-Combat, and minimum-crew display. Raw index 857 (entry 858) asks how many
+Combat, and minimum-crew display. Raw index 857 asks how many
 sailors to assign to each ship. If this leaves sailors unassigned, raw index
-858 (entry 859) asks whether to discharge them; raw index 231 (entry 232) is
+858 asks whether to discharge them; raw index 231 is
 the direct dismissal confirmation. Rejecting a confirmation resumes assignment
 rather than leaving the Pub.
 
@@ -905,7 +903,7 @@ answer **Treat**, **Gossip**, or **Hire** normally (`0x2C116`, `0x2C283`,
 **Waitress** begins at `0x2D102`. On Pub entry `0x2D372` picks the first
 waitress record at this port with flag `0x08` set and `0x40` clear; without one
 the Waitress command is grayed out (`0x2D4C6`), so Cairo's Hadi and Lisbon's
-Carlotta never serve it. Raw index 146 (entry 147) names the port's
+Carlotta never serve it. Raw index 146 names the port's
 waitress and requests a 10-gold tip; raw index 147, spoken by the Bookkeeper,
 refuses the interaction if the protagonist cannot pay. Once paid, it opens `Tell Stories / Give Gift /
 Investigation / Ask Info`:
@@ -1036,29 +1034,29 @@ does not list them.
 
 The Shipyard main handler begins at `MAIN.EXE 0x329B0`. Before its greeting
 and menu, it checks the saved same-day ejection flag and can instead display raw
-index 249 (entry 250) and eject the protagonist. The six ordinary commands are
+index 249 and eject the protagonist. The six ordinary commands are
 **New Ship**, **Used Ship**, **Repair**, **Sell**, **Remodel**, and **Invest**.
 Used Ship is grayed out when all five bytes of the current-port used-ship cache
 at slot `0x6E5C` are `0xFF` (`0x32A03–0x32A2E`).
 
 **New Ship** begins at `0x31D16`; model selection begins at `0x31B2E` and hull
 selection at `0x31A70`. The preliminary path may refuse because this port
-builds no new ships (raw index 251, entry 252) or reserve storage is full
+builds no new ships (raw index 251) or reserve storage is full
 (raw 377, “Other than the ships sailing with you now, you can only have 30
 ships.”); see the ship-exchange rules below. Raw index 252 opens the
 eligible ordering path. Its construction sequence is:
 
-| Stage                          | Raw index (entry) | Continuation                                                    |
-| ------------------------------ | ----------------: | --------------------------------------------------------------- |
-| Select model                   |         253 (254) | Confirms the chosen model.                                      |
-| Select hull material           |         254 (255) | Opens the material list.                                        |
-| Confirm current design         |         255 (256) | Follows the displayed ship statistics.                          |
-| Confirm calculated price       |         256 (257) | Supplies the quoted ship price; declining can open negotiation. |
-| Place order                    |         257 (258) | Payment and the construction order precede capacity allocation. |
-| Configure crew bunks           |         258 (259) | Numerical capacity input.                                       |
-| Configure gun space            |         259 (260) | Numerical capacity input.                                       |
-| Confirm capacity configuration |         260 (261) | Accepts or returns to configuration.                            |
-| Construction time              |         262 (263) | Supplies the required number of days.                           |
+| Stage                          | Raw index | Continuation                                                    |
+| ------------------------------ | --------: | --------------------------------------------------------------- |
+| Select model                   |       253 | Confirms the chosen model.                                      |
+| Select hull material           |       254 | Opens the material list.                                        |
+| Confirm current design         |       255 | Follows the displayed ship statistics.                          |
+| Confirm calculated price       |       256 | Supplies the quoted ship price; declining can open negotiation. |
+| Place order                    |       257 | Payment and the construction order precede capacity allocation. |
+| Configure crew bunks           |       258 | Numerical capacity input.                                       |
+| Configure gun space            |       259 | Numerical capacity input.                                       |
+| Confirm capacity configuration |       260 | Accepts or returns to configuration.                            |
+| Construction time              |       262 | Supplies the required number of days.                           |
 
 The normal hull menu starts with Teak, Cedar, and Beech. Oak appears when the
 port's Industry reaches 700, and Copper at 900. A Tekkousen uses Steel alone.
@@ -1170,15 +1168,15 @@ values.
 
 **Sell** begins at `0x31FF1` and uses this guarded sequence:
 
-| Condition or stage            | Raw index (entry) | Continuation                                                   |
-| ----------------------------- | ----------------: | -------------------------------------------------------------- |
-| Only the flagship exists      |         208 (209) | Refuses the command.                                           |
-| Ship selection                | 200–201 (201–202) | Selects and confirms the ship.                                 |
-| Selected ship is the flagship | 209–210 (210–211) | Requires confirmation and selection of a replacement flagship. |
-| Cargo remains aboard          |         211 (212) | Requires confirmation before discarding it.                    |
-| Crew remains aboard           |         212 (213) | Requires confirmation before dismissing them.                  |
-| Sale offer                    |         213 (214) | Supplies the price and asks for final confirmation.            |
-| Sale declined                 |         214 (215) | Returns to ship selection.                                     |
+| Condition or stage            | Raw index | Continuation                                                   |
+| ----------------------------- | --------: | -------------------------------------------------------------- |
+| Only the flagship exists      |       208 | Refuses the command.                                           |
+| Ship selection                |   200–201 | Selects and confirms the ship.                                 |
+| Selected ship is the flagship |   209–210 | Requires confirmation and selection of a replacement flagship. |
+| Cargo remains aboard          |       211 | Requires confirmation before discarding it.                    |
+| Crew remains aboard           |       212 | Requires confirmation before dismissing them.                  |
+| Sale offer                    |       213 | Supplies the price and asks for final confirmation.            |
+| Sale declined                 |       214 | Returns to ship selection.                                     |
 
 The save-aware query follows this sequence with colon-separated selectors:
 confirm the chosen ship, confirm any flagship replacement and select the new
@@ -1234,8 +1232,8 @@ not separately selectable commands.
 
 ### Guild command dialogue
 
-The Guild main handler begins at `MAIN.EXE 0x332E3`. It displays raw index 85
-(entry 86), “What do you want?”, and opens **Job Assignment** and **Country
+The Guild main handler begins at `MAIN.EXE 0x332E3`. It displays raw index 85,
+“What do you want?”, and opens **Job Assignment** and **Country
 Info**. Both commands return to this menu; leaving the menu returns outside
 without a farewell.
 
@@ -1876,12 +1874,12 @@ Muscat, Quatar, Shiraz, Trebizond, and Tripoli.
 
 ## Data evidence
 
-- `raw/MENU.DAT` record numbers in this list are one-based; the zero-based
-  entry in the file's big-endian offset table is the record number minus one.
-- `raw/MENU.DAT` record 59 contains the twelve building names in ID order.
-- `raw/MENU.DAT` records 1, 2, 5-10, 16-18, 23, 25, and 26 contain the menus
+- `raw/MENU.DAT` entries are zero-based positions in the file's big-endian
+  offset table.
+- `raw/MENU.DAT` entry 58 contains the twelve building names in ID order.
+- `raw/MENU.DAT` entries 0, 1, 4–9, 15–17, 22, 24, and 25 contain the menus
   transcribed above.
-- `raw/MESSAGE.DAT` contains the greetings, including message 804, "Welcome to
+- `raw/MESSAGE.DAT` contains the greetings, including raw index 803, "Welcome to
   our mosque."
 - `raw/GRAPH.DAT` records 6–17 contain the twelve ordinary building-vendor
   images in building-ID order; record 20 contains the Mosque vendor.

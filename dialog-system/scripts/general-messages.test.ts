@@ -30,21 +30,17 @@ test("general message banks use one combined executable index", () => {
     "MESSAGE2.DAT",
   );
   assert.deepEqual(
-    [...first, ...second].map(
-      ({ bank, rawIndex, entryNumber, combinedIndex }) => ({
-        bank,
-        rawIndex,
-        entryNumber,
-        combinedIndex,
-      }),
-    ),
+    [...first, ...second].map(({ bank, rawIndex, combinedIndex }) => ({
+      bank,
+      rawIndex,
+      combinedIndex,
+    })),
     [
-      { bank: "MESSAGE.DAT", rawIndex: 0, entryNumber: 1, combinedIndex: 0 },
-      { bank: "MESSAGE.DAT", rawIndex: 1, entryNumber: 2, combinedIndex: 1 },
+      { bank: "MESSAGE.DAT", rawIndex: 0, combinedIndex: 0 },
+      { bank: "MESSAGE.DAT", rawIndex: 1, combinedIndex: 1 },
       {
         bank: "MESSAGE2.DAT",
         rawIndex: 0,
-        entryNumber: 1,
         combinedIndex: 1000,
       },
     ],

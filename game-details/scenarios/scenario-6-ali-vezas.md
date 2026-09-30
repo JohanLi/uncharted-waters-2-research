@@ -92,7 +92,7 @@ Ali.
 ### Optional Lodge offer
 
 While Ali is raising capital, the Istanbul **Lodge** keeper offers money
-outright. The choice uses the forced menu `C9 01 007B` (message 124,
+outright. The choice uses the forced menu `C9 01 007B` (message 123,
 “Accept” / “Refuse”), which cannot be cancelled:
 
 - **Accept** adds 500 gold.
@@ -232,7 +232,7 @@ days does not count, and a longer one counts once.
 | Other buildings | Tax-permit advice, rest, repairs, and flattery. | The same.                                                             |
 
 Ladia's lines “$n! You're alright! … Was Joao able to escape?” (messages
-426–428) require flag 1. No route sets flag 1 in this subsection, and the
+425–427) require flag 1. No route sets flag 1 in this subsection, and the
 voyage-day-1 transition cleared it, so these lines appear unreachable.
 
 ### Find Sapha
@@ -424,7 +424,7 @@ buildings react to the purchase.
     duty byte `+0x26`, and executes `F9 05`, creating a pending ship of raw
     model 5 (display model 6, Caravela Latina) at 90% durability. The
     subsection-2 Shipyard route commissions it at `0x0653` with `FA 05 0098`,
-    naming it from message 153, “Savahni.”
+    naming it from message 152, “Savahni.”
 
 [^opening-flags]:
     Section 0 routes are in three tables: the primary table (subsection 0),
@@ -467,9 +467,9 @@ buildings react to the purchase.
 [^permit]:
     `SNR6.DAT 0x0F14–0x0F6E` scans the twenty inventory bytes at group-6
     offset `+0x3F`. Raw item `0x25` (Tax Permit (O)) skips the gift. Otherwise
-    the scan remembers the first `0xFF` slot; with one, messages 313–315 play
+    the scan remembers the first `0xFF` slot; with one, messages 312–314 play
     and `0x25` is written there, and with a full inventory the gift and its
-    messages are skipped. Both paths continue with message 316, `F8`, and `F1`.
+    messages are skipped. Both paths continue with message 315, `F8`, and `F1`.
 
 [^decoy]:
     Ali's fleet is fleet ID 20 (sailor 5's fleet byte) and Catalina's
@@ -503,7 +503,7 @@ buildings react to the purchase.
     (`0x1F38`). None of the routes that can run between the two scenes writes
     variable 0 (the Venice Bank's `EA 00` at `0x20DE` runs only after Pietro
     is found), and no before- or after-battle routes exist in this section.
-    The payout is therefore 400,000 gold, the 40 ingots Pietro's message 725
+    The payout is therefore 400,000 gold, the 40 ingots Pietro's message 724
     describes. The Venice settlement at `0x211D–0x2139` adds variable 2 to
     Trade Fame **before** it assigns `v2 = 1000` at `0x2128`, so the award is
     the value left by the Sakai route: 1,000 (`0x226A`) or 500 (`0x22AC`).
@@ -522,13 +522,13 @@ buildings react to the purchase.
     `SNR6.DAT 0x2BCD–0x2CE3`. `EA 00` reads the ingots; on the first visit
     (flag 1 clear) `v21 = v0 + 500` is capped by comparison with 10,000 and
     flag 1 is set at `0x2C37`. The comparisons at `0x2C3A` and `0x2C5A` send
-    Ali away while `ingots < v21`. Otherwise message 909 (first visit) or 911
-    (later) is an `E9` prompt; flag 10 set leads to messages 913–923 and `F0`.
-    Messages 907–912 and the Harbor reminders insert the price with `$d21`.
+    Ali away while `ingots < v21`. Otherwise message 908 (first visit) or 910
+    (later) is an `E9` prompt; flag 10 set leads to messages 912–922 and `F0`.
+    Messages 906–911 and the Harbor reminders insert the price with `$d21`.
 
 [^ending]:
     `SNR6.DAT 0x2DA1–0x2E3A`, table `0x2D75`. `CA 09` plays Ali's theme,
-    messages 934–950 follow, then `F4 05` and `F1`.
+    messages 933–949 follow, then `F4 05` and `F1`.
 
 ## Compact building guide
 

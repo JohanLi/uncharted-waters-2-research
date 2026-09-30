@@ -7,7 +7,7 @@ they accept, and promising a new title on success.
 See [the Scenario 0 overview](./scenario-0-common-quests-and-royal-missions.md)
 for eligibility, Fame selection, invitations, the audience, promotion, and
 refusal penalties. Evidence labels have the meanings defined in
-[the scenario README](./README.md); message numbers are one-based `SNR0.MES`
+[the scenario README](./README.md); message numbers are zero-based `SNR0.MES`
 IDs unless a `MESSAGE.DAT` raw index is named.
 
 ## Common structure
@@ -39,7 +39,7 @@ routes (`SNR0 0x01D9–0x01E8` and `0x021F–0x022E`):
 ## Royal trading test (section 6)
 
 The ruler says, “I will test your ability as a trader. Please bring me … lots of
-…” (message 145). The offer (`SNR0 0x16A5–0x16FB`) picks the commodity and a
+…” (message 144). The offer (`SNR0 0x16A5–0x16FB`) picks the commodity and a
 target sum by rank band and computes the quantity from the capital's own
 regional Market definition: the current port's Market ID (port metadata
 `+0x23`), then the commodity's little-endian **sale base price** `B` from the
@@ -62,18 +62,18 @@ Knight asked for Gold must bring 5 lots.
 
 Once the mission is accepted, the capital's own **Market** refuses service
 with “The marketplace is closed temporarily, while the head trader recovers
-from the plague” (message 154) and ejects the player (`0x18C7`). The goods must
+from the plague” (message 153) and ejects the player (`0x18C7`). The goods must
 therefore be bought elsewhere.
 
 On each later audience (`0x1794`), the ruler takes up to the requested
 quantity of that commodity from the fleet (`E3`):
 
 - all remaining lots: “Oh, nice work! As a reward, let me endow you with this
-  title” (message 150) and the new title;
+  title” (message 149) and the new title;
 - some lots: they are kept by the ruler, and “you still need to get … more”
-  (message 153); or
+  (message 152); or
 - none: “You haven't got … lots of … yet. You're not going to quit, are you?”
-  (message 151), with a give-up choice.
+  (message 150), with a give-up choice.
 
 The goods are not paid for.
 
@@ -82,26 +82,26 @@ The goods are not paid for.
 The home ruler chooses a destination nation with `random(6)`, redrawing while
 that nation's capital (nation record `+0x0A`) equals the home port
 (`SNR0 0x19DF–0x19F4`), and asks the protagonist to carry documents to its
-ruler (messages 157–162).
+ruler (messages 156–161).
 
 1. **Destination capital.** The protagonist uses **Meet Ruler** at the
    destination Palace (`0x1C05`). The destination ruler (variable 51) accepts
-   the documents and sends regards (messages 174–179). This first visit sets
+   the documents and sends regards (messages 173–178). This first visit sets
    shared flag 1 and raises the directed national Relations in **both
    directions by 5**, each capped at stored 100 (displayed 70). Later visits
-   only say “Hurry back …” (messages 180–185).
+   only say “Hurry back …” (messages 179–184).
 2. **Home capital.** Before delivery the ruler urges the protagonist on
-   (messages 167–172) with a give-up choice. After delivery (flag 1) the ruler
-   awards the title (message 166).
+   (messages 166–171) with a give-up choice. After delivery (flag 1) the ruler
+   awards the title (message 165).
 
 The promotion is awarded only on the return visit to the commissioning ruler.
 
 ## Negotiate a treaty (section 8)
 
 Structurally identical to document delivery, with its own dialogue: the offer
-(messages 188–193), the destination ruler's acceptance (205–210), the
-destination's “Please go” reminder (211–216), the home reminders (198–203), and
-the reward (197). The Relation increase is **10** in both directions, capped at
+(messages 187–192), the destination ruler's acceptance (204–209), the
+destination's “Please go” reminder (210–215), the home reminders (197–202), and
+the reward (196). The Relation increase is **10** in both directions, capped at
 stored 100.
 
 The Relation updates are also listed in
@@ -147,15 +147,15 @@ The requirement is relative to the ports already allied when the mission is
 offered (`SNR0 0x2244–0x2299`). The script scans the 100 regular ports' nation
 bits (port display byte `+0x13`, low three bits), counting ports of the
 protagonist's nation (variable 13) and all other ports (variable 14). It asks
-for `min(N, variable 14)` new alliances (message 219, “$d14 ports”) and stores
-the target `variable 13 + min(N, variable 14)` in variable 19 (message 226,
+for `min(N, variable 14)` new alliances (message 218, “$d14 ports”) and stores
+the target `variable 13 + min(N, variable 14)` in variable 19 (message 225,
 “$d19 allied ports”).
 
 The scenario recounts on each later audience (`0x23A8–0x2449`). If the count
 has reached the target, or equals exactly 95, the ruler reports the current
-alliance count (message 224 or 225) and awards the title. Otherwise the ruler
+alliance count (message 223 or 224) and awards the title. Otherwise the ruler
 reports that more allied ports are needed and offers the give-up choice
-(message 226).
+(message 225).
 
 Investment can turn a port into an ally. The takeover itself also awards Trade
 Fame equal to the port's Economy plus Industry; see
@@ -168,7 +168,7 @@ The ruler says:
 > I've heard you're quite an adventurer.
 
 The protagonist is asked to find rare things and reserve those discoveries for
-the ruler rather than reporting them elsewhere (message 231).
+the ruler rather than reporting them elsewhere (message 230).
 
 On acceptance, variable 19 is set to `(variable 23 + 1) × 50`, so the rank bands
 require 50, 100, or 150 points (`SNR0 0x2577–0x257D`). Each later audience
@@ -183,9 +183,9 @@ that record and compares the record's difficulty byte `+0x05` with variable 19:
   this title.”) and the new title;
 - smaller difficulty: it is subtracted from variable 19, and `D9` selector 8
   (raw 955, “You discovered …? Nice work!”) is followed by “Go and find me
-  something else” (message 235);
+  something else” (message 234);
 - no qualifying record: “You still haven't brought me anything …” (message
-  number 236) with the give-up choice.
+  number 235) with the give-up choice.
 
 Only one discovery is consumed per audience. Collector turn-in in `MAIN.EXE`
 (`0x33675–0x33687` and `0x33840`) lists discoveries with the same flag test and
@@ -364,13 +364,13 @@ attacked the ruler's merchant shipping and asks for an attack:
 
 | Variable 18 | Target           | Offer   | Reminder |
 | ----------: | ---------------- | ------- | -------: |
-|           0 | Portuguese fleet | 247–248 |      264 |
-|           1 | Spanish fleet    | 249–250 |      265 |
-|           2 | Turkish fleet    | 251–252 |      266 |
-|           3 | English fleet    | 253–254 |      267 |
-|           4 | Italian fleet    | 255–256 |      268 |
-|           5 | Dutch fleet      | 257–258 |      269 |
-|           6 | Pirates          | 259–260 |      270 |
+|           0 | Portuguese fleet | 246–247 |      263 |
+|           1 | Spanish fleet    | 248–249 |      264 |
+|           2 | Turkish fleet    | 250–251 |      265 |
+|           3 | English fleet    | 252–253 |      266 |
+|           4 | Italian fleet    | 254–255 |      267 |
+|           5 | Dutch fleet      | 256–257 |      268 |
+|           6 | Pirates          | 258–259 |      269 |
 
 Accepting clears shared flags 2 and 3. Two battle hooks then follow the same
 pattern as the Guild's Defeat Pirates assignment:
@@ -389,7 +389,7 @@ On the next audience (`0x2D07`), flag 2 produces:
 > as a reward for your services.
 
 Otherwise the ruler asks whether the protagonist is giving up (messages
-264–270). An unrelated victory does not satisfy the mission. The ordinary
+263–269). An unrelated victory does not satisfy the mission. The ordinary
 naval-victory rules can still award Piracy Fame for any battle; that Fame is
 separate from the royal mission's title reward.
 

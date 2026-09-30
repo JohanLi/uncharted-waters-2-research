@@ -131,7 +131,7 @@ building route exists in this last subsection.
     `SNR2.DAT 0x06C4–0x0735`: `FB 48` adds sailor 72 and `DC 00 03 48 26` /
     `1D 00 03` sets his duty to 3. `F9 0A 05` creates a pending ship of type
     `0x0A` (ship 10, Galleon) and `FA 0A 009E` names it from message
-    159, “Rebel”. The script then writes slot 0's crew word `+0x00 = 120`, gun
+    158, “Rebel”. The script then writes slot 0's crew word `+0x00 = 120`, gun
     byte `+0x06 = 50`, and ORs status byte `+0x08` with `0x04`, which sets the
     gun type in its low three bits to 4, the Culverin
     ([Guns](../naval-battle.md#guns)). In supply record
@@ -271,7 +271,7 @@ month (system value 4); it does not store or test the port.
 The direct route is to go to the Shipyard on the same day, normally in the same
 port. Missing it is recoverable: on any later day, a visit to any **Harbor**
 plays the alternate confrontation. The pirate leader at the Shipyard speaks as
-character 88 of the transcript, the portrait selected by sailor 60's untouched
+character 87 of the transcript, the portrait selected by sailor 60's untouched
 selector `0x57` (Antonio Khan). Neither scene starts a duel.[^day-compare]
 
 [^day-compare]:
@@ -390,7 +390,7 @@ The Otto scene also turns sailor 60's record into Bret Perot and launches his
 fleet:[^perot-record]
 
 - The name becomes “Bret Perot” and the portrait selector becomes 96, which is
-  character 97 of the transcripts, the portrait of every earlier Perot line.
+  character 96 of the transcripts, the portrait of every earlier Perot line.
 - The attributes become Leadership 78, Seamanship 75, Knowledge 48, Intuition
   95, Courage 84, Swordsmanship 73, Charm 31, and Luck 100, with Navigation
   level 14 and Battle level 18.
@@ -414,9 +414,9 @@ Both after-battle branches set variable 63, which also makes `MAIN.EXE` skip its
 post-battle block at `0x161BB`.
 
 [^perot-record]:
-    `SNR2.DAT 0x1CAB–0x1D4B`. `D4 0247` expands message 584, “Perot”, and
+    `SNR2.DAT 0x1CAB–0x1D4B`. `D4 0247` expands message 583, “Perot”, and
     `1F 00 00` copies it to sailor 60's second name field `+0x09`; `D4 0248`
-    copies message 585, “Bret”, to `+0x00`. `1C` writes the word `0x0060` to
+    copies message 584, “Bret”, to `+0x00`. `1C` writes the word `0x0060` to
     `+0x12/+0x13`. The eight attribute bytes are written from `0x1CCA` to
     `+0x14..+0x1B` as `78, 75, 48, 95, 84, 73, 31, 100`, and levels
     `+0x1C = 14`, `+0x1D = 18`. Byte `+0x29` is rewritten as
@@ -525,7 +525,7 @@ duel's outcome does not affect progression.
 
 [^rudolph]:
     `SNR2.DAT 0x2947–0x2965`: `1D 00 3B` writes byte `+0x12`, then
-    `D4 0340`/`D4 0341` copy messages 833, “Pirate”, and 834, “Rudolph”, to
+    `D4 0340`/`D4 0341` copy messages 832, “Pirate”, and 833, “Rudolph”, to
     `+0x00` and `+0x09`. `E8 3C` at `0x2965` starts the duel. `0F 02 06` then
     reads the duel balance and branches at `0x296A` (`< 100`) and `0x2978`
     (`> 99`). The only writes to attributes `+0x14..+0x1D` in `SNR2.DAT` are the

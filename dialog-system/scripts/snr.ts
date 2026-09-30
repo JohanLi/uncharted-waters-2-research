@@ -263,11 +263,11 @@ export function readScenarioMessages(data: Buffer): ScenarioMessage[] {
     const sourceOffset = data.readUInt32BE(index * 4);
     const end = data.indexOf(0, sourceOffset);
     if (sourceOffset < firstOffset || end < 0)
-      throw new Error(`Invalid SNR message ${index + 1}`);
+      throw new Error(`Invalid SNR message ${index}`);
     const rawBody = new TextDecoder().decode(data.subarray(sourceOffset, end));
     const label = /^\|([^|]+)\|\n/.exec(rawBody)?.[1];
     return {
-      id: index + 1,
+      id: index,
       body: formatBody(rawBody),
       ...(label ? { speakerLabel: label } : {}),
       sourceOffset,
@@ -335,7 +335,7 @@ function readDialogueLine(
     const presentationOpcode = data[offset + 8]!;
     length = presentationOpcode === 0xe9 ? 10 : 9;
     position = data[offset + 1]!;
-    characterId = data.readUInt16BE(offset + 3) + 1;
+    characterId = data.readUInt16BE(offset + 3);
     messageIndex = data.readUInt16BE(offset + 6);
     if (presentationOpcode === 0xe9) {
       presentation = "choice-prompt";
@@ -391,8 +391,8 @@ function readDialogueLine(
       ...(characterVariable === undefined ? {} : { characterVariable }),
       ...(speakerMessageIndex === undefined
         ? {}
-        : { speakerMessageId: speakerMessageIndex + 1 }),
-      messageId: messageIndex + 1,
+        : { speakerMessageId: speakerMessageIndex }),
+      messageId: messageIndex,
       body: message.body,
       ...(speakerMessage?.speakerLabel
         ? { speakerLabel: speakerMessage.speakerLabel }
@@ -882,7 +882,7 @@ function readStatefulDialogueLines(
         nextState;
       nextState = {
         ...retainedState,
-        characterId: data.readUInt16BE(offset + 1) + 1,
+        characterId: data.readUInt16BE(offset + 1),
         instructionOffsets: [...nextState.instructionOffsets, offset],
         rawParts: [...nextState.rawParts, instruction.rawHex],
       };
@@ -950,8 +950,8 @@ function readStatefulDialogueLines(
               : { characterVariable: nextState.characterVariable }),
             ...(speakerMessageIndex === undefined
               ? {}
-              : { speakerMessageId: speakerMessageIndex + 1 }),
-            messageId: messageIndex + 1,
+              : { speakerMessageId: speakerMessageIndex }),
+            messageId: messageIndex,
             body: message.body,
             ...(speakerMessage?.speakerLabel
               ? { speakerLabel: speakerMessage.speakerLabel }

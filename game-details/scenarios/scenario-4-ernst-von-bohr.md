@@ -163,11 +163,11 @@ raw 84, “Commoners are not permitted to enter the palace. Remove yourself from
 the premises.” (`MAIN.EXE 0x30A1E–0x30A5C`).
 
 [^mercator-scene]:
-    `SNR4.DAT 0x004A–0x0227`. After messages 1–44, `FB 4D` adds sailor
+    `SNR4.DAT 0x004A–0x0227`. After messages 0–43, `FB 4D` adds sailor
     77, Hans Starten, to the mate roster. `DC 00 03 4D 26` and `11 00 03` then
     set his duty byte to 3 (First Mate). `F9 05 05` starts a pending ship of
     model 5, whose template name is “Caravela Latina” (ship 5). `FA
-05 002C` commissions it with the name in message 45, “Mercator”, and
+05 002C` commissions it with the name in message 44, “Mercator”, and
     assigns its captain by the handler's usual rule (`MAIN.EXE 0x38193`).
     `0x01ED–0x01F8` ORs Mercator's contract byte with `0x10`.
     `0x01FB–0x0222` ORs byte `+0x13` of port records 97, 98, and 99 (Changan,

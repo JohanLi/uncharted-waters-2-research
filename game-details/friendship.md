@@ -221,8 +221,8 @@ Royal missions change directed national Relations through the scenario relation 
 The result is clamped at stored relation `100`. The mission code updates both directions of the two participating
 nations.
 
-The shared royal-mission scenario contains separate mission families for document delivery (messages 155–185) and treaty
-negotiation (messages 186–216). The document branch contains `4C 0B 05` twice; the treaty branch contains `4C 0B 0A`
+The shared royal-mission scenario contains separate mission families for document delivery (messages 154–184) and treaty
+negotiation (messages 185–215). The document branch contains `4C 0B 05` twice; the treaty branch contains `4C 0B 0A`
 twice.
 
 ## Investment and port control

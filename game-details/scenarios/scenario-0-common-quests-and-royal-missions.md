@@ -15,26 +15,26 @@ bytecode, the text cites the executable routine. The individual royal missions
 are described in the [royal mission catalog](./scenario-0-royal-missions.md).
 
 Evidence labels have the meanings defined in [the scenario README](./README.md).
-Message numbers are one-based `SNR0.MES` IDs unless a `MESSAGE.DAT` raw index is
+Message numbers are zero-based `SNR0.MES` IDs unless a `MESSAGE.DAT` raw index is
 named.
 
 ## Section map
 
 | Section | Purpose                                           | Messages | Where it runs                                                |
 | ------: | ------------------------------------------------- | -------: | ------------------------------------------------------------ |
-|       0 | Idle state and assignment/royal-mission selection |     1–12 | Guild (`0xA306`), Palace (`0xA305`), any building (`0xA3FF`) |
-|       1 | Transport Goods                                   |    13–54 | Market (`0xA300`)                                            |
-|       2 | Buy Goods                                         |    55–78 | Market (`0xA300`)                                            |
-|       3 | Deliver Letter                                    |    79–98 | Guild (`0xA306`)                                             |
-|       4 | Defeat Pirates                                    |   99–110 | Guild; before and after naval battles (`0xA1FF`, `0xA2FF`)   |
-|       5 | Collect Debt                                      |  111–142 | Venice Bank (`0x0D08`)                                       |
-|       6 | Royal trading test                                |  143–154 | Palace audience; the capital's Market                        |
-|       7 | Deliver documents between rulers                  |  155–185 | Palace audiences at home and at the destination capital      |
-|       8 | Negotiate a treaty                                |  186–216 | Palace audiences at home and at the destination capital      |
-|       9 | Establish allied ports                            |  217–227 | Palace audience                                              |
-|      10 | Make discoveries for the ruler                    |  228–237 | Palace audience                                              |
-|      11 | Special search mission                            |  238–244 | Palace audience; Guild, Pub, and landing (executable)        |
-|      12 | Defeat a national fleet or pirates                |  245–272 | Palace audience; before and after naval battles              |
+|       0 | Idle state and assignment/royal-mission selection |     0–11 | Guild (`0xA306`), Palace (`0xA305`), any building (`0xA3FF`) |
+|       1 | Transport Goods                                   |    12–53 | Market (`0xA300`)                                            |
+|       2 | Buy Goods                                         |    54–77 | Market (`0xA300`)                                            |
+|       3 | Deliver Letter                                    |    78–97 | Guild (`0xA306`)                                             |
+|       4 | Defeat Pirates                                    |   98–109 | Guild; before and after naval battles (`0xA1FF`, `0xA2FF`)   |
+|       5 | Collect Debt                                      |  110–141 | Venice Bank (`0x0D08`)                                       |
+|       6 | Royal trading test                                |  142–153 | Palace audience; the capital's Market                        |
+|       7 | Deliver documents between rulers                  |  154–184 | Palace audiences at home and at the destination capital      |
+|       8 | Negotiate a treaty                                |  185–215 | Palace audiences at home and at the destination capital      |
+|       9 | Establish allied ports                            |  216–226 | Palace audience                                              |
+|      10 | Make discoveries for the ruler                    |  227–236 | Palace audience                                              |
+|      11 | Special search mission                            |  237–243 | Palace audience; Guild, Pub, and landing (executable)        |
+|      12 | Defeat a national fleet or pirates                |  244–271 | Palace audience; before and after naval battles              |
 
 The shared scenario keeps its own section and subsection bytes (`DS:0x0EE2`
 and `DS:0x0EE3`, save-slot-relative `0x00BA`–`0x00BB`), a 32-bit flag word
@@ -74,7 +74,7 @@ not switch sections directly. The executable writes `selector + 1` into the
 shared subsection byte while the shared section is still 0 (`0x32F5C–0x32F61`),
 copies the row's checkpoint from variable `3 + row` into variable 8
 (`0x32F66`), and dispatches Guild qualifier `0x06` (`0x32F72`). The Old Guild
-Worker's offer, messages 1–12, therefore runs in section 0. The offer sets
+Worker's offer, messages 0–11, therefore runs in section 0. The offer sets
 variable 6 to 0 on rejection or to the chosen section 1–5 on acceptance; if
 the dispatch reports a handled route, the executable copies variable 6 into
 the shared section (`0x32F80`) and clears the subsection. Rejecting returns to
@@ -137,7 +137,7 @@ Every completion award is capped at 50,000. See also
 ## Transport Goods
 
 Transport Goods is section 1. The Old Guild Worker asks the protagonist to
-carry goods “from the port of `A` to `B`” (message 2); accepting sets section 1.
+carry goods “from the port of `A` to `B`” (message 1); accepting sets section 1.
 
 ### Offer at the origin Market
 
@@ -156,7 +156,7 @@ The script then reads the fleet's free cargo capacity (`EE`), multiplies it by
 offered lots = min(base quantity, floor(free cargo capacity × 8 / 10))
 ```
 
-If the capped result is zero, the trader says there is no room (message 14)
+If the capped result is zero, the trader says there is no room (message 13)
 and the route stops without ejecting the player; the assignment stays in its
 offer stage, so the player can return with space.
 
@@ -168,33 +168,33 @@ Rank controls the deadline, payment, and Trade Fame award:
 | Knight–Baron   | 2 months | 10,000 |        700 |
 | Viscount–Duke  | 3 months | 30,000 |      1,500 |
 
-Accepting (message 24) loads the cargo (`E2`), stores the deadline, and
-advances to the active subsection. Rejecting (message 22) ends the assignment
+Accepting (message 23) loads the cargo (`E2`), stores the deadline, and
+advances to the active subsection. Rejecting (message 21) ends the assignment
 (`F1`). Both eject the player (`F8`).
 
 ### Progress, delivery, and payment
 
 1. **Destination Market, before delivery** (`0x0BBC`). The route runs on entry,
    before the ordinary menu. If the assignment is late, the trader refuses
-   (message 54), Trade Fame falls to 80%, and the assignment ends. Otherwise
+   (message 53), Trade Fame falls to 80%, and the assignment ends. Otherwise
    the trader takes up to the remaining quantity of that commodity from the
    fleet (`E3`):
    - all remaining lots: “Thank you! Go and collect your payment at the port of
-     `A`” (message 38); shared flag 0 records delivery, and the ordinary Market
+     `A`” (message 37); shared flag 0 records delivery, and the ordinary Market
      menu follows;
-   - some lots: the remainder and time left are reported (messages 48–52), the
+   - some lots: the remainder and time left are reported (messages 47–51), the
      assignment stays active, and the player is ejected;
    - none: “You didn't bring me …” with the time left and a give-up choice
-     (messages 40–46); giving up costs 10% of Trade Fame and ends the
+     (messages 39–45); giving up costs 10% of Trade Fame and ends the
      assignment. The player is ejected either way.
 2. **Origin Market, before delivery** (`0x0AC7`). If the assignment has
-   expired, the trader says, “Your deadline has long since passed” (message 36)
+   expired, the trader says, “Your deadline has long since passed” (message 35)
    and ends the assignment **without** a Fame penalty. Otherwise he asks
    whether the goods have been transported, reports the time left, and offers
-   a give-up choice (messages 28–34; giving up costs 10% of Trade Fame). The
+   a give-up choice (messages 27–33; giving up costs 10% of Trade Fame). The
    player is ejected either way.
 3. **Origin Market, after delivery.** The trader pays the promised gold, adds
-   the Trade Fame award, and ends the assignment (message 26). There is no
+   the Trade Fame award, and ends the assignment (message 25). There is no
    deadline check on this return trip; lateness is judged at the destination.
 
 The destination Market route does nothing once delivery is recorded.
@@ -210,7 +210,7 @@ contain `F8`, so the ordinary Market menu follows them.
 ## Buy Goods
 
 Buy Goods is section 2. The Old Guild Worker sends the protagonist to the head
-trader at port `A` (message 4).
+trader at port `A` (message 3).
 
 ### Offer at the head trader's Market
 
@@ -230,7 +230,7 @@ lots = min(floor(target / B), 250)
 | Knight–Baron   | 2 months | 26–31: Coral, Amber, Ivory, Pearl, Tortoise Shell, Gold   |  5,000 |  15,000 |        700 |
 | Viscount–Duke  | 3 months | 0–9: Clove through Cacao                                  | 20,000 |  30,000 |      1,500 |
 
-The offer (`D9` selector 0, `MESSAGE.DAT` raw 941, then message 56) promises the
+The offer (`D9` selector 0, `MESSAGE.DAT` raw 941, then message 55) promises the
 target plus an advance. The advance is computed in variable 27 as the target,
 or as `B × 250` rounded up to a multiple of 100 when the quantity was capped,
 and is then compared with an immediate byte: `if advance < 16, keep it;
@@ -239,21 +239,21 @@ otherwise advance = 10,000` (`0x0D99–0x0D9E`). The comparison constant is
 10,000**. The Payment column is the target plus that 10,000. (**Decoded** as
 executed; the intended rule was **Likely** a 10,000 cap.)
 
-Accepting pays the 10,000 advance (message 60) and starts the deadline;
-rejecting ends the assignment (message 58). Both eject the player.
+Accepting pays the 10,000 advance (message 59) and starts the deadline;
+rejecting ends the assignment (message 57). Both eject the player.
 
 ### Delivery
 
 On each later visit to the same Market (`0x0E03`):
 
-- late: “I'm sorry, but you missed the deadline” (message 78); Trade Fame falls
+- late: “I'm sorry, but you missed the deadline” (message 77); Trade Fame falls
   to 80% and the assignment ends. The advance is kept;
 - all remaining lots carried: they are taken, the full payment and Trade Fame
-  are awarded (message 62), and the ordinary menu follows;
+  are awarded (message 61), and the ordinary menu follows;
 - some lots carried: they are taken and the remainder reported (messages
-  72–76);
+  71–75);
 - none carried: a reminder with the time left and a give-up choice (messages
-  64–70). Giving up costs 10% of Trade Fame, deducts the 10,000 advance, and
+  63–69). Giving up costs 10% of Trade Fame, deducts the 10,000 advance, and
   ends the assignment. The deduction (`E7`, `MAIN.EXE 0x37E41`) never makes
   gold negative: when the advance is at least the gold carried, gold is set
   to 0.
@@ -262,25 +262,25 @@ On each later visit to the same Market (`0x0E03`):
 
 Deliver Letter is section 3 and is the only job offered at ports 42 and above.
 The letter must reach the Guild at port `p ± d2` within one month (messages
-6–8); the fee is 700 gold and the award 50 Trade Fame.
+5–7); the fee is 700 gold and the award 50 Trade Fame.
 
 Both ends are Guild entry routes (`0x0F7B`):
 
 1. **Addressee's Guild.** On time: “Oh, is this the letter from …?” and “You can
-   collect your payment at …” (messages 94–96), setting shared flag 1. Late:
-   “This information is completely outdated” (message 98), setting flag 2. The
+   collect your payment at …” (messages 93–95), setting shared flag 1. Late:
+   “This information is completely outdated” (message 97), setting flag 2. The
    player is ejected. Later visits do nothing.
 2. **Commissioning Guild.** After an on-time delivery (flag 1) the fee and Trade
-   Fame are paid (message 80). After a late delivery (flag 2) half the fee, 350,
-   is paid and no Fame is awarded (message 82). With no delivery yet, an expired
-   assignment costs 20% of Trade Fame (message 92); otherwise a reminder with
-   the time left offers a give-up choice (messages 84–90, 10% penalty). Each
+   Fame are paid (message 79). After a late delivery (flag 2) half the fee, 350,
+   is paid and no Fame is awarded (message 81). With no delivery yet, an expired
+   assignment costs 20% of Trade Fame (message 91); otherwise a reminder with
+   the time left offers a give-up choice (messages 83–89, 10% penalty). Each
    ending returns the shared scenario to idle.
 
 ## Defeat Pirates
 
 Defeat Pirates is section 4. The Old Guild Worker's offer (`D9` selector 5,
-`MESSAGE.DAT` raw 946 and 957, then message 10) asks for a number of pirate
+`MESSAGE.DAT` raw 946 and 957, then message 9) asks for a number of pirate
 fleets within the same number of months:
 
 | Rank band      | Pirate fleets | Deadline |   Gold | Piracy Fame |
@@ -304,16 +304,16 @@ Any pirate fleet anywhere counts; the Guild's “around here” is flavor text.
    otherwise keeps its captain and does not count
    ([After the battle](../naval-battle.md#after-the-battle)).
 3. **The commissioning Guild** (`0x117D`): with every fleet defeated, the gold
-   and Piracy Fame are paid (message 102), or half the gold and no Fame if the
-   last fleet was defeated late (message 100). Otherwise an expired assignment
-   costs 20% of Piracy Fame (message 110), and an unexpired one shows the time
-   left (messages 104–108 before any kill, `D9` selector 6 afterwards) with a
+   and Piracy Fame are paid (message 101), or half the gold and no Fame if the
+   last fleet was defeated late (message 99). Otherwise an expired assignment
+   costs 20% of Piracy Fame (message 109), and an unexpired one shows the time
+   left (messages 103–107 before any kill, `D9` selector 6 afterwards) with a
    give-up choice costing 10% of Piracy Fame.
 
 ## Collect Debt
 
 Collect Debt is section 5. The Old Guild Worker sends the protagonist to the
-Marco Polo Bank in Venice (message 12). Its route is Venice-specific (port 13,
+Marco Polo Bank in Venice (message 11). Its route is Venice-specific (port 13,
 Bank qualifier `0x08`).
 
 ### Offer at the Venice Bank
@@ -328,8 +328,8 @@ The Bank chooses a debtor among sailors 79–119 (the
 | No Rank–Squire   | 0–41          | 5 Gold Ingots  |  1 month |  5,000 |              150 each |
 | Knight or higher | 42 and above  | 10 Gold Ingots | 3 months | 20,000 |              500 each |
 
-The banker names the debtor and the reward (messages 112–118). Rejecting ends
-the assignment (message 120); accepting starts the deadline. Both eject the
+The banker names the debtor and the reward (messages 111–117). Rejecting ends
+the assignment (message 119); accepting starts the deadline. Both eject the
 player.
 
 ### Collection and hand-over
@@ -344,14 +344,14 @@ also report the debtor's port ([below](#pub-treat-outside-the-idle-state)).
 Back at the Venice Bank (`0x13A0`):
 
 - not yet collected: an expired assignment costs 20% of both Trade and Piracy
-  Fame (messages 140–142); otherwise the time left is shown with a give-up
-  choice (messages 132–138) that costs 10% of both;
+  Fame (messages 139–141); otherwise the time left is shown with a give-up
+  choice (messages 131–137) that costs 10% of both;
 - collected, but carried Gold Ingots below 5 or 10: “It doesn't look like you
-  have the money with you” (messages 128–130). Trade Fame falls to 50%, Piracy
+  have the money with you” (messages 127–129). Trade Fame falls to 50%, Piracy
   Fame is unchanged, and the assignment ends;
 - collected and carried: the Bank takes the 50,000 or 100,000 gold (message
-  number 122) and pays the reward with both Fame awards (message 124), or half
-  the reward and no Fame if the deadline has passed (message 126).
+  number 121) and pays the reward with both Fame awards (message 123), or half
+  the reward and no Fame if the deadline has passed (message 125).
 
 ### Pub Treat outside the idle state
 

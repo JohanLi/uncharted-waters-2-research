@@ -7,7 +7,6 @@ export type GeneralMessageBankName = "MESSAGE.DAT" | "MESSAGE2.DAT";
 export interface GeneralMessage {
   bank: GeneralMessageBankName;
   rawIndex: number;
-  entryNumber: number;
   combinedIndex: number;
   text: string;
 }
@@ -38,7 +37,6 @@ export function decodeGeneralMessageBank(
     messages.push({
       bank,
       rawIndex,
-      entryNumber: rawIndex + 1,
       combinedIndex: combinedBase + rawIndex,
       text: bytes.subarray(start, end).toString("latin1"),
     });

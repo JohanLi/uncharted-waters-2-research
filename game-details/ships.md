@@ -1,6 +1,6 @@
 # Ships
 
-The game contains 25 ship types. Ship IDs are one-based and match the order in
+The game contains 25 ship types. Ship IDs are zero-based and match the order in
 the extracted ship table. The catalog below presents the decoded ship data
 first; the storage layout appears later.
 
