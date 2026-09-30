@@ -107,21 +107,24 @@ export async function extractPortMetadata(): Promise<Port[]> {
     port.economy = data.readUInt16LE(cursor + 2);
     port.industry = data.readUInt16LE(cursor + 6);
     port.allegiances = [...data.subarray(cursor + 10, cursor + 16)];
-    port.regionId = String(data[cursor + 30]! + 1);
+    port.regionId = String(data[cursor + 30]!);
     const regular = [...data.subarray(cursor + 31, cursor + 34)]
-      .map((x) => String(x + 1))
-      .filter((x) => x !== "256");
-    const secret = String(data[cursor + 34]! + 1);
+      .filter((x) => x !== 0xff)
+      .map(String);
+    const secret = data[cursor + 34]!;
     if (regular.length)
-      port.itemShop = { regular, ...(secret !== "256" ? { secret } : {}) };
-    port.marketId = String(data[cursor + 35]! + 1);
-    port.industryId = String(data[cursor + 36]! + 1);
+      port.itemShop = {
+        regular,
+        ...(secret !== 0xff ? { secret: String(secret) } : {}),
+      };
+    port.marketId = String(data[cursor + 35]!);
+    port.industryId = String(data[cursor + 36]!);
   }
   const locations = await readFile(join(repoRoot, "raw/ZA_DAT.DAT"));
   cursor = 0;
   for (let index = 0; index < 101; index++) {
     const buildings: Record<string, { x: number; y: number }> = {};
-    for (let building = 1; building < 13; building++) {
+    for (let building = 0; building < 12; building++) {
       const x = locations[cursor++]!,
         y = locations[cursor++]!;
       if (!((x === 255 && y === 255) || (x === 0 && y === 0)))

@@ -336,7 +336,7 @@ any hour ([Nightfall](../naval-battle.md#nightfall)).
     entry supplies low nibble `C`. Adding the routine's base instance ID
     `0x31` selects ship-instance template `0x3D`. That template begins at
     `KOUKAI2.DAT` offset `0x4E4B`; its raw ship type at template offset `+0x11`
-    is `0x15`, the zero-based form of display ship ID 22, **La Reale**.
+    is `0x15` (ship 21), **La Reale**.
     `0x1D3AE` copies the template's model values into the fleet slot,
     initializes its crew and condition, and marks the slot active. Repeated
     month-boundary passes can consequently grow Catalina's fleet from zero to

@@ -758,7 +758,7 @@ text area, when the next line moves between positions.
 
 Ordinary vendor artwork comes from `GRAPH.DAT`, separately from the scenario
 character selected by `CC`. Zero-based records 6–17 correspond to building IDs
-1–12 in order. Church/Mosque is the one variant: Church uses record 16 and
+0–11 in order. Church/Mosque is the one variant: Church uses record 16 and
 Mosque uses record 20. Special residences retain record 13 regardless of
 whether their current speaker is a collector, cartographer, teacher, or story
 occupant.

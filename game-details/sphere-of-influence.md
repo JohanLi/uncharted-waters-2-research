@@ -87,14 +87,14 @@ boundaries.
 
 | Region ID | Region         | Weight |
 | --------: | -------------- | -----: |
-|         1 | Europe         |    1/4 |
-|         2 | New World      |    1/3 |
-|         3 | West Africa    |    1/3 |
-|         4 | East Africa    |    1/2 |
-|         5 | Middle East    |    1/3 |
-|         6 | India          |      1 |
-|         7 | Southeast Asia |      1 |
-|         8 | Far East       |      1 |
+|         0 | Europe         |    1/4 |
+|         1 | New World      |    1/3 |
+|         2 | West Africa    |    1/3 |
+|         3 | East Africa    |    1/2 |
+|         4 | Middle East    |    1/3 |
+|         5 | India          |      1 |
+|         6 | Southeast Asia |      1 |
+|         7 | Far East       |      1 |
 
 Portugal's initialized starting sphere demonstrates both the calculation and
 the supply-line checks:
