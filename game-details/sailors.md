@@ -399,7 +399,8 @@ Klerk” (Holland) are stored as “La”, “El”, “La”, “Van”, and �
 are always of nations 0–5 ([New generic sailors](fleets.md#new-generic-sailors)),
 so the Piracy parts are used only by the initial data's pirates and by
 `0xCFDA`, which draws one-off faces with a random selector and a random
-nation from all seven (`random(7)`).
+nation from all seven (`random(7)`), such as the Pub's gambling opponents
+([Gamble](buildings.md#gamble)).
 `scripts/temporary-sailors` generates random examples.
 
 ## Active NPC captains
