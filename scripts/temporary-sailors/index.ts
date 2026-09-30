@@ -21,7 +21,7 @@ const nations = [
   "Piracy",
 ] as const;
 
-const palette = [
+export const palette = [
   "000000",
   "00A060",
   "D04000",
@@ -91,7 +91,7 @@ export function composePortrait(
   return indices;
 }
 
-function toRgb(indices: Uint8Array, scale: number): Uint8Array {
+export function toRgb(indices: Uint8Array, scale: number): Uint8Array {
   const rgb = new Uint8Array(indices.length * scale * scale * 3);
   for (let y = 0; y < height * scale; y++)
     for (let x = 0; x < width * scale; x++)
