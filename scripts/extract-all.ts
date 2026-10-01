@@ -4,6 +4,7 @@ import { run as extractPortraitsItemsDiscoveries } from "./portraits-items-disco
 import { run as extractPorts } from "./ports/index.js";
 import { run as extractShips } from "./ships/index.js";
 import { run as extractSailors } from "./sailors/index.js";
+import { run as extractDiscoveries } from "./discoveries/index.js";
 import { run as drawTilesets } from "./tilesets/index.js";
 import { run as drawWindsCurrentAnomalies } from "./winds-current-anomalies/index.js";
 import { run as drawWorldMap } from "./draw-world-map/index.js";
@@ -19,6 +20,7 @@ await drawWindsCurrentAnomalies();
 await extractPorts();
 await extractShips();
 await extractSailors();
+await extractDiscoveries();
 await extractArt();
 await extractPortraitsItemsDiscoveries();
 await extractDueling();
