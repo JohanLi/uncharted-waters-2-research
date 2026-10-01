@@ -1331,6 +1331,33 @@ test("resolves Pub Meet and Lodge Gossip sailor hiring", async () => {
   );
 });
 
+test("prices Market purchases from the listed goods' purchase base", async () => {
+  // A new game's Lisbon Market: Olive Oil 33 and Dye 145 per lot, from the
+  // purchase base words (MAIN.EXE 0x29F23), not the sale prices (12 and 60).
+  let save = await originalSave();
+  const base = slotOffset(1);
+  const protagonistId = save[14]!;
+  const fleetId = save[base + 0x612 + protagonistId * 42 + 0x24]!;
+  const fleetShip = base + 0x1de0 + fleetId * 0x85 + 0x2b;
+  const instance = base + 0x47fc;
+  const supply = base + 0x423e;
+  save[base + 0x0a] = 0; // in Lisbon, with the new-game market untouched
+  save.set([20, 0, 80, 100, 50, 50, 0, 0, 0x10], fleetShip);
+  save.fill(0, instance, instance + 0x18);
+  save.writeUInt16LE(200, instance + 0x16);
+  save.fill(0, supply, supply + 0x1e);
+  save.fill(0xff, supply + 0x16, supply + 0x1b);
+  save[supply + 0x1b] = protagonistId;
+  save = setGold(save, 1, 10_000);
+  const data = await loadOrdinaryDialogueData();
+  const list = ordinaryBuildingEntry(save, 1, 0x00, true, [], [], data, [
+    "buy-goods",
+  ]);
+  const menu = list.command?.menu ?? [];
+  assert.ok(menu.some((entry) => entry.endsWith("Olive Oil (33 gold/lot)")));
+  assert.ok(menu.some((entry) => entry.endsWith("Dye (145 gold/lot)")));
+});
+
 test("resolves Market stock, purchases, rates, and investment", async () => {
   let save = await originalSave();
   const base = slotOffset(1);
