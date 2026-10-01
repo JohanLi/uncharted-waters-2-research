@@ -20,6 +20,7 @@
     "extract-ships": "node --import tsx scripts/ships/index.ts",
     "extract-sailors": "node --import tsx scripts/sailors/index.ts",
     "extract-discoveries": "node --import tsx scripts/discoveries/index.ts",
+    "extract-goods": "node --import tsx scripts/goods/index.ts",
     "extract-art": "node --import tsx scripts/art/index.ts",
     "extract-event-art": "node --import tsx scripts/art/event-art.ts",
     "extract-graph-art": "node --import tsx scripts/art/graph-art.ts",
