@@ -83,14 +83,14 @@ a new game begins.
 |  10N |   31E | Baobab                   |   30 |   240 |   7,500 | Plant             |
 |   5N |   33E | Pteranodon               |   40 |   320 |  10,000 | Monster           |
 |   0N |   32E | Victoria Falls           |   20 |   160 |   5,000 | Natural Wonder    |
-|   1N |    8E | Diogo's Monument         |   30 |   240 |   7,500 | Monument          |
+|   1N |    8E | Diogo's Monument         |   30 |   240 |   7,500 | Ruins             |
 |  12N |    2E | Ant Hill                 |   40 |   320 |  10,000 | Natural Wonder    |
 |  15N |    2W | Clay Mosque              |   30 |   240 |   7,500 | Ruins             |
 |   6S |   12E | Armadillo                |   25 |   200 |   6,250 | Exotic Animal     |
 |   1S |   17E | Moquele Mubembe          |   70 |   560 |  17,500 | Monster           |
 |   0S |   25E | Moonbow                  |   20 |   160 |   5,000 | Natural Wonder    |
 |  12S |   10E | Quagga                   |   30 |   240 |   7,500 | Exotic Animal     |
-|  31S |   19E | Diaz's Monument          |   40 |   320 |  10,000 | Monument          |
+|  31S |   19E | Diaz's Monument          |   40 |   320 |  10,000 | Ruins             |
 |  30S |   25E | Big Zimbabwe             |   40 |   320 |  10,000 | Ruins             |
 |   0S |   41E | Mandrill                 |   65 |   520 |  16,250 | Exotic Animal     |
 |  20S |   50E | Dodo                     |  100 | 1,500 | 100,000 | Exotic Animal     |
@@ -106,7 +106,7 @@ a new game begins.
 |  22N |  108E | Kalavinka                |   70 |   560 |  17,500 | Exotic Animal     |
 |  38N |  126E | Plant Worm               |   30 |   240 |   7,500 | Plant             |
 |  35N |  138E | Toro Ruins               |   40 |   320 |  10,000 | Ruins             |
-|  39N |  139E | Namahage                 |   65 |   520 |  16,250 | Cultural Artifact |
+|  39N |  139E | Namahage                 |   65 |   520 |  16,250 | Monster           |
 |  35N |  112E | Qian Ling                |   90 |   720 |  22,500 | Ruins             |
 |  41N |  110E | Great Wall               |   80 |   640 |  20,000 | Ruins             |
 |  38N |  107E | Hedgehog                 |   30 |   240 |   7,500 | Exotic Animal     |
@@ -116,7 +116,7 @@ a new game begins.
 |  19N |  103W | Jade Mask                |   40 |   320 |  10,000 | Cultural Artifact |
 |  12N |   90W | Guatavita Lake           |   30 |   240 |   7,500 | Natural Wonder    |
 |   7N |   70W | Cactus                   |   10 |    80 |   2,500 | Plant             |
-|   7N |   65W | Iguana                   |   30 |   240 |   7,500 | Exotic Animal     |
+|   7N |   65W | Iguana                   |   30 |   240 |   7,500 | Monster           |
 |  33N |   97W | Venus' Flytrap           |   25 |   200 |   6,250 | Plant             |
 |  43N |   93W | Niagara Falls            |   80 |   640 |  20,000 | Natural Wonder    |
 |   4S |   61W | Amazon Water Lily        |   30 |   240 |   7,500 | Plant             |
@@ -124,9 +124,9 @@ a new game begins.
 |   5S |   66W | Pororoca                 |   60 |   480 |  15,000 | Natural Wonder    |
 |   0N |   71W | Matamata                 |   65 |   520 |  16,250 | Exotic Animal     |
 |   2S |   75W | Balsa                    |   55 |   440 |  13,750 | Cultural Artifact |
-|   9S |   73W | Piranha                  |   20 |   160 |   5,000 | Monster           |
+|   9S |   73W | Piranha                  |   20 |   160 |   5,000 | Exotic Animal     |
 |  11S |   77W | Tarantula                |   35 |   280 |   8,750 | Exotic Animal     |
-|   7S |   77W | Archaeopteryx            |   90 |   720 |  22,500 | Monster           |
+|   7S |   77W | Archaeopteryx            |   90 |   720 |  22,500 | Exotic Animal     |
 |   5S |   83W | Gold Frog                |   50 |   400 |  12,500 | Exotic Animal     |
 |  35S |   66W | Toucan                   |   55 |   440 |  13,750 | Exotic Animal     |
 |  30S |   63W | Clay Monster             |   70 |   560 |  17,500 | Cultural Artifact |
@@ -142,7 +142,7 @@ a new game begins.
 |  12N |   98W | Popol Vuh                |   70 |   560 |  17,500 | Cultural Artifact |
 |  13N |  105W | Crystal Skull            |   90 |   720 |  22,500 | Cultural Artifact |
 |  16N |  109W | Stone Face               |   30 |   240 |   7,500 | Ruins             |
-|  20N |  111W | Monument of the Sun      |   85 |   680 |  21,250 | Monument          |
+|  20N |  111W | Monument of the Sun      |   85 |   680 |  21,250 | Cultural Artifact |
 |  25N |  116W | Mexican Beaded Lizard    |   50 |   400 |  12,500 | Exotic Animal     |
 |  29N |  121W | Bison                    |   30 |   240 |   7,500 | Exotic Animal     |
 |  38N |  128W | Prairie Dog              |   55 |   440 |  13,750 | Exotic Animal     |
