@@ -271,9 +271,10 @@ The following ordinary-building command groups are now traced:
   at 50,000 (`0x2ABF9`, `0x2AC33`, `0x2ACA5`), and then calls the
   recalculation helpers; it does not add directly to Economy.
   `DATA1.015 0x67DC` (the same slot-relative offset in a save) holds 13
-  `0x80`-byte regional definitions: 46 little-endian base-price words, nine
-  unnamed words, nine goods IDs at `+0x6E`, and their nine minimum-Economy
-  bytes at `+0x77`. Port-metadata offsets in this document are relative to the
+  `0x80`-byte regional definitions: 46 little-endian sale base-price words,
+  nine purchase base-price words at `+0x5C` (one per listed slot; Buy prices
+  use them, `0x29F23`), nine goods IDs at `+0x6E`, and their nine
+  minimum-Economy bytes at `+0x77`. Port-metadata offsets in this document are relative to the
   save table framed at slot-relative `0x5966`, as used by the query code; the
   executable's current-port pointer (`DS:0x6790 + port × 0x25`, save
   `0x5968`) makes its own record offsets two smaller. In the save framing,

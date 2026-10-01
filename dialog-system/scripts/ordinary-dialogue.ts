@@ -164,6 +164,7 @@ interface ShipModel {
 
 interface MarketDefinition {
   readonly basePrices: readonly number[];
+  readonly purchasePrices: readonly number[];
   readonly goods: readonly number[];
   readonly requirements: readonly number[];
 }
@@ -425,12 +426,16 @@ export function loadOrdinaryDialogueData(): Promise<OrdinaryDialogueData> {
           ).filter((id) => id !== 0xff),
         ),
         marketDefinitions: Array.from({ length: 13 }, (_, market) => {
-          // 46 little-endian base prices, nine unnamed words for the listed
-          // goods, then nine goods IDs and their minimum-Economy bytes.
+          // 46 little-endian sale base prices, nine purchase base prices for
+          // the listed goods, then nine goods IDs and their minimum-Economy
+          // bytes.
           const record = 0x67dc + market * 0x80;
           return {
             basePrices: Array.from({ length: GOODS_NAMES.length }, (_, good) =>
               data1.readUInt16LE(record + good * 2),
+            ),
+            purchasePrices: Array.from({ length: 9 }, (_, slot) =>
+              data1.readUInt16LE(record + 0x5c + slot * 2),
             ),
             goods: Array.from(data1.subarray(record + 0x6e, record + 0x77)),
             requirements: Array.from(
@@ -3714,11 +3719,17 @@ function marketGoods(
   return ids.map((id) => {
     const category = goodsCategory(id);
     const rate = save[metadata + 0x10 + category]!;
-    const basePrice =
-      id === specialtyId
-        ? save.readUInt16LE(metadata + 0x1a)
-        : (definition.basePrices[id] ?? 0);
-    const ordinary = Math.floor(((rate + 50) * basePrice) / 100);
+    // Purchases use the listed slot's purchase base (MAIN.EXE 0x29F23),
+    // sales the goods-indexed sale base; the specialty uses its own base.
+    const specialty = id === specialtyId;
+    const purchaseBase = specialty
+      ? save.readUInt16LE(metadata + 0x1a)
+      : (definition.purchasePrices[definition.goods.indexOf(id)] ?? 0);
+    const saleBase = specialty
+      ? purchaseBase
+      : (definition.basePrices[id] ?? 0);
+    const purchase = Math.floor(((rate + 50) * purchaseBase) / 100);
+    const sale = Math.floor(((rate + 50) * saleBase) / 100);
     return {
       id,
       name: GOODS_NAMES[id] ?? `goods ${id}`,
@@ -3727,9 +3738,9 @@ function marketGoods(
           ? save[metadata + 0x1d]! * 10
           : definition.requirements[definition.goods.indexOf(id)]! * 10,
       rate,
-      buyPrice: Math.floor((ordinary * (taxFree ? 10 : 12)) / 10),
-      sellPrice: id === specialtyId ? Math.floor(ordinary / 2) : ordinary,
-      specialty: id === specialtyId,
+      buyPrice: Math.floor((purchase * (taxFree ? 10 : 12)) / 10),
+      sellPrice: specialty ? Math.floor(sale / 2) : sale,
+      specialty,
     };
   });
 }
