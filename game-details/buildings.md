@@ -611,7 +611,10 @@ the Market pays that ordinary value. Selling a port its own specialty instead
 uses the specialty base price and yields half the ordinary value, rounded down.
 The purchase price is 120% of the ordinary value, rounded down, unless the
 inventory contains the Tax Free Permit for the nation controlling the port; the
-permit removes that markup.
+permit removes that markup. The test (`0x29EB7`) scans the twenty inventory
+slots at `DS:0x2BE9` for item `0x23 + nation`, Tax Permit (P) through Tax
+Permit (H). Salonika's Item Shop sells Tax Permit (P) as its secret item, so
+a permit is available there without the Palace's title requirement.
 
 Markets keep no stock counts. The Buy list is rebuilt on each entry from the
 Economy tests and the specialty's rate test above (`0x2A346–0x2A3D2`), so
@@ -1369,7 +1372,12 @@ interaction, the ruler opens a second menu:
   confirmation. Its price is `10,000 × permit units`. In the protagonist's
   own nation, ranks 6 and 7 pay nothing; ranks 0–5 pay `7 − rank` units. At a
   foreign Palace the unit count is `11 − rank`. A successful purchase grants
-  the nation-specific permit item for the current half-year period.
+  the nation-specific permit item for the current half-year period. The
+  period ends with the month-end routine for March and September
+  (`0x1CA0E`, called from `0x1E175`, which tests that the zero-based month
+  modulo 6 is 2). After swapping the wind table it empties every inventory
+  slot holding items `0x23`–`0x28` (`0x1CA6C–0x1CA87`), so every permit,
+  including one bought at an Item Shop, disappears then.
 
 The two document requests scan the twenty item slots first. An existing
 nation-specific item takes precedence over an empty slot; with neither an
