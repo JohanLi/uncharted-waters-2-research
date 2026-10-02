@@ -421,8 +421,8 @@ buildings react to the purchase.
 [^opening-ship]:
     The Shipyard route at `SNR6.DAT 0x0221–0x022B` executes `FB 4E`, adding
     sailor 78 (Salim Jahan) to the mate roster, writes `3` (First Mate) to his
-    duty byte `+0x26`, and executes `F9 05`, creating a pending ship of raw
-    model 5 (display model 6, Caravela Latina) at 90% durability. The
+    duty byte `+0x26`, and executes `F9 05`, creating a pending ship of
+    model 5 (Caravela Latina) at 90% durability. The
     subsection-2 Shipyard route commissions it at `0x0653` with `FA 05 0098`,
     naming it from message 152, “Savahni.”
 
