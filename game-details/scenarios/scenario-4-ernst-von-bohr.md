@@ -112,7 +112,9 @@ The accusation branch has three effects:[^mercator-penalty]
 The test reads only Mercator's bit. It does not look at the other records.
 In ordinary play, the bit becomes clear only when Ernst signs with another
 cartographer, since the ordinary Contract handler clears the bit on every
-other record. The penalty applies on every such return, not only the first.
+other record. The renewal sets Mercator's bit again, so the penalty applies
+once per signing: on the first return after each new contract with another
+cartographer, not only after the first one.
 Because the story gates read the current Adventure Fame, the halving can push
 Ernst back below the next threshold. Sections which have already advanced are
 not undone.
