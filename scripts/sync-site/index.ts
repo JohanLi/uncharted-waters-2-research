@@ -26,6 +26,15 @@ const site = resolve(
     : process.argv[siteArgument + 1]!,
 );
 
+/** A file name for a name: "João Franco" → "joao-franco". */
+export const slug = (name: string): string =>
+  name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
 const fresh = async (directory: string): Promise<string> => {
   await rm(directory, { recursive: true, force: true });
   await mkdir(directory, { recursive: true });
@@ -55,7 +64,11 @@ export async function run(): Promise<void> {
       join(repoRoot, "scripts/sailors/output/sailors.json"),
       "utf8",
     ),
-  ) as { id: number; portrait: { kind: string; kao?: number } }[];
+  ) as {
+    id: number;
+    name: string;
+    portrait: { kind: string; kao?: number };
+  }[];
   for (const sailor of sailors)
     if (sailor.portrait.kind === "fixed")
       await copyFile(
@@ -67,6 +80,16 @@ export async function run(): Promise<void> {
     for (const file of await readdir(source))
       await copyFile(join(source, file), join(portraits, file));
   }
+
+  // Every sailor's portrait under a readable name (pilly-reis.png),
+  // including the generated faces of temporary vagabonds and generic
+  // captains, which have no picture number. Sailor names are unique.
+  const sailorPortraits = await fresh(join(site, "public/images/sailors"));
+  for (const sailor of sailors)
+    await copyFile(
+      join(repoRoot, `scripts/sailors/output/portraits/${sailor.id}.png`),
+      join(sailorPortraits, `${slug(sailor.name)}.png`),
+    );
 
   const eventArt = await fresh(join(site, "public/images/event-art"));
   const eventSource = join(repoRoot, "scripts/art/output/event-art");
