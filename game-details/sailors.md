@@ -284,6 +284,9 @@ withdrawal begins at `0x14C3E`. Its persistent dismissal helper is
 |   4 | Pietro Conti     | Italy       |         84 |         80 |        75 |        87 |      53 |            61 |    81 |   50 |                4 |            1 |  33 | Celestial Navigation              |
 |   5 | Ali Vezas        | Turkey      |         80 |         86 |        84 |        65 |      53 |            42 |    80 |   50 |                1 |            1 |  19 | Negotiation, Accounting           |
 
+The Luck of 50 is what `KOUKAI2.DAT` stores. A new game replaces it with
+`random(101)`, 0–100 (`0x1BA96`; see [Luck](stats.md#luck)).
+
 ## Story recruits
 
 Edmund Gilbert is present in the game files as a sailor record, but he never
