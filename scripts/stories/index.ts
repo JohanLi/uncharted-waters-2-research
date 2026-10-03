@@ -1,18 +1,23 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   disassembleScenario,
   type ScenarioRoute,
 } from "../../dialog-system/scripts/snr.js";
+import { writeFixedPortrait } from "../characters/index.js";
 import { prepareOutput, repoRoot, writeJson } from "../shared.js";
 
 // What each main character's story contains, by story section: who joins,
 // whose portrait appears, which ports have story scenes, and which event art
-// is shown. Story n (raw/SNRn.DAT) belongs to main character n − 1. A story
-// section is the spoiler part on the wiki. Run after the sailors, characters,
-// and ports exporters.
+// is shown, plus every story portrait as portraits/{picture number}.png.
+// Story n (raw/SNRn.DAT) belongs to main character n − 1. A story section is
+// the spoiler part on the wiki. Run after the sailors, characters, and ports
+// exporters.
 
 const ADD_PARTY_MEMBER = 0xfb;
+// The character-selection screen's descriptions are MESSAGE.DAT messages
+// 56–61 (NUL-separated), one per main character in sailor order.
+const FIRST_DESCRIPTION = 56;
 const FIXED_PORTRAITS = 128; // KAO.000–KAO.127
 
 interface Named {
@@ -41,6 +46,9 @@ export async function run(): Promise<void> {
   const portraitNames = await read<Record<string, string>>(
     "scripts/stories/portrait-names.json",
   );
+  const messages = (await readFile(join(repoRoot, "raw/MESSAGE.DAT")))
+    .toString("latin1")
+    .split("\0");
   const output = await prepareOutput("stories");
 
   // Who a portrait number belongs to: a scenario portrait code is a KAO
@@ -129,6 +137,7 @@ export async function run(): Promise<void> {
     stories.push({
       mainCharacter,
       name: sailors[mainCharacter]!.name,
+      description: messages[FIRST_DESCRIPTION + mainCharacter],
       sections: story.sections.length,
       recruits,
       characters: [...portraits]
@@ -149,6 +158,15 @@ export async function run(): Promise<void> {
       eventArt,
     });
   }
+
+  // Every portrait the stories show, including those of characters with no
+  // record (named in portrait-names.json).
+  await mkdir(join(output, "portraits"), { recursive: true });
+  const shown = new Set(
+    stories.flatMap((story) => story.characters.map((c) => c.portrait)),
+  );
+  for (const kao of shown)
+    await writeFixedPortrait(kao, join(output, "portraits", `${kao}.png`));
 
   await writeJson(join(output, "stories.json"), stories);
   console.log(`Wrote ${stories.length} stories to ${output}`);

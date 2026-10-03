@@ -21,6 +21,12 @@ test("stories list recruits, characters, ports, and event art by section", async
   );
 
   const joao = stories[0];
+  // The character-selection screen's description.
+  assert.equal(
+    joao.description,
+    "The son of Portugal's Duke Leon. An adventurer who travels around the world to find the secret of Atlantis.",
+  );
+  assert.ok(stories[5].description.startsWith("Turkish Merchant."));
   assert.deepEqual(
     joao.recruits.map((r: { sailor: number; section: number }) => [
       r.sailor,
