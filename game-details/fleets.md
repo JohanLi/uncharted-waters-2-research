@@ -287,8 +287,10 @@ random(3)`, its cargo is emptied, and its flags become `0x31` (active).
 - each of the eight attributes `60 + random(35)`;
 - Navigation and Battle Level `min(100, max(8 + random(5), old + 2 +
 random(4)))`, so a record that is reused again and again gains levels;
-- experience 0, four random skill bits, a generic portrait, and nation plus
-  in-use bit `0x20` in `+0x29`.
+- experience 0; skills `random(16)` in `+0x28` (`0x1D8C1`), so each of
+  Negotiation, Accounting, Gunnery, and Cartography is a coin flip and
+  Celestial Navigation (`0x10`) is never given;
+- a generic portrait, and nation plus in-use bit `0x20` in `+0x29`.
 
 The same routine replaces free sailor records each month (`0x1DC64`): a record
 without bit `0x20` has a 1-in-3 chance of becoming a new sailor of a random
