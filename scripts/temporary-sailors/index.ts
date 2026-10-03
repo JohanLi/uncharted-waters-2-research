@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   decodeCString,
@@ -115,6 +115,28 @@ function readNames(table: Uint8Array): { first: string; last: string }[][] {
       };
     }),
   );
+}
+
+/**
+ * What the wiki's sailor generator needs: the seven nations' portrait part
+ * banks exactly as stored (3 bitplanes per 64-pixel row; see composePortrait
+ * for the layout) in generated-faces.bin, and the name table in
+ * generated-names.json.
+ */
+export async function exportFaceData(): Promise<void> {
+  const kao = await readFile(join(repoRoot, "raw/KAO.LZW"));
+  if (kao.length !== partsStart + nations.length * nationBytes)
+    throw new Error(`Unexpected KAO.LZW size ${kao.length}`);
+  const names = readNames(await readFile(join(repoRoot, "raw/NAME.TBL")));
+  const output = await prepareOutput("temporary-sailors");
+  await writeFile(
+    join(output, "generated-faces.bin"),
+    kao.subarray(partsStart),
+  );
+  await writeJson(join(output, "generated-names.json"), {
+    nations: nations.slice(0, 6),
+    names,
+  });
 }
 
 // mulberry32, so a run can be repeated with --seed.

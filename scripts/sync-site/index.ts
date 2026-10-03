@@ -117,6 +117,18 @@ export async function run(): Promise<void> {
       join(characterImages, `${characterSlug(character, named)}.png`),
     );
 
+  // The sailor generator's data: the portrait part banks, fetched by the
+  // page, and the name table, built into it.
+  const generatorData = await fresh(join(site, "public/data"));
+  await copyFile(
+    join(repoRoot, "scripts/temporary-sailors/output/generated-faces.bin"),
+    join(generatorData, "generated-faces.bin"),
+  );
+  await copyFile(
+    join(repoRoot, "scripts/temporary-sailors/output/generated-names.json"),
+    join(data, "generated-names.json"),
+  );
+
   const eventArt = await fresh(join(site, "public/images/event-art"));
   const eventSource = join(repoRoot, "scripts/art/output/event-art");
   for (const file of await readdir(eventSource))
