@@ -6,3 +6,6 @@ node_modules/
 /dialog-system/scripts/**/output/
 
 .scratchpad
+
+# The wiki site: its own git repository, to be moved out of this one.
+/uncharted-waters-2/
