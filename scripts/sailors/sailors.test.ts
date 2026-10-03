@@ -18,6 +18,9 @@ test("sailors and fleets match the new-game records", async () => {
   assert.equal(joao.name, "Joao Franco");
   assert.equal(joao.role, "main character");
   assert.deepEqual(joao.skills, ["Negotiation"]);
+  // Main characters' Luck is rolled when a new game starts; others' is fixed.
+  assert.equal(joao.attributes.luck, null);
+  assert.equal(typeof sailors[6].attributes.luck, "number");
 
   // Domingo's fixed portrait, before the story renames him Prince Alberto.
   assert.deepEqual(sailors[71].portrait, { kind: "fixed", kao: 0x21 });

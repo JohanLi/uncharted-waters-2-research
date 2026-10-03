@@ -19,6 +19,7 @@ import { composePortrait, palette, toRgb } from "../temporary-sailors/index.js";
 const SAILOR_TABLE = 0x06a9;
 const SAILOR_SIZE = 0x2a;
 const SAILOR_COUNT = 120;
+const MAIN_CHARACTERS = 6; // sailors 0–5
 const FLEET_TABLE = 0x1e77;
 const FLEET_SIZE = 0x85;
 const FLEET_COUNT = 70;
@@ -144,7 +145,14 @@ export async function run(): Promise<void> {
       canVanish: generated,
       age: koukai[r + 0x22]!,
       attributes: Object.fromEntries(
-        attributeNames.map((name, index) => [name, koukai[r + 0x14 + index]!]),
+        attributeNames.map((name, index) => [
+          name,
+          // A new game rolls a main character's Luck at random, 0–100,
+          // replacing the stored 50 (game-details/stats.md, Luck).
+          name === "luck" && id < MAIN_CHARACTERS
+            ? null
+            : koukai[r + 0x14 + index]!,
+        ]),
       ),
       navigationLevel: koukai[r + 0x1c]!,
       battleLevel: koukai[r + 0x1d]!,
