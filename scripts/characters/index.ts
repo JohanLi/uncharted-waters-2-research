@@ -51,6 +51,17 @@ function namedRole(id: number): Record<string, unknown> {
   return { role: "Pub owner" };
 }
 
+/** Writes fixed portrait KAO.nnn (raw/KAO) as a 64×80 PNG. */
+export async function writeFixedPortrait(
+  kao: number,
+  file: string,
+): Promise<void> {
+  const raw = await readFile(
+    join(repoRoot, "raw/KAO", `KAO.${String(kao).padStart(3, "0")}`),
+  );
+  await writePng(file, decodePlanar(raw, 8, 3, palette).data, 64, 80, 3);
+}
+
 export async function run(): Promise<void> {
   const koukai = await readFile(join(repoRoot, "raw/KOUKAI2.DAT"));
   const ports = JSON.parse(
@@ -64,16 +75,7 @@ export async function run(): Promise<void> {
   async function portrait(kao: number): Promise<string> {
     const file = `portraits/${kao}.png`;
     if (!written.has(kao)) {
-      const raw = await readFile(
-        join(repoRoot, "raw/KAO", `KAO.${String(kao).padStart(3, "0")}`),
-      );
-      await writePng(
-        join(output, file),
-        decodePlanar(raw, 8, 3, palette).data,
-        64,
-        80,
-        3,
-      );
+      await writeFixedPortrait(kao, join(output, file));
       written.add(kao);
     }
     return file;
