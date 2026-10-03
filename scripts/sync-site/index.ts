@@ -17,6 +17,7 @@ const JSON_FILES = [
   "scripts/ships/output/ships.json",
   "scripts/goods/output/goods.json",
   "scripts/discoveries/output/discoveries.json",
+  "scripts/portraits-items-discoveries/output/items.json",
 ];
 
 const siteArgument = process.argv.indexOf("--site");
@@ -128,6 +129,20 @@ export async function run(): Promise<void> {
     join(repoRoot, "scripts/temporary-sailors/output/generated-names.json"),
     join(data, "generated-names.json"),
   );
+
+  // The waitresses' portraits, by name (their names are unique).
+  const waitressImages = await fresh(join(site, "public/images/waitresses"));
+  const waitresses = JSON.parse(
+    await readFile(
+      join(repoRoot, "scripts/characters/output/waitresses.json"),
+      "utf8",
+    ),
+  ) as { name: string; portrait: string }[];
+  for (const waitress of waitresses)
+    await copyFile(
+      join(repoRoot, "scripts/characters/output", waitress.portrait),
+      join(waitressImages, `${slug(waitress.name)}.png`),
+    );
 
   const eventArt = await fresh(join(site, "public/images/event-art"));
   const eventSource = join(repoRoot, "scripts/art/output/event-art");
