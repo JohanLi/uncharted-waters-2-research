@@ -35,6 +35,16 @@ export const slug = (name: string): string =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
+/** A named character's file name, with the nation when the name repeats. */
+export const characterSlug = (
+  character: { name: string; nation?: string },
+  all: { name: string }[],
+): string =>
+  all.filter((other) => other.name === character.name).length > 1 &&
+  character.nation
+    ? slug(`${character.name} ${character.nation}`)
+    : slug(character.name);
+
 const fresh = async (directory: string): Promise<string> => {
   await rm(directory, { recursive: true, force: true });
   await mkdir(directory, { recursive: true });
@@ -89,6 +99,22 @@ export async function run(): Promise<void> {
     await copyFile(
       join(repoRoot, `scripts/sailors/output/portraits/${sailor.id}.png`),
       join(sailorPortraits, `${slug(sailor.name)}.png`),
+    );
+
+  // Named characters (collectors, cartographers, rulers, ...) the same way.
+  // Two rulers share the name "Governor-General", so a repeated name gets
+  // its nation added (governor-general-italy.png).
+  const characterImages = await fresh(join(site, "public/images/characters"));
+  const named = JSON.parse(
+    await readFile(
+      join(repoRoot, "scripts/characters/output/named-characters.json"),
+      "utf8",
+    ),
+  ) as { name: string; nation?: string; portrait: string }[];
+  for (const character of named)
+    await copyFile(
+      join(repoRoot, "scripts/characters/output", character.portrait),
+      join(characterImages, `${characterSlug(character, named)}.png`),
     );
 
   const eventArt = await fresh(join(site, "public/images/event-art"));
