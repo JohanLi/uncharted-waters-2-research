@@ -611,9 +611,13 @@ the Market pays that ordinary value. Selling a port its own specialty instead
 uses the specialty base price and yields half the ordinary value, rounded down.
 The purchase price is 120% of the ordinary value, rounded down, unless the
 inventory contains the Tax Free Permit for the nation controlling the port; the
-permit removes that markup. The test (`0x29EB7`) scans the twenty inventory
-slots at `DS:0x2BE9` for item `0x23 + nation`, Tax Permit (P) through Tax
-Permit (H). Salonika's Item Shop sells Tax Permit (P) as its secret item, so
+permit removes that markup. The test (`0x29EB7`) takes the nation from the
+port's cached allegiance, the low three bits of display-record byte `+0x13`
+([Cached allegiance](sphere-of-influence.md#cached-allegiance)), not from
+its Support values, and scans the twenty inventory slots at `DS:0x2BE9` for
+item `0x23 + nation`, Tax Permit (P) through Tax Permit (H). A port with no
+controller (nation 6) returns before the scan (`0x29EC3–0x29EC6`), so the
+markup always applies there; item `0x23 + 6`, Rat Poison, is never matched. Salonika's Item Shop sells Tax Permit (P) as its secret item, so
 a permit is available there without the Palace's title requirement.
 
 Markets keep no stock counts. The Buy list is rebuilt on each entry from the
