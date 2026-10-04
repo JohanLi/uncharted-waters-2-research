@@ -112,11 +112,15 @@ export async function run(): Promise<void> {
       economy,
       categoryRates: rates,
       specialty,
+      // With each good's base price and category, so a price can be worked
+      // out at any rate.
       buy: buy.map(({ good, base }) => {
         const price = ordinaryPrice(rates[category(good)]!, base);
         return {
           good,
           name: goods[good]!.name,
+          basePrice: base,
+          category: category(good),
           price: Math.floor((price * 12) / 10),
           priceWithPermit: price,
         };
