@@ -15,7 +15,10 @@ const JSON_FILES = [
   "scripts/stories/output/stories.json",
   "scripts/ports/output/ports.json",
   "scripts/ships/output/ships.json",
+  "scripts/ships/output/portToShipyard.json",
+  "scripts/ships/output/shipyardToShips.json",
   "scripts/goods/output/goods.json",
+  "scripts/goods/output/port-markets.json",
   "scripts/discoveries/output/discoveries.json",
   "scripts/portraits-items-discoveries/output/items.json",
 ];
