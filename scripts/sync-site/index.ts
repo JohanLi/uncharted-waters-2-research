@@ -161,6 +161,34 @@ export async function run(): Promise<void> {
   for (const file of await readdir(eventSource))
     await copyFile(join(eventSource, file), join(eventArt, file));
 
+  // Each building's vendor, as its greeting shows them (GRAPH.DAT records
+  // 6–17 in building order; 20 is the Mosque's), by building name.
+  const vendors = await fresh(join(site, "public/images/buildings"));
+  const VENDORS: [number, string][] = [
+    [6, "market"],
+    [7, "pub"],
+    [8, "shipyard"],
+    [9, "harbor"],
+    [10, "lodge"],
+    [11, "palace"],
+    [12, "guild"],
+    [13, "residence"],
+    [14, "bank"],
+    [15, "item-shop"],
+    [16, "church"],
+    [17, "house-of-fortune"],
+    [20, "mosque"],
+  ];
+  for (const [record, name] of VENDORS)
+    await copyFile(
+      join(
+        repoRoot,
+        "scripts/art/output/graph-art",
+        `graph-${String(record).padStart(3, "0")}-136x112.png`,
+      ),
+      join(vendors, `${name}.png`),
+    );
+
   // The world map's tiles and tile pixels, for the map the site draws. The
   // map is gzipped (2.3 MB to 70 KB); the browser unpacks it.
   const worldMap = join(repoRoot, "scripts/draw-world-map/output");
