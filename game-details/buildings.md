@@ -199,9 +199,13 @@ check (below), his starting Loyalty of 0 does not prevent hiring him.
 
 Selecting one of the player's own mates produces one of three ordinary lines
 about returning to dry land, going to bed, or leaving port. Other sailors
-introduce themselves as a Commodore, ship's officer, or vagabond and expose
-the shared **Hire** and **Duel** interactions also used by the Pub's **Meet**
-command. Hostile fleet captains instead use one of two threats. Cancelling the
+introduce themselves as a Commodore, ship's officer, or vagabond and offer
+the menu `Meet / Hire`, sharing the hiring core of the Pub's **Meet**
+command. `MENU.DAT` entry 3 reads `Meet / Hire / Duel`, but the menu is shown
+with an item count of 2 (`0x2EA0E–0x2EA16`), and its dispatch table at
+`DS:0xB62C` holds only two routines, so **Duel** never appears. **Meet**
+runs the Pub patron's **Gossip** (`0x2D52D` → `0x2C283`) and **Hire** the
+shared hiring core with the Lodge's flag (`0x2D53D` → `0x2C4EE`). Hostile fleet captains instead use one of two threats. Cancelling the
 sailor selection returns to the Lodge menu.
 
 **Port Info** (`0x2EA96`) draws a “Support” table: for each nation from
@@ -897,7 +901,12 @@ Here `P` is the same port Economy used by Recruit Crew. The new
 enthusiasm feeds Recruit Crew if it is selected later during the same visit.
 
 **Meet** uses the patron-selection loop rooted at `0x2C6E2`. Selecting a
-patron opens the character menu `Treat / Gossip / Hire / Duel`. Its dialogue
+patron opens the character menu `Treat / Gossip / Hire`. `MENU.DAT` entry 12
+reads `Treat / Gossip / Hire / Duel`, but the menu is shown with an item
+count of 3 (`0x2C631–0x2C639`; the Pub's own six-command menu passes 6 at
+`0x2D4EA`), and its dispatch table at `DS:0xB54C` holds only three routines:
+the fourth slot is unrelated data, so the label **Duel** is never shown and
+has no handler. Its dialogue
 depends on whether the patron is a mate, an employed captain, a wandering
 navigator, or an ordinary sailor.
 
@@ -957,8 +966,7 @@ Accepting the quoted wage puts the sailor in the first empty mate slot, stores
 the wage in tens of gold, clears the sailor's port, assigns the protagonist's
 fleet and duty 6, and adds 10 Loyalty capped at 100. Refusing returns to the
 selected sailor's submenu. **Gossip** chooses its reported port and navigator
-with the general gameplay RNG. **Duel** transfers directly into the duel
-engine; its result is not decided by the building handler.
+with the general gameplay RNG.
 
 The selected patron's **Treat** command buys one bottle of the same local
 specialty. Loyalty rises by `6 × P × M`, capped at 100, where `P` is 2 when
