@@ -1196,7 +1196,14 @@ epilogue from `MESSAGE2.DAT` chosen by the low four bits (`0x1C8C7–0x1C8FE`):
 |    `0x18` | The flagship sinks in a storm   | 1014, “…ran into a terrible storm, and his battered ship sank…” |
 |    `0x19` | The whole crew or fleet is lost | 1015, “…the harsh conditions on board cost… his entire crew…”   |
 |    `0x1A` | Defeat in a naval battle        | 1013, “…was defeated in battle…”                                |
-|    `0x10` | Retirement                      | 1016, “…decided to put an end to his quest at sea…”             |
+|    `0x10` | The year 1553 ends              | 1016, “…decided to put an end to his quest at sea…”             |
+
+The last one is the game's time limit. The year-end routine (`0x1B214`)
+advances the year byte `DS:0x0734`, which holds the year minus 1,501
+(`0x15B61`), and sets end state `0x10` once it passes 52 (`0x1B21B–0x1B226`):
+the game ends as 1553 turns into 1554, whatever the story has reached. The
+same `DS:0x05EC` byte also takes `0x88` when the player confirms “Is it okay
+to end this game?” (message 881) in the in-game menu (`0x26D2E–0x26D4B`).
 
 Each epilogue begins with the in-game date and the protagonist's name.
 
