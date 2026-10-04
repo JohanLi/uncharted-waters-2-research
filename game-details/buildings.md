@@ -204,8 +204,15 @@ the shared **Hire** and **Duel** interactions also used by the Pub's **Meet**
 command. Hostile fleet captains instead use one of two threats. Cancelling the
 sailor selection returns to the Lodge menu.
 
-**Port Info** draws the current port's six national Support values and marks
-the nation that presently controls it. These are the same Support fields used
+**Port Info** (`0x2EA96`) draws a “Support” table: for each nation from
+Portugal to Holland, its name and its Support byte from the port's metadata
+record, as `%-14s %3d%%` (`0x2EAD1–0x2EB06`). It writes “Ally” beside the
+nation whose index equals the low three bits of the port's display-record
+byte `+0x13` (`0x2EB09–0x2EB2A`), the cached allegiance described in
+[Cached allegiance](sphere-of-influence.md#cached-allegiance), not a live
+75% Support test. Until the first midnight of a new game, Port Info therefore
+marks Portugal as Algiers' and Tunis' ally at 0% Support and marks no ally in
+Bordeaux, Nantes, Oslo, and Stockholm. These are the same Support fields used
 to determine [sphere of influence](sphere-of-influence.md); it is a generated
 status display rather than a fixed `MESSAGE.DAT` transcript.
 
@@ -485,9 +492,59 @@ credit line = 10,000 × rank² + signed account balance + 1,000
 A nonpositive result fails the credit test. The loan is recorded by subtracting
 the borrowed amount from the signed balance.
 
+Rank is the protagonist's Fame-record byte `+0x0D`, the number of titles
+(`0x2EE97–0x2EEA4`). Borrow refuses while the balance is positive, so the
+balance in the formula is zero or a debt, and the most a protagonist can owe
+after borrowing is `10,000 × rank² + 1,000`: 1,000 gold with no title, 11,000
+as a Page, up to 811,000 as a Duke. The credit test itself compares the
+balance's hundreds word with `−100 × rank² − 10` (`0x2EEDB–0x2EEF5`), the
+same limit at hundred-gold resolution. Carrying 1,000,000 gold or more shows
+raw 112, but the branch at `0x2EEF7–0x2EF12` has no exit: the routine then
+falls through to the credit-line message and amount prompt, so the loan is
+still offered.
+
+#### Interest
+
+Interest is applied once a month, by `0x1CA8F`, which the month-end routine
+`0x1E16D` calls (from the day loop at `0x1B306`) just before the world update
+at `0x1CB4E`. It is the only routine besides the four Bank commands and the
+Palace arrest (below) that writes the balance. It reads the whole signed
+balance `B` and sets:
+
+```text
+rate = 3 if B >= 0, else 10
+B    = B + trunc(B × rate / 100)        # signed long division, toward zero
+B    = clamp(B, −1,000,000, 1,000,000)
+```
+
+(`0x1CA97–0x1CB04`; the runtime division at `0000:36F2` negates negative
+operands and divides unsigned, so the quotient truncates toward zero.)
+Savings therefore earn 3% a month, rounded down, and never exceed 1,000,000;
+a debt grows by 10% a month, rounded toward zero, and never passes
+−1,000,000. Only the balance at the moment the month ends counts: a loan
+borrowed and repaid within the same month pays no interest, as in-game tip
+`MESSAGE2.DAT` 279 says, and a deposit made just before the month ends earns
+the full 3%.
+
+No routine reacts to a debt in any other way. The balance is read only by the
+Bank commands, the monthly interest, and the Palace arrest, so an unpaid loan
+is never collected: it simply compounds at 10% a month up to 1,000,000 gold
+owed, and blocks deposits and further borrowing beyond the credit line. The
+Pub's debt collector belongs to the Guild's Collect Debt assignment, not to
+the player's own loans.
+
+#### The Palace arrest
+
+A failed escape from a hostile Palace reception
+([Friendship](friendship.md#palace)) cuts the bank balance as well as the
+carried gold. The handler at `0x3080F` adds `trunc(gold × 4 / −5)` to the
+carried gold (`0x308E9–0x30908`) and `trunc(B × 4 / −5)` to the balance
+(`0x3090C–0x30949`). Savings therefore keep a fifth, and a debt is likewise
+reduced to a fifth of what was owed.
+
 | Command  | Branch or stage                         |     Raw index | Substitution or continuation                                             |
 | -------- | --------------------------------------- | ------------: | ------------------------------------------------------------------------ |
-| Deposit  | On-hand gold is at most 1,000           |           100 | Refuses the deposit.                                                     |
+| Deposit  | On-hand gold is at most 1,000           |           100 | Refuses the deposit (`0x2EC12–0x2EC21`).                                 |
 | Deposit  | Savings have reached 1,000,000          |           101 | Refuses the deposit.                                                     |
 | Deposit  | Account is in debt                      |           102 | Requires repayment first.                                                |
 | Deposit  | Existing positive savings               |           103 | Supplies the current balance.                                            |
@@ -501,7 +558,7 @@ the borrowed amount from the signed balance.
 | Withdraw | Valid amount                            |           110 | Supplies the amount, then raw index 103 shows the remaining savings.     |
 | Borrow   | Account contains savings                |           111 | Refuses a loan while savings remain.                                     |
 | Borrow   | Rank/debt credit test fails             |           113 | “With your poor credit history...”                                       |
-| Borrow   | At least 1,000,000 gold already on hand |           112 | Refuses because the loan is unnecessary.                                 |
+| Borrow   | At least 1,000,000 gold already on hand |           112 | Says the loan is unnecessary, then continues to the credit line anyway.  |
 | Borrow   | Eligible                                |           114 | Shows the calculated credit line.                                        |
 | Borrow   | Amount prompt                           |           115 | Maximum is the calculated credit line.                                   |
 | Borrow   | Positive amount entered                 | 116, then 117 | Shows the loan amount and the 10% monthly-interest warning.              |
@@ -770,14 +827,36 @@ the direct dismissal confirmation. Rejecting a confirmation resumes assignment
 rather than leaving the Pub.
 
 **Treat** begins at `0x2BC8D`; its Fame and invitation logic occupies
-`0x2BAFA–0x2BC8C`. Below 1,000 highest Fame the patrons answer with raw 36;
-below 5,000 with raw 132, “What? You are the famous %s %s %s?”, whose first
-`%s` is `Merchant`, `Pirate`, or `Adventurer` (`MENU.DAT` entry 10) for the
-first strictly highest Fame in the order Trade, Piracy, Adventure, followed by
-the first and last names; otherwise raw 133. Its Fame-dependent thanks and the possible royal-invitation
-side effect are described under the shared scenario and royal mission
-mechanics. This command has no scenario-dispatch call: the invitation test is
-executable code, and the command returns to the Pub menu afterward.
+`0x2BAFA–0x2BC8C`. The patrons' reply depends on the highest of the three
+Fame values, found by a loop that keeps the first strictly highest in the
+order Trade, Piracy, Adventure (`0x2BB1B–0x2BB50`):
+
+|  Highest Fame | Raw index | Reply                                                                                  |
+| ------------: | --------: | -------------------------------------------------------------------------------------- |
+|   below 1,000 |        36 | “Thanks for treating me.” (`0x2BB57–0x2BB67`)                                          |
+|   1,000–4,999 |       132 | “What? You are the famous %s %s %s?” (`0x2BB69–0x2BB8B`)                               |
+| 5,000 or more |       133 | “Wow, you, %s %s, will buy me the pub's specialty? I'm delighted!” (`0x2BB8D–0x2BBA1`) |
+
+In raw 132 the first `%s` is `Merchant`, `Pirate`, or `Adventurer`
+(`MENU.DAT` entry 10) for that highest Fame, followed by the first and last
+names; raw 133 takes the names only.
+
+After the reply, all three branches converge at `0x2BBA4`. With shared
+section 0 idle, the invitation test at `0x2BBBB–0x2BBCD` prints raw
+`410 + nation` (“Did you know that King Manuel of Portugal is looking for
+you?”) and sets shared flag 17 when flag 16 (royal-mission eligibility) or
+flag 17 is set and flag 18 is clear. There is no random roll and, unlike the
+Harbor's version of the test, no check of the port's nation: any regular
+port's Pub can arm the invitation. Eligibility is refreshed on entering the
+Pub, so a character becomes eligible and is invited on the same visit; it
+requires the highest single Fame to reach the next title's requirement,
+`500 × (rank + 1)²`, a rank of at most 8, and an affiliation other than the
+Pirates. Once armed, every later Treat repeats the announcement until the
+audience begins. With a shared assignment active, Treat calls `0x2B979`
+instead, which can name a sought sailor's port. See
+[the shared-scenario overview](scenarios/scenario-0-common-quests-and-royal-missions.md#the-invitation)
+for the full rule. This command has no scenario-dispatch call, and it returns
+to the Pub menu afterward.
 
 The port's Pub drink byte selects one of 14 specialties and its price. It is
 metadata `+0x26`, the last byte of the executable's natural `0x25`-byte port
@@ -1370,13 +1449,32 @@ interaction, the ruler opens a second menu:
   nation's letter. Otherwise it requires at least 1,000 Piracy Fame and Piracy
   Fame no lower than either Trade or Adventure Fame. Accepting the request
   grants the nation-specific letter-of-marque item.
-- **Tax Free Permit** is refused if the protagonist already carries that
-  nation's permit. The ruler explains that permits renew in April and October,
-  warns when the current six-month period is nearly over, and asks for
-  confirmation. Its price is `10,000 × permit units`. In the protagonist's
-  own nation, ranks 6 and 7 pay nothing; ranks 0–5 pay `7 − rank` units. At a
-  foreign Palace the unit count is `11 − rank`. A successful purchase grants
-  the nation-specific permit item for the current half-year period. The
+- **Tax Free Permit** (`0x302B3`) is for the nation of the capital's cached
+  allegiance: the permit item is `0x23` plus the low three bits of the
+  capital's display-record byte `+0x13` (`0x302C7–0x302D8`). It is refused
+  with raw 872 if the protagonist already carries that permit, and with raw
+  865 when no inventory slot is free. Otherwise raw 873 explains that permits
+  renew in April and October, raw 874 warns when the zero-based month modulo
+  6 is below 3 (the last three months of a period, `0x3034A–0x30362`), and
+  raw 875 asks for confirmation. Its price is `10,000 × permit units`
+  (`0x303AF–0x303E3`):
+
+  ```text
+  own nation (capital's cached nation = protagonist's affiliation nibble):
+      units = 7 − rank   if rank < 6
+      units = 0          if rank >= 6
+  foreign capital:
+      units = 11 − rank
+  ```
+
+  So at home a Viscount, Earl, Marquis, or Duke (ranks 6–9) pays nothing,
+  and the lowest foreign price is a Duke's 20,000 (a Marquis pays 30,000).
+  With 0 units the price prompt (raw 877, “It will cost you %d0000 gold
+  pieces.”) and the payment are skipped (`0x303E5–0x303E7`). Otherwise
+  declining ends the request, and gold below the price gives raw 878,
+  “Commodore, we don't have enough money” (`0x303FE–0x30413`); the price is
+  deducted at `0x3041E–0x30429`. A successful purchase grants the
+  nation-specific permit item for the current half-year period. The
   period ends with the month-end routine for March and September
   (`0x1CA0E`, called from `0x1E175`, which tests that the zero-based month
   modulo 6 is 2). After swapping the wind table it empties every inventory
@@ -1799,11 +1897,20 @@ Muslim character trying to enter a Church is told, "I respect you for your
 beliefs, but Muslims just aren't welcome here."
 
 This check is not hard-coded to the Ali protagonist. The routine at
-`MAIN.EXE` file offsets `0x32CE9-0x32D14` masks the low nibble of the current
-player's country/status byte and compares it with `2`, the Turkish value. Ali
-starts with that value, so he can use Mosques and is rejected by Churches. The
-immediate check is therefore based on the player record's current affiliation
-rather than on Ali's protagonist ID.
+`MAIN.EXE` file offsets `0x32CCF-0x32D14` masks the low nibble of the current
+player's country/status byte (`+0x29` of the protagonist's sailor record) and
+compares it with `2`, the Turkish value. In a Church it refuses (raw 90) only
+when the value is 2; in a Mosque it refuses (raw 802) unless it is 2
+(`0x32CE9–0x32D11`). Every other value, Piracy included, can therefore use
+Churches and not Mosques. Ali starts with value 2, so he can use Mosques and
+is rejected by Churches.
+
+The check reads the current affiliation, so it follows a change of nation.
+**Defect** writes the capital's cached nation into that same low nibble
+(`0x305A8–0x305B9`, through the record pointer at `DS:0xC70E`, which
+`0x1B34D–0x1B356` sets to the protagonist's sailor record, the record the
+religion check reads). Defecting to Turkey switches a character to Mosques,
+and defecting from Turkey switches them to Churches.
 
 ## Special NPC residences (ID 7)
 

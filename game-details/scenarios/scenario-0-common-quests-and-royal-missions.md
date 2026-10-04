@@ -131,7 +131,11 @@ Unless noted otherwise, the Fame penalties round down to a multiple of ten:
 | Expired assignment at its checking point | `floor(floor(Fame / 10) × 8 / 10) × 10` |
 | Collect Debt: money not handed over      | `floor(floor(Fame / 10) × 5 / 10) × 10` |
 
-Every completion award is capped at 50,000. See also
+A completion award is added to the Fame record and the sum is capped:
+`new Fame = min(Fame + award, 50,000)`, written back to the record (for Buy
+Goods at `0x0E54–0x0E81`; Collect Debt repeats the block for Trade and Piracy
+Fame at `0x13F5–0x1452`). The cap is therefore on the Fame total, which is
+also every Fame type's overall maximum, not on the award. See also
 [Trade Fame](../fame/trade-fame.md#deadlines-and-failure).
 
 ## Transport Goods
@@ -236,11 +240,13 @@ or as `B × 250` rounded up to a multiple of 100 when the quantity was capped,
 and is then compared with an immediate byte: `if advance < 16, keep it;
 otherwise advance = 10,000` (`0x0D99–0x0D9E`). The comparison constant is
 `0x10`, the low byte of 10,000 (`0x2710`), so **every advance becomes
-10,000**. The Payment column is the target plus that 10,000. (**Decoded** as
-executed; the intended rule was **Likely** a 10,000 cap.)
+10,000**. (**Decoded** as executed; the intended rule was **Likely** a 10,000
+cap.) The advance is then added to the payment variable, `variable 21 =
+target + advance` (`0x0DA2`), which is the Payment column and the amount
+message 55 promises.
 
-Accepting pays the 10,000 advance (message 59) and starts the deadline;
-rejecting ends the assignment (message 57). Both eject the player.
+Accepting pays the 10,000 advance (`E6` on variable 27 at `0x0DD8`, message 59) and starts the deadline; rejecting ends the assignment (message 57). Both
+eject the player.
 
 ### Delivery
 
@@ -249,7 +255,10 @@ On each later visit to the same Market (`0x0E03`):
 - late: “I'm sorry, but you missed the deadline” (message 77); Trade Fame falls
   to 80% and the assignment ends. The advance is kept;
 - all remaining lots carried: they are taken, the full payment and Trade Fame
-  are awarded (message 61), and the ordinary menu follows;
+  are awarded (message 61), and the ordinary menu follows. The payment is the
+  whole of variable 21 (`E6` at `0x0E52`), target plus 10,000, so a completed
+  job brings in the 10,000 advance and then the Payment column on top: 21,000,
+  25,000, or 40,000 gold in all;
 - some lots carried: they are taken and the remainder reported (messages
   71–75);
 - none carried: a reminder with the time left and a give-up choice (messages
@@ -347,7 +356,10 @@ Back at the Venice Bank (`0x13A0`):
   Fame (messages 139–141); otherwise the time left is shown with a give-up
   choice (messages 131–137) that costs 10% of both;
 - collected, but carried Gold Ingots below 5 or 10: “It doesn't look like you
-  have the money with you” (messages 127–129). Trade Fame falls to 50%, Piracy
+  have the money with you” (messages 127–129). `EA` reads the gold on hand
+  divided by 10,000 (`0x13B9`), and the comparison with `variable 19 × 5`
+  (`0x13C0–0x13C6`) asks for at least 50,000 or 100,000 gold carried, from any
+  source. Trade Fame falls to 50%, Piracy
   Fame is unchanged, and the assignment ends;
 - collected and carried: the Bank takes the 50,000 or 100,000 gold (message
   number 121) and pays the reward with both Fame awards (message 123), or half
