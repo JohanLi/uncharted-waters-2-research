@@ -152,6 +152,21 @@ export async function run(): Promise<void> {
   for (const file of await readdir(eventSource))
     await copyFile(join(eventSource, file), join(eventArt, file));
 
+  // Town maps by port name; the supply ports share one map.
+  const towns = await fresh(join(site, "public/images/towns"));
+  const ports = JSON.parse(
+    await readFile(join(repoRoot, "scripts/ports/output/ports.json"), "utf8"),
+  ) as { name: string }[];
+  const townSource = join(repoRoot, "scripts/ports/output/town-maps");
+  for (let index = 0; index <= 100; index++)
+    await copyFile(
+      join(townSource, `${String(index).padStart(3, "0")}.png`),
+      join(
+        towns,
+        `${index === 100 ? "supply-port" : slug(ports[index]!.name)}.png`,
+      ),
+    );
+
   console.log(`Synced data and images to ${site}`);
 }
 

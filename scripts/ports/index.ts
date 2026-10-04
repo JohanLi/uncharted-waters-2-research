@@ -1,5 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import sharp from "sharp";
 import {
   decodeCString,
   decodePlanar,
@@ -138,6 +139,53 @@ export async function extractPortMetadata(): Promise<Port[]> {
   return ports;
 }
 
+async function readTileset(set: number, time: string): Promise<Uint8Array> {
+  const raw = await readFile(
+    join(
+      repoRoot,
+      "raw/PORTCHIP",
+      `PORTCHIP.${String(set * 2).padStart(3, "0")}`,
+    ),
+  );
+  const palette = paletteHex[time]!.map((hex) => [...Buffer.from(hex, "hex")]);
+  return decodePlanar(raw, 256, 4, palette).data;
+}
+
+const TOWN_TILES = 96;
+
+// Each town as a day-palette picture: PORTMAP.nnn is 96 × 96 tile numbers
+// into the port's PORTCHIP tileset (CHIP_NO.DAT), 16 × 16 pixels each. The
+// 30 supply ports share map 100, drawn with tileset 0.
+async function drawTownMaps(
+  output: string,
+  maps: Buffer[],
+  ports: Port[],
+): Promise<void> {
+  const directory = join(output, "town-maps");
+  await mkdir(directory, { recursive: true });
+  const tilesets = await Promise.all(
+    [0, 1, 2, 3, 4, 5, 6].map((set) => readTileset(set, "day")),
+  );
+  const size = TOWN_TILES * 16;
+  for (const [index, map] of maps.entries()) {
+    const tiles = tilesets[(ports[index]?.tileset as number | undefined) ?? 0]!;
+    const image = new Uint8Array(size * size * 3);
+    for (let cell = 0; cell < TOWN_TILES * TOWN_TILES; cell++) {
+      const tile = map[cell]!,
+        x = (cell % TOWN_TILES) * 16,
+        y = Math.floor(cell / TOWN_TILES) * 16;
+      for (let row = 0; row < 16; row++) {
+        const src = (tile * 256 + row * 16) * 3;
+        image.set(tiles.subarray(src, src + 48), ((y + row) * size + x) * 3);
+      }
+    }
+    // The 16 colours make a lossless palette PNG.
+    await sharp(image, { raw: { width: size, height: size, channels: 3 } })
+      .png({ palette: true, colours: 16, dither: 0, compressionLevel: 9 })
+      .toFile(join(directory, `${String(index).padStart(3, "0")}.png`));
+  }
+}
+
 async function drawTilesets(output: string): Promise<void> {
   const width = 240 * 16,
     height = 7 * 4 * 16,
@@ -145,17 +193,7 @@ async function drawTilesets(output: string): Promise<void> {
   let strip = 0;
   for (let set = 0; set < 7; set++)
     for (const time of ["dawn", "day", "dusk", "night"]) {
-      const raw = await readFile(
-        join(
-          repoRoot,
-          "raw/PORTCHIP",
-          `PORTCHIP.${String(set * 2).padStart(3, "0")}`,
-        ),
-      );
-      const palette = paletteHex[time]!.map((hex) => [
-        ...Buffer.from(hex, "hex"),
-      ]);
-      const tiles = decodePlanar(raw, 256, 4, palette).data;
+      const tiles = await readTileset(set, time);
       for (let tile = 0; tile < 240; tile++)
         for (let row = 0; row < 16; row++) {
           const src = (tile * 256 + row * 16) * 3,
@@ -181,8 +219,10 @@ export async function run(): Promise<void> {
       ),
     );
   await writeFile(join(output, "port-tilemaps.bin"), Buffer.concat(chunks));
-  await writeJson(join(output, "ports.json"), await extractPortMetadata());
+  const ports = await extractPortMetadata();
+  await writeJson(join(output, "ports.json"), ports);
   await drawTilesets(output);
+  await drawTownMaps(output, chunks, ports);
 }
 if (
   process.argv[1] &&
