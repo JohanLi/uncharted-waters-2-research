@@ -38,6 +38,8 @@ test("goods and markets match the new-game data", async () => {
   assert.deepEqual(buy(lisbon, "Olive Oil"), {
     good: 14,
     name: "Olive Oil",
+    basePrice: 28,
+    category: 2,
     price: 33,
     priceWithPermit: 28,
   });
