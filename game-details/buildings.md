@@ -507,7 +507,17 @@ still offered.
 
 Interest is applied once a month, by `0x1CA8F`, which the month-end routine
 `0x1E16D` calls (from the day loop at `0x1B306`) just before the world update
-at `0x1CB4E`. It is the only routine besides the four Bank commands and the
+at `0x1CB4E`. The calendar loop (`0x1B2BC–0x1B332`) runs the days of
+each month through `0x2052F`, then calls `0x1E16D` unless one of two things
+has interrupted it. One is a game over: `DS:0x05EC` holds the end state
+([Game over at sea](at-sea.md#game-over-at-sea)), and once it is nonzero the
+loop stops without month-end processing. The other is loading a saved game
+from the in-game menu: a successful load sets the month, day, and time
+(`DS:0x0735–0x0737`) to `0xF0` (`0x26DE3–0x26DEB`), the check at `0x2060E`
+returns 1 for any of them at `0xF0` or above, and the loop skips month-end
+processing and restarts from the loaded date (`0x1B2B4`). Interest is
+therefore charged at every ordinary month change, and only the end of the
+game or a load in mid-month prevents it. It is the only routine besides the four Bank commands and the
 Palace arrest (below) that writes the balance. It reads the whole signed
 balance `B` and sets:
 
