@@ -43,6 +43,16 @@ Palace report. The first midnight adds Bordeaux, Nantes, Oslo, and Stockholm,
 raising England's European rating from 352 to 810 without changing the ports'
 Support, Industry, or Economy values.
 
+The new-game records in `DATA1.015` (byte `+0x15` of each 20-byte record at
+`0x4F3E`, which becomes save byte `+0x13`) disagree with the 75% rule in six
+ports only. Bordeaux, Nantes, Oslo, and Stockholm (80–85% English Support)
+start with index 6, no controller. Algiers and Tunis, whose only Support is
+Turkey's 20% and 15%, start with index 0, Portugal, so until the first
+midnight they count as Portuguese: they are in Portugal's Palace report and
+Portugal's Tax Free Permit removes the Market markup there
+([Market](buildings.md)). Every other port, including all 28 with a nation at
+100%, starts with the index the rule gives.
+
 ### Regional activation
 
 A region contributes only when the required allied-port Industry totals reach 300. The Palace routine builds Economy and Industry totals for each nation and
