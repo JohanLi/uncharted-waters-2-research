@@ -1,5 +1,13 @@
-import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { gzipSync } from "node:zlib";
 import { repoRoot } from "../shared.js";
 
 // Copies the exporters' output that the wiki uses into the site, which keeps
@@ -21,6 +29,7 @@ const JSON_FILES = [
   "scripts/goods/output/port-markets.json",
   "scripts/discoveries/output/discoveries.json",
   "scripts/portraits-items-discoveries/output/items.json",
+  "scripts/draw-world-map/output/sea-palettes.json",
 ];
 
 const siteArgument = process.argv.indexOf("--site");
@@ -151,6 +160,18 @@ export async function run(): Promise<void> {
   const eventSource = join(repoRoot, "scripts/art/output/event-art");
   for (const file of await readdir(eventSource))
     await copyFile(join(eventSource, file), join(eventArt, file));
+
+  // The world map's tiles and tile pixels, for the map the site draws. The
+  // map is gzipped (2.3 MB to 70 KB); the browser unpacks it.
+  const worldMap = join(repoRoot, "scripts/draw-world-map/output");
+  await writeFile(
+    join(generatorData, "world-map.bin.gz"),
+    gzipSync(await readFile(join(worldMap, "world-map.bin")), { level: 9 }),
+  );
+  await copyFile(
+    join(worldMap, "world-tiles.bin"),
+    join(generatorData, "world-tiles.bin"),
+  );
 
   // Town maps by port name; the supply ports share one map.
   const towns = await fresh(join(site, "public/images/towns"));

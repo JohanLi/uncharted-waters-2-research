@@ -44,6 +44,13 @@ export async function run(): Promise<void> {
     join(outputDirectory, "world-map.bin"),
     combineWorldMaps(worldMaps).data,
   );
+  // For drawing the map elsewhere (the wiki's map): each tile's pixels as
+  // palette indices, 16 × 16 bytes per tile, and the five sea palettes.
+  await writeFile(join(outputDirectory, "world-tiles.bin"), tileIndices);
+  await writeFile(
+    join(outputDirectory, "sea-palettes.json"),
+    JSON.stringify(palettes, null, 2),
+  );
 }
 
 if (
