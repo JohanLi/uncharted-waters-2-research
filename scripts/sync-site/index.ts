@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
+import sharp from "sharp";
 import { repoRoot } from "../shared.js";
 
 // Copies the exporters' output that the wiki uses into the site, which keeps
@@ -79,9 +80,28 @@ export async function run(): Promise<void> {
   for (const file of JSON_FILES)
     await copyFile(join(repoRoot, file), join(data, file.split("/").pop()!));
 
-  // Portraits by picture number (KAO), the number stories refer to: fixed
-  // sailor portraits are exported by sailor ID, the others by picture number.
-  const portraits = await fresh(join(site, "public/images/portraits"));
+  // Every character's portrait in one folder, by name: sailors (including
+  // the generated faces of temporary vagabonds and generic captains),
+  // named characters (two rulers share "Governor-General", so a repeated
+  // name gets its nation added), waitresses, and the people in the stories.
+  // A name used twice must be the same picture: Carlotta is both a named
+  // character and the Lisbon Pub's attendant.
+  const characterImages = await fresh(join(site, "public/images/characters"));
+  const written = new Map<string, Buffer>();
+  const addPortrait = async (name: string, source: string): Promise<void> => {
+    const bytes = await readFile(source);
+    const previous = written.get(name);
+    if (previous && !previous.equals(bytes))
+      throw new Error(`Two different portraits are named ${name}`);
+    if (previous) return;
+    written.set(name, bytes);
+    await writeFile(join(characterImages, `${name}.png`), bytes);
+  };
+  // Stories refer to portraits by picture number (KAO): the file for each
+  // picture number goes into src/data/portrait-files.json.
+  const portraitFiles: Record<number, string> = {};
+  const byPicture = (path: string) => Number(path.match(/(\d+)\.png$/)![1]);
+
   const sailors = JSON.parse(
     await readFile(
       join(repoRoot, "scripts/sailors/output/sailors.json"),
@@ -92,43 +112,59 @@ export async function run(): Promise<void> {
     name: string;
     portrait: { kind: string; kao?: number };
   }[];
-  for (const sailor of sailors)
+  for (const sailor of sailors) {
+    await addPortrait(
+      slug(sailor.name),
+      join(repoRoot, `scripts/sailors/output/portraits/${sailor.id}.png`),
+    );
     if (sailor.portrait.kind === "fixed")
-      await copyFile(
-        join(repoRoot, `scripts/sailors/output/portraits/${sailor.id}.png`),
-        join(portraits, `${sailor.portrait.kao}.png`),
-      );
-  for (const exporter of ["characters", "stories"]) {
-    const source = join(repoRoot, `scripts/${exporter}/output/portraits`);
-    for (const file of await readdir(source))
-      await copyFile(join(source, file), join(portraits, file));
+      portraitFiles[sailor.portrait.kao!] = slug(sailor.name);
   }
 
-  // Every sailor's portrait under a readable name (pilly-reis.png),
-  // including the generated faces of temporary vagabonds and generic
-  // captains, which have no picture number. Sailor names are unique.
-  const sailorPortraits = await fresh(join(site, "public/images/sailors"));
-  for (const sailor of sailors)
-    await copyFile(
-      join(repoRoot, `scripts/sailors/output/portraits/${sailor.id}.png`),
-      join(sailorPortraits, `${slug(sailor.name)}.png`),
-    );
-
-  // Named characters (collectors, cartographers, rulers, ...) the same way.
-  // Two rulers share the name "Governor-General", so a repeated name gets
-  // its nation added (governor-general-italy.png).
-  const characterImages = await fresh(join(site, "public/images/characters"));
+  const characterOutput = join(repoRoot, "scripts/characters/output");
   const named = JSON.parse(
+    await readFile(join(characterOutput, "named-characters.json"), "utf8"),
+  ) as { name: string; nation?: string; portrait: string }[];
+  for (const character of named) {
+    const name = characterSlug(character, named);
+    await addPortrait(name, join(characterOutput, character.portrait));
+    portraitFiles[byPicture(character.portrait)] ??= name;
+  }
+  const waitresses = JSON.parse(
+    await readFile(join(characterOutput, "waitresses.json"), "utf8"),
+  ) as { name: string; portrait: string }[];
+  for (const waitress of waitresses) {
+    const name = slug(waitress.name);
+    await addPortrait(name, join(characterOutput, waitress.portrait));
+    portraitFiles[byPicture(waitress.portrait)] ??= name;
+  }
+
+  // The stories' people by the names the stories give them; a picture the
+  // stories exporter wrote itself is in its own output.
+  const stories = JSON.parse(
     await readFile(
-      join(repoRoot, "scripts/characters/output/named-characters.json"),
+      join(repoRoot, "scripts/stories/output/stories.json"),
       "utf8",
     ),
-  ) as { name: string; nation?: string; portrait: string }[];
-  for (const character of named)
-    await copyFile(
-      join(repoRoot, "scripts/characters/output", character.portrait),
-      join(characterImages, `${characterSlug(character, named)}.png`),
-    );
+  ) as { characters: { portrait: number; name: string }[] }[];
+  const storyPortraits = join(repoRoot, "scripts/stories/output/portraits");
+  const storyFiles = new Set(await readdir(storyPortraits));
+  for (const story of stories)
+    for (const character of story.characters) {
+      const name = slug(character.name);
+      const file = `${character.portrait}.png`;
+      const source = storyFiles.has(file)
+        ? join(storyPortraits, file)
+        : portraitFiles[character.portrait] !== undefined
+          ? join(characterImages, `${portraitFiles[character.portrait]}.png`)
+          : join(characterOutput, "portraits", file);
+      await addPortrait(name, source);
+      portraitFiles[character.portrait] ??= name;
+    }
+  await writeFile(
+    join(data, "portrait-files.json"),
+    JSON.stringify(portraitFiles, null, 2),
+  );
 
   // The sailor generator's data: the portrait part banks, fetched by the
   // page, and the name table, built into it.
@@ -142,24 +178,52 @@ export async function run(): Promise<void> {
     join(data, "generated-names.json"),
   );
 
-  // The waitresses' portraits, by name (their names are unique).
-  const waitressImages = await fresh(join(site, "public/images/waitresses"));
-  const waitresses = JSON.parse(
-    await readFile(
-      join(repoRoot, "scripts/characters/output/waitresses.json"),
-      "utf8",
-    ),
-  ) as { name: string; portrait: string }[];
-  for (const waitress of waitresses)
-    await copyFile(
-      join(repoRoot, "scripts/characters/output", waitress.portrait),
-      join(waitressImages, `${slug(waitress.name)}.png`),
-    );
-
   const eventArt = await fresh(join(site, "public/images/event-art"));
   const eventSource = join(repoRoot, "scripts/art/output/event-art");
   for (const file of await readdir(eventSource))
     await copyFile(join(eventSource, file), join(eventArt, file));
+
+  // Each item's picture, by item name, cut from the 48 × 48 strip the
+  // items share (several items use the same picture).
+  const itemImages = await fresh(join(site, "public/images/items"));
+  const itemSource = join(
+    repoRoot,
+    "scripts/portraits-items-discoveries/output",
+  );
+  const itemRecords = JSON.parse(
+    await readFile(join(itemSource, "items.json"), "utf8"),
+  ) as Record<string, { name: string; imageSlice: number }>;
+  for (const item of Object.values(itemRecords))
+    await sharp(join(itemSource, "items.png"))
+      .extract({ left: item.imageSlice * 48, top: 0, width: 48, height: 48 })
+      .png()
+      .toFile(join(itemImages, `${slug(item.name)}.png`));
+
+  // Each ship model's picture (GRAPH.DAT records 28–52, by ship ID) and
+  // each discovery's, by name.
+  const shipImages = await fresh(join(site, "public/images/ships"));
+  const shipModels = JSON.parse(
+    await readFile(join(repoRoot, "scripts/ships/output/ships.json"), "utf8"),
+  ) as Record<string, { name: string }>;
+  for (const [id, ship] of Object.entries(shipModels))
+    await copyFile(
+      join(
+        repoRoot,
+        "scripts/art/output/graph-art",
+        `graph-${String(28 + Number(id)).padStart(3, "0")}-128x96.png`,
+      ),
+      join(shipImages, `${slug(ship.name)}.png`),
+    );
+  const discoveryImages = await fresh(join(site, "public/images/discoveries"));
+  const discoverySource = join(repoRoot, "scripts/discoveries/output");
+  const discoveryRecords = JSON.parse(
+    await readFile(join(discoverySource, "discoveries.json"), "utf8"),
+  ) as { name: string; picture: string }[];
+  for (const discovery of discoveryRecords)
+    await copyFile(
+      join(discoverySource, discovery.picture),
+      join(discoveryImages, `${slug(discovery.name)}.png`),
+    );
 
   // Each building's vendor, as its greeting shows them (GRAPH.DAT records
   // 6–17 in building order; 20 is the Mosque's), by building name.
