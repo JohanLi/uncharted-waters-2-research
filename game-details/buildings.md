@@ -34,23 +34,23 @@ The following are the ordinary greetings in the English DOS data. A story
 event, hostile-port state, prior relationship, or access check can replace
 one of them. Menu spelling and capitalization are copied from `raw/MENU.DAT`.
 
-|  ID | Building                         | Ordinary opening dialogue                                                                                                                | Main menu                                                       |
-| --: | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-|   0 | Market                           | "How may I help you?"                                                                                                                    | Buy Goods; Sell Goods; Invest; Market Rate                      |
-|   1 | Pub                              | "Hey sailor, you'll like our [specialty]!"                                                                                               | Recruit Crew; Dismiss Crew; Treat; Meet; Waitress; Gamble       |
-|   2 | Shipyard                         | "What brings you to this shipyard?"                                                                                                      | New Ship; Used Ship; Repair; Sell; Remodel; Invest              |
-|   3 | Harbor                           | "Ahoy there, matey, will ye be shoving off?"                                                                                             | Sail; Supply; Moor (enabled at national capitals)               |
-|   4 | Lodge                            | "Welcome. You must be tired. Please make yourself at home."                                                                              | Check In; Gossip; Port Info                                     |
-|   5 | Palace                           | Access-dependent; a commoner is told, "Commoners are not permitted to enter the palace. Remove yourself from the premises."              | Meet Ruler; Defect; Gold; Ship; Secret Call (event-only)        |
-|   6 | Guild                            | "What do you want?"                                                                                                                      | Job Assignment; Country Info                                    |
-|   7 | Collector                        | "May I help you?"                                                                                                                        | Contract; Discovery; Rumor                                      |
-|   7 | Cartographer                     | "May I help you?"                                                                                                                        | Contract; Learn Skills; Report; Locate                          |
-|   7 | Skill teacher or story residence | Person- and event-dependent                                                                                                              | Usually a dialogue or Yes/No prompt rather than a standing menu |
-|   8 | Bank                             | "Welcome to the central office of the Marco Polo Bank." in Amsterdam; "Welcome to our regional branch of the Marco Polo Bank." elsewhere | Deposit; Withdraw; Borrow; Repay                                |
-|   9 | Item Shop                        | "May I help you?"                                                                                                                        | Buy; Sell                                                       |
-|  10 | Church                           | "Welcome to our church."                                                                                                                 | Pray; Donate                                                    |
-|  10 | Mosque                           | "Welcome to our mosque."                                                                                                                 | Pray; Donate                                                    |
-|  11 | House of Fortune                 | "Welcome to the House of Fortune. What do you want to know?"                                                                             | Life; Career; Love; Mates                                       |
+|  ID | Building                         | Ordinary opening dialogue                                                                                                                | Main menu                                                                    |
+| --: | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+|   0 | Market                           | "How may I help you?"                                                                                                                    | Buy Goods; Sell Goods; Invest; Market Rate                                   |
+|   1 | Pub                              | "Hey sailor, you'll like our [specialty]!"                                                                                               | Recruit Crew; Dismiss Crew; Treat; Meet; Waitress; Gamble                    |
+|   2 | Shipyard                         | "What brings you to this shipyard?"                                                                                                      | New Ship; Used Ship; Repair; Sell; Remodel; Invest                           |
+|   3 | Harbor                           | "Ahoy there, matey, will ye be shoving off?"                                                                                             | Sail; Supply; Moor (enabled at national capitals)                            |
+|   4 | Lodge                            | "Welcome. You must be tired. Please make yourself at home."                                                                              | Check In; Gossip; Port Info                                                  |
+|   5 | Palace                           | Access-dependent; a commoner is told, "Commoners are not permitted to enter the palace. Remove yourself from the premises."              | Meet Ruler; Defect; Gold; Ship (a stored fifth, Secret Call, is never shown) |
+|   6 | Guild                            | "What do you want?"                                                                                                                      | Job Assignment; Country Info                                                 |
+|   7 | Collector                        | "May I help you?"                                                                                                                        | Contract; Discovery; Rumor                                                   |
+|   7 | Cartographer                     | "May I help you?"                                                                                                                        | Contract; Learn Skills; Report; Locate                                       |
+|   7 | Skill teacher or story residence | Person- and event-dependent                                                                                                              | Usually a dialogue or Yes/No prompt rather than a standing menu              |
+|   8 | Bank                             | "Welcome to the central office of the Marco Polo Bank." in Amsterdam; "Welcome to our regional branch of the Marco Polo Bank." elsewhere | Deposit; Withdraw; Borrow; Repay                                             |
+|   9 | Item Shop                        | "May I help you?"                                                                                                                        | Buy; Sell                                                                    |
+|  10 | Church                           | "Welcome to our church."                                                                                                                 | Pray; Donate                                                                 |
+|  10 | Mosque                           | "Welcome to our mosque."                                                                                                                 | Pray; Donate                                                                 |
+|  11 | House of Fortune                 | "Welcome to the House of Fortune. What do you want to know?"                                                                             | Life; Career; Love; Mates                                                    |
 
 ### Executable entry-message mapping
 
@@ -1432,8 +1432,8 @@ recalculate them.
 
 The Palace handler begins at `MAIN.EXE 0x309A4`. After the admission greeting
 has been acknowledged, it opens **Meet Ruler**, **Defect**, **Gold**, and
-**Ship**. A fifth stored label, **Secret Call**, is event-only rather than an
-ordinary selectable command. The ruler is selected from the nation controlling
+**Ship**. A fifth stored label, **Secret Call**, is never shown
+([Leftovers](leftovers.md#evidence-menudat)). The ruler is selected from the nation controlling
 the capital being visited; this ordinary location-based selection is separate
 from the ruler variables used by diplomatic-mission dialogue. Its portrait and
 name come from 24-byte named-character record `10 + controller` at slot
