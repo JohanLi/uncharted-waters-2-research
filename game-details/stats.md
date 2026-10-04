@@ -62,9 +62,9 @@ Swordsmanship += random(3)    # 0–2, capped at 100
 Courage       += random(3)    # 0–2, capped at 100
 ```
 
-Duels outside naval battles, in the Pub or Lodge or started by a scenario
-script (`E8`), use a different entry (`0x17F8A`) that gives neither
-experience nor attributes. See [Dueling](dueling.md).
+Duels outside naval battles, which only a scenario script starts (`E8`),
+use a different entry (`0x17F8A`) that gives neither experience nor
+attributes. See [Dueling](dueling.md).
 
 ### Luck
 

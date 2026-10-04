@@ -12,12 +12,15 @@ each attack and defense.
 Swordsmanship, Battle Level, the equipped weapon and armor, random rolls, and
 the combatants' preceding moves all affect the damage actually applied.
 
-Duels can begin in three ways:
+Duels can begin in two ways:
 
-- during a naval battle, when the flagships are adjacent;
-- through the ordinary **Duel** command when meeting a sailor in a Pub or
-  Lodge; and
+- during a naval battle, when the flagships are adjacent; and
 - at five fixed points in the protagonist scenarios.
+
+There is no duel in an ordinary Pub or Lodge visit. The menus for a sailor
+met there carry a **Duel** label in `MENU.DAT` (entries 3 and 12), but the
+game shows those menus without their last item and has no routine for it
+([Pub command dialogue](buildings.md#pub-command-dialogue)).
 
 ## Starting a duel during a naval battle
 
