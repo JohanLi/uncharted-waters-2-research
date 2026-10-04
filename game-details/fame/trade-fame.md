@@ -60,8 +60,12 @@ and Piracy increases.
 
 The fixed gold payment for Deliver Letter is 700. The other assignments use rank-dependent payments. Buy Goods also
 pays an advance, which is always 10,000 gold because its cap compares against the low byte of 10,000
-(`SNR0.DAT 0x0D99`). Gold therefore should not be inferred from the Fame
-column.
+(`SNR0.DAT 0x0D99`). The advance is paid on acceptance and also added to the promised payment (`0x0DA2`), which is paid
+in full on delivery (`0x0E52`): 11,000, 15,000, or 30,000 gold, for 21,000, 25,000, or 40,000 gold in all. Giving up
+takes the 10,000 back; failing the deadline doesn't. Gold therefore should not be inferred from the Fame column.
+
+Each award sets Fame to `min(Fame + award, 50,000)` (`SNR0.DAT 0x0E54–0x0E81` for Buy Goods), so the 50,000 cap applies
+to the Fame total, not to the size of the award.
 
 ### Deadlines and failure
 

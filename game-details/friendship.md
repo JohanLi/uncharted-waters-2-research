@@ -307,7 +307,8 @@ likely.
 
 The hostile greeting begins, "You have some nerve to show your face here!" A successful escape ends with "Whew, that
 was a narrow escape!" and applies no decoded penalty. If the escape check fails, the ruler threatens imprisonment but
-instead seizes four fifths of the player's carried gold. The handler then sets personal Friendship with that nation to
+instead seizes four fifths of the player's carried gold, and four fifths of the bank balance too
+([Bank](buildings.md#the-palace-arrest)). The handler then sets personal Friendship with that nation to
 stored `100`, or displayed `0`. It does not restore the nation-to-nation Relation cell.
 
 The successful escape has a deliberate blackout between the protagonist's
