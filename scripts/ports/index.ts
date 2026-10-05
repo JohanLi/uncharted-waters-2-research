@@ -9,6 +9,7 @@ import {
   writeJson,
   writePng,
 } from "../shared.js";
+import { mapX } from "../draw-world-map/overlay.js";
 
 const paletteHex: Record<string, string[]> = {
   dawn: [
@@ -212,8 +213,49 @@ async function drawTilesets(output: string): Promise<void> {
   await writePng(join(output, "port-tilesets.png"), image, width, height, 3);
 }
 
+// The map as a new game starts (game-details/at-sea.md#charted-areas-and-known-ports),
+// written to new-game-map.json:
+// - `chartCellSize`: the Chart reveals the world in cells of 24 × 24 tiles
+//   (90 × 45 cells; save-slot bitmap 0x0144).
+// - `charted`: rectangles in map tiles (the ports.json `position` system) that
+//   are charted at the start. MAIN.EXE 0x1B90A sets cell columns 4–16 and rows
+//   8–17 for every protagonist; the new-game data's bitmap itself is empty.
+// - `knownPorts` / `visitedPorts`: port IDs whose display-record flag byte
+//   `+0x13` has `0x10` / `0x40` in the new-game data (DATA1.015, byte for byte
+//   the start of a KOUKAI2.DAT slot). The same for every protagonist: each
+//   starting port, which 0x1BAC9 marks visited, already is.
+const NEW_GAME_CHART = { columns: [4, 16], rows: [8, 17] } as const;
+const CHART_CELL = 24;
+
+async function extractNewGameMap(): Promise<unknown> {
+  const data = await readFile(join(repoRoot, "raw/DATA1/DATA1.015"));
+  const knownPorts: number[] = [],
+    visitedPorts: number[] = [];
+  for (let port = 0; port < 130; port++) {
+    const flags = data[0x4f40 + port * 20 + 0x13]!;
+    if (flags & 0x10) knownPorts.push(port);
+    if (flags & 0x40) visitedPorts.push(port);
+  }
+  const [left, right] = NEW_GAME_CHART.columns,
+    [top, bottom] = NEW_GAME_CHART.rows;
+  return {
+    chartCellSize: CHART_CELL,
+    charted: [
+      {
+        x: mapX(left * CHART_CELL),
+        y: top * CHART_CELL,
+        width: (right - left + 1) * CHART_CELL,
+        height: (bottom - top + 1) * CHART_CELL,
+      },
+    ],
+    knownPorts,
+    visitedPorts,
+  };
+}
+
 export async function run(): Promise<void> {
   const output = await prepareOutput("ports");
+  await writeJson(join(output, "new-game-map.json"), await extractNewGameMap());
   const chunks = [];
   for (let index = 0; index < 101; index++)
     chunks.push(
