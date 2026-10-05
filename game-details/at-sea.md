@@ -831,12 +831,12 @@ Each of the 98 discoveries has a 7-byte record (save slot `0x6E74`). Byte `+4`
 names its content, byte `+5` is its difficulty, and byte `+6` holds its type
 (low 3 bits) and four flags:
 
-| Flag   | Meaning                                 | Set by                                                                                                                          |
-| ------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `0x80` | Not selected for this game              | A new game (`0x1B9A2`)                                                                                                          |
-| `0x40` | Village sighted                         | The lookout (`0x36C99`), which also awards 50 Adventure Fame (`0x3663A`)                                                        |
-| `0x20` | Discovery found, or treasure map bought | Village Search (`0x3A780`); buying a treasure's map from a Pub patron (`0x2BFF3`); Pietro's story (`SNR5.DAT 0x06B1`, `0x0C1A`) |
-| `0x10` | Reported, or treasure dug up            | Reporting to a collector (`0x33840`); digging up a treasure (`0x3A332`); the shared quest script                                |
+| Flag   | Meaning                                 | Set by                                                                                                                                             |
+| ------ | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0x80` | Not selected for this game              | A new game (`0x1B9A2`)                                                                                                                             |
+| `0x40` | Village sighted                         | The lookout (`0x36C99`), which also awards 50 Adventure Fame (`0x3663A`)                                                                           |
+| `0x20` | Discovery found, or treasure map bought | Village Search (`0x3A780`, Monsters included); buying a treasure's map from a Pub patron (`0x2BFF3`); Pietro's story (`SNR5.DAT 0x06B1`, `0x0C1A`) |
+| `0x10` | Reported, or treasure dug up            | Reporting to a collector (`0x33840`); digging up a treasure (`0x3A332`); the shared quest script                                                   |
 
 A new game sets `0x80` on all 98 records, then clears it on 50 chosen at
 random (`random(98)` until 50 distinct records are picked). Nothing clears
@@ -945,8 +945,22 @@ the village menu and rises by 5 with each **Entertain**, which costs 2 barrels
 of food. Without Entertain the score is at most 50. Failure shows “We didn't
 find anything.” (429).
 
-A found Monster attacks the party (message 430) and costs crew. Any other
-discovery is announced and marked found, and has a 1-in-16 chance
+A found Monster (type 5, tested at `0x3A639`) is not announced. Instead the
+game shows “We're being attacked by a %s!” (message 430), filled with the type
+name “Monster” rather than the discovery's name, and the party loses crew
+(below). It is still marked found: the Monster branch calls the crew-loss
+routine and then joins the common ending at `0x3A780`, which sets `0x20` and
+shows the discovery's card (`0x3A37D`) as for any other find. It skips only
+the 1-in-16 roll. The attack starts no duel or battle, injures no one, changes
+no Fame or stats, and leaves the party in the village menu. Because `0x20` is
+now set, searching again gives message 432 and the attack never repeats. A
+found Monster is an ordinary found discovery afterwards. The collector's list
+(`0x33675`) and the ruler's scan (`SNR0 0x268C`) take every record with `0x20`
+set and `0x80` and `0x10` clear, without testing the type. A Monster therefore
+pays its listed gold and Adventure Fame when reported
+([Adventure Fame](fame/adventure-fame.md#villages-and-discoveries)).
+
+Any other discovery is announced and marked found, and has a 1-in-16 chance
 (`random(16) = 7`) that some crew stay in the village.
 
 The announcement depends on the discovery type, the low 3 bits of byte `+6`
@@ -977,6 +991,16 @@ h    = floor(S / 2)
 p    = floor((100 − min(100, h + floor(h × B / 25))) / 2)
 loss = floor(p × crew / 100)        for each active ship
 ```
+
+The routine walks the ten slots of the protagonist's fleet and changes only
+occupied ones (`slot[0x08] & 0x30 = 0x10`). Every such ship loses the same
+percentage `p`, which is at most 50, so no ship loses more than half its crew.
+There is no minimum: a ship with 1 crew loses none, and when
+`h + floor(h × B / 25) ≥ 100` nobody is lost. After a Monster or a
+counterattack, the total is reported as “We lost %d %s of our crew.” (427,
+“member” or “members”) or “But we didn't lose any crew members.” (584). When
+crew stay in the village, a nonzero total is reported in message 1136, and a
+total of 0 shows nothing.
 
 **Plunder** (`0x3A866`) takes 20–60 barrels of food, has a 1-in-4 chance of a
 counterattack, lowers Luck by up to 2, and resets friendship to 0. Charm
