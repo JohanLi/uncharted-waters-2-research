@@ -29,6 +29,9 @@ see [Discovery flags](../at-sea.md#discovery-flags).
 Finding one of the selected villages awards 50 Adventure Fame immediately.
 Finding its discovery does not award the discovery's listed Fame immediately;
 that Fame is awarded when the discovery is reported to a collector.
+A Monster is found in the same way, after its attack costs crew, and can be
+reported like any other discovery: the collector's list (`0x33675`) does not
+test the discovery type ([Villages](../at-sea.md#villages)).
 
 For ordinary discoveries, the executable calculates:
 
