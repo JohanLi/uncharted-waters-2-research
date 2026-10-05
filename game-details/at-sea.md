@@ -345,9 +345,8 @@ The game never builds a whole part. When the fleet enters a new block, the
 sea view (`0xBE5A`, `0xC022`) builds the 3 × 3 blocks around it, 72 × 72
 tiles, with `0x284F9`. The window's top-left block is the fleet's block minus
 one in each direction, clamped to block columns 0–27 and rows 0–42, so a
-window never spans two parts. The same step marks those nine blocks as
-charted (bitmap `DS:0x0F6C`, 12 bytes per block row, one bit per block
-column).
+window never spans two parts. The same step charts the 3 × 3 blocks around
+the fleet ([Charted areas and known ports](#charted-areas-and-known-ports)).
 
 `0x284F9` makes three passes over the window:
 
@@ -512,6 +511,88 @@ it is `0x1B367`, which clears it when a new game starts (`0x1C2C5`), and no
 pointer to it exists, so in this version it is always 0. What display the
 mode was meant for is not recorded; inverted colours and fewer text colours
 fit a monochrome screen.
+
+## Charted areas and known ports
+
+The Chart command ([Other map views](#other-map-views)) shows only charted
+areas, and the map shows only known ports. Both start the same for every
+protagonist. `scripts/ports` writes the starting state to
+`output/new-game-map.json`.
+
+### The charted bitmap
+
+The world is charted in cells of one block, 24 × 24 tiles, 90 columns by 45
+rows. The bitmap is `DS:0x0F6C`, save-slot offset `0x0144`: 12 bytes per cell
+row, 540 bytes in all. Cell column `c` is byte `row × 12 + c / 8`, bit
+`0x80 >> (c mod 8)`. Columns count from save X 0, the left edge of
+`WORLDMAP.000`, so column `c` covers map X `(24c + 720) mod 2160` onward in
+the `ports.json` system. Two counters follow it: `DS:0x1192` (save `0x036A`),
+the charted cells, and `DS:0x1194` (save `0x036C`), the cells not yet reported
+to a cartographer ([Cartography](fame/adventure-fame.md#cartography)).
+
+A new game clears the bitmap and charts columns 4–16 of rows 8–17, 130 cells
+(`0x1B90A`, called from the new-game setup at `0x1BADA`). That is save X
+96–407 and Y 192–431, or map X 816–1127 in `ports.json` terms: from the
+Atlantic west of Lisbon to east of Istanbul and Alexandria, and from north of
+Copenhagen to the North African coast. The new-game data has an empty bitmap
+(`DATA1.015` offset `0x0144`), so the rectangle comes from code alone.
+
+### Charting at sea
+
+The sea view charts when the fleet's 3 × 3 window of blocks changes
+(`0xBF04–0xBFD6` in `0xBE5A`, the same loop at `0xC0C1–0xC180` in `0xC022`;
+[The window around the fleet](#the-window-around-the-fleet)). It charts the
+fleet's cell and its eight neighbours, by the fleet's own cell rather than the
+clamped window: columns `(x / 24 − 1) mod 90` to `(x / 24 + 1) mod 90`,
+wrapping round the world, and rows `y / 24 − 1` to `y / 24 + 1`, skipping rows
+outside 0–44. Each cell not yet charted adds one to both counters. The
+reveal is therefore a 72 × 72-tile square snapped to the cell grid, not a
+radius. Because it runs only when the window changes, moving into a part's
+first or last block column (or block row 0 or 44) from its neighbour charts
+nothing new, since the clamped window stays put.
+
+The one other writer is a cartographer's **Report** (`0x33BFA`): with at least
+3,300 cells charted, it sets every bit, 4,050 cells (`0x33C2A–0x33C98`).
+
+The Chart's overview (`0x22D09`) lays the 90 × 45 cells out at 6 × 6 pixels
+and draws a colour-13 box over each uncharted one (`0x22D5C–0x22D84`). It
+opens the detail of a 2 × 2-cell area only when at least one of those cells is
+charted (`0x22EAD–0x22EF3`), and the detail leaves each uncharted cell blank
+(`0x22AC4`).
+
+### Ports on the map
+
+Each port's known flag is bit `0x10` of its saved display-record byte `+0x13`
+(save `0x4F40 + port × 20 + 0x13`); `0x40` marks it visited
+([Known and visited ports](ports.md#known-and-visited-ports)). The 30 supply
+ports, IDs 100–129, use the same records and flags. The new-game data
+(`DATA1.015`, byte for byte the start of a `KOUKAI2.DAT` slot) gives:
+
+| Flags   | Port IDs                                  |
+| ------- | ----------------------------------------- |
+| visited | 0, 1, 2, 7, 8, 13, 16, 18, 27, 29, 33     |
+| known   | the above and 3, 6, 9, 10, 25, 30, 32, 34 |
+
+No supply port starts known. The new-game setup also marks the starting port
+visited (`0x1BAC9`, fleet `+0x26`), but the six protagonists start in Lisbon
+(0), Seville (1), London (29), Amsterdam (33), Genoa (8), and Istanbul (2),
+all visited already, so the list is the same for everyone. Trebizond (25) is
+known but lies in cell column 17, just east of the charted rectangle, so the
+Chart does not show it until that cell is charted.
+
+Only three writes in `MAIN.EXE` set the flag: the starting port (`0x1BAC9`),
+sighting a port at sea (`0x36C41`, [Once per tick](#once-per-tick)), and
+entering a port, which sets `0x50` (`0x20F9D`). The scenario scripts that touch
+the byte set `0x10` only on ports already visited (Otto's Seville,
+`SNR3.DAT 0x045D`; Pietro's Lisbon, `SNR5.DAT 0x014C`), or set `0x20`, hidden
+from the lookout (João's Sakai and Nagasaki; Ernst's Changan, Sakai, and
+Nagasaki). Nothing in the executable or the scripts sells port locations.
+
+On the map a port is large tile `0x10`, drawn as tiles `0x74`–`0x77`, and a
+supply port is large tile `0x12`, drawn as `0x78`–`0x7B` (`DATA1.018`), so
+the two have different pictures. An unknown port of either kind is drawn as
+plain land ([The window around the fleet](#the-window-around-the-fleet)). The
+treasure-map view draws every port as land, known or not.
 
 ## Fleet sprites
 
@@ -1227,6 +1308,10 @@ None remain.
   `DATA1.010`, `DATA1.018`, `WORLDMAP.000`–`002`: the sea map.
 - `MAIN.EXE 0x22A7E`, `0x22B1A–0x22B8F`, `0x286A6`, `0x265E9`: Chart, Port Map,
   and treasure-map views.
+- `MAIN.EXE 0x1B90A`, `0x1BADA`, `0xBF04–0xBFD6`, `0xC0C1–0xC180`,
+  `0x33C2A–0x33C98`, `0x22D09`, `0x22EAD–0x22EF3`, `0x1BAC9`, `0x20F9D`,
+  `0x36C41`; `DATA1.015` offsets `0x0144` and `0x4F40`: charted areas and known
+  ports.
 - `MAIN.EXE 0x6B6B`, `0x6BDA`, `0x97BC`, `0x1E9A0`, `0x1E9B4`, `0x1E9FA`,
   `0x20447–0x20474`, `0xEDD7`, `0x1F302–0x1F314`, `DS:0xA88A`, `DS:0xA892`,
   `DS:0x9052`, `DS:0xC176`, `DS:0xA890`: map colours, time-of-day palettes,

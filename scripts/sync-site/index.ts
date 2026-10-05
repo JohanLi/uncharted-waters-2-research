@@ -23,6 +23,7 @@ const JSON_FILES = [
   "scripts/characters/output/waitresses.json",
   "scripts/stories/output/stories.json",
   "scripts/ports/output/ports.json",
+  "scripts/ports/output/new-game-map.json",
   "scripts/ships/output/ships.json",
   "scripts/ships/output/portToShipyard.json",
   "scripts/ships/output/shipyardToShips.json",
