@@ -241,6 +241,14 @@ belong to the same earlier design.
 - **Ladia's lines 425–428** in Ali's story need scenario flag 1, which no
   route sets in that subsection and no executable routine writes
   ([Ali](scenarios/scenario-6-ali-vezas.md)).
+- **The supply-port welcome, message 578** ("Welcome to %s! It's nice to
+  have visitors from abroad."), is the waving man's line when the port ID is
+  100 or higher (`0xB8F7–0xB906`). At a supply port the waving man stands on
+  forest tile (2, 1), and the player can never come within bumping range or
+  get it into view
+  ([Ports](ports.md#supply-port-town)). No other code shows 578: the
+  sea-event lines it falls among are reached only for event types 0–9
+  (510–529).
 
 ### Items never obtained
 

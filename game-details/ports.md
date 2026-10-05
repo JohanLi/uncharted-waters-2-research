@@ -187,6 +187,86 @@ not have the regular-port economy, industry, or nation-support metadata.
 |     128 | Montevideo    |
 |     129 | Forel         |
 
+### Supply-port town
+
+All 30 supply ports load the same town. Every input to the town's setup is
+either fixed or clamped to 100, so the towns differ only in the port name.
+
+- **Map: `PORTMAP` entry 100.** The town loader at `MAIN.EXE 0xDD96` checks
+  the current port ID (`DS:0x0E32`) at `0xDD9F`. A regular port loads the
+  `PORTMAP` entry with its own ID at `0xDEB3–0xDED0`. A port ID of 100 or more
+  jumps to `0xDED3`, and that path loads entry 100 at `0xDFA7–0xDFC2`.
+- **Tileset: `PORTCHIP` entries 6 and 7 (tileset 3).** A regular port reads
+  `CHIP_NO.DAT` (100 bytes, one per regular port) at `0xDDA9–0xDDCB`. It then
+  loads `PORTCHIP` entries `2 × byte` (the 0x7800-byte tile graphics) and
+  `2 × byte + 1` (`0xDDE0–0xDE32`). The supply-port path never opens
+  `CHIP_NO.DAT`. It loads the fixed entries 6 and 7 (`0xDEE7–0xDF26`), which
+  make up tileset 3. Tileset 3 is also the one that `CHIP_NO.DAT` gives to the New World, the
+  African ports and Southeast Asia.
+- **Walkable tiles.** On both paths, the 4-byte second entry is copied to
+  `DS:0xC1BC` (`0xDE40–0xDE59` and `0xDF34–0xDF4D`). For supply ports it is
+  `PORTCHIP.007` = `00 16 1A 1F`. The player's test at `0xB3C9` and the
+  walkers' test at `0xB453` read the two tiles in the row below a position,
+  at x and x + 1. A step is allowed when the left tile is below `0x1A` and the
+  right tile is below `0x16` or from `0x1A` to `0x1E`. Under this rule the
+  highest row that can be stood on in map 100 is y = 14. All 4,242 such
+  positions form one area that includes the Harbor arrival tile (62, 55).
+- **Building entrances: `ZA_DAT.DAT` record 100.** `0xDD54` clamps the port
+  ID to 100 at `0xDD66` and copies that 24-byte record to `DS:0x0A60`. The
+  record holds only the Harbor (building 3) at tile (62, 54).
+- **Townspeople: spawned, but never seen or met.** Arriving from sea
+  (`DS:0x0E33` = `0xFF`, set at `0x2D7E6`) runs the spawn routine at
+  `0xDFE2` (called at `0xE18F`). Night frames run it too (`0xB5B8`). The
+  routine has no port-ID test and places actors relative to the Market, Pub,
+  Shipyard and Lodge entrances. In record 100 all four entrances are (0, 0):
+  - The waving man, the dog and the old man (fixed slots 4, 5 and 7) are all
+    on tile (2, 1).
+  - The Shipyard walker (slot 2) starts on (0, 0).
+  - The other three walkers start at x = 254 (0 − 2 as a byte), y = 1.
+
+  All of these tiles are forest (`0xE4`), and none of them can be met:
+  - **Bumping:** the townsperson check at `0xB4AF` needs the player's
+    attempted position to be within one tile of the actor. The player can
+    never stand above row 14, so the closest attempted position is row 13.
+  - **Walkers stay put:** the three walkers at x = 254 fail the x < `0x5E`
+    bound at `0xB6FA` in every direction. The walker at (0, 0) has no
+    walkable neighbour. No walker ever moves.
+  - **Nothing is drawn:** `0xB57E` draws an actor only inside the 23 × 23
+    view at (`DS:0x0E38`, `DS:0x0E3A`). The view starts at y = 54 − 13 = 41
+    (`0xE12C`). It scrolls up only while the player is fewer than 4 rows from
+    its top (`0xBCC1–0xBCFC`), so with the player at row 14 or lower the view
+    never starts above row 10. Its x start is at most `0x48` (`0xBCB8`), far
+    short of x = 254.
+
+  So the player never sees or talks to a townsperson at a supply port. The
+  waving man's supply-port line, message 578 (`0xB8F7–0xB906`), is
+  therefore never shown.
+- **No hostile-port guards.** The guards are added at `0xE070–0xE0FC` only
+  when the port's nation, the low 3 bits of display-record byte `+0x13`
+  (`0xAFEE`), is below 6. `DATA1.015` gives all 30 supply ports the value
+  `0x06`. The executable rewrites these bits in three places, and none of
+  them reaches a supply port:
+  - The midnight refresh at `0x1E88F` loops over ports 0–99 only
+    (`0x1E927`).
+  - The routine at `0x1D246` scans ports 99 down to 0.
+  - The controller refresh at `0x327C3` is called only from Market Invest
+    (`0x2ACBA`) and Shipyard Invest (`0x32989`), and supply ports have
+    neither building.
+
+  The documented scenario-script writes touch ports 97–99, or loop over
+  ports 0–99.
+- **Character graphics.** The `CHAR` entries loaded at `0xDE62–0xDEAC` and
+  `0xDF56–0xDFA0` (`DS:0x1439`, then entry 6) are the same on both paths.
+  Supply ports have no graphics of their own beyond the map and tileset above.
+
+The Mosque test at `0x32BFA` indexes a 100-byte stack copy of `CHIP_NO.DAT` by
+port ID without a range check. It is reached only through a building with ID
+10, and the supply-port town has no such building.
+
+A routine at `0xB1FD` loads the `PORTMAP` entry for `DS:0x0E32` without the
+clamp to 100. Nothing calls it: there are no near or far calls to it, and its
+address appears in no pointer table.
+
 ## Storage layout
 
 The port ID is an implicit record index. The first record is port `0`, and
