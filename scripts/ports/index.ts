@@ -155,7 +155,11 @@ const TOWN_TILES = 96;
 
 // Each town as a day-palette picture: PORTMAP.nnn is 96 × 96 tile numbers
 // into the port's PORTCHIP tileset (CHIP_NO.DAT), 16 × 16 pixels each. The
-// 30 supply ports share map 100, drawn with tileset 0.
+// 30 supply ports share map 100 and tileset 3 (PORTCHIP.006): MAIN.EXE
+// 0xDD9F sends port IDs of 100 or more to 0xDED3, which loads those fixed
+// entries instead of reading CHIP_NO.DAT.
+const SUPPLY_PORT_TILESET = 3;
+
 async function drawTownMaps(
   output: string,
   maps: Buffer[],
@@ -168,7 +172,10 @@ async function drawTownMaps(
   );
   const size = TOWN_TILES * 16;
   for (const [index, map] of maps.entries()) {
-    const tiles = tilesets[(ports[index]?.tileset as number | undefined) ?? 0]!;
+    const tiles =
+      tilesets[
+        index < 100 ? (ports[index]!.tileset as number) : SUPPLY_PORT_TILESET
+      ]!;
     const image = new Uint8Array(size * size * 3);
     for (let cell = 0; cell < TOWN_TILES * TOWN_TILES; cell++) {
       const tile = map[cell]!,

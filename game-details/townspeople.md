@@ -72,6 +72,11 @@ Offsets are in tiles, x first; +1 in y is one tile below the entrance. Every
 walker starts facing down. The save editor's port-change function uses the
 same layout when it moves a save to a different port.
 
+A supply port's `ZA_DAT.DAT` record (100) has only a Harbor, so every other
+entrance is (0, 0). Its townspeople therefore spawn in the forest at the
+map's top-left corner, where the player can never see or reach them
+([Ports](ports.md#supply-port-town)).
+
 ## Movement
 
 The walker routine at `MAIN.EXE 0x0B5A6` runs once per town frame, whether or
@@ -160,7 +165,7 @@ indices: 0–999 are `MESSAGE.DAT` and 1000–1422 are `MESSAGE2.DAT` minus 1,00
 | Pub man (1)             | 1274 + day % 10 (+30) | Gameplay tips                                                      |
 | Shipyard woman (2)      | 640 or 641            | The first ship in the local Used Ship stock, or that there is none |
 | Lodge man (3)           | 1264 + day % 10 (+30) | Gameplay tips                                                      |
-| Waving man (4)          | 1284 + day % 10 (+30) | Gameplay tips; at a supply port, 578 welcomes you by port name     |
+| Waving man (4)          | 1284 + day % 10 (+30) | Gameplay tips; 578 at a supply port, but unreachable there         |
 | Dog (5)                 | 619 + port ID % 3     | “Bowwow!”, “Yap-yap!”, or “Sniff-sniff!”                           |
 | Guard (6, or any guard) | 622                   | “No visitors are allowed entrance to this port…”                   |
 | Old man (7)             | 616, then 617 or 618  | The port's specialty good, or that it has none                     |
