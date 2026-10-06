@@ -139,9 +139,18 @@ nation itself is the cached nation-record byte `+0x02` used by Guild
 intelligence.
 
 The pirate record uses mode 7 when its target byte `+0x02` is 7, the player's
-nation, and mode 8 otherwise (`0x1CF6A–0x1CF76`). Modes 3 and 6 exist in the objective table and in the target-selection
-code, but the ordinary monthly path does not leave a normal nation in either
-mode; they are available to special or scripted state changes.
+nation, and mode 8 otherwise (`0x1CF6A–0x1CF76`), with no roll.
+
+The monthly routine (`0x1CEFB`) works nation by nation: the target T is
+`+0x02`, or the protagonist's affiliation when that byte is 7; the roll is
+`random(120)` when T's Guild Profit is at least the nation's own, else
+`random(90)`; aggression above the roll is offensive (`0x1CEB3`), otherwise
+the mode is `random(3)`. The offensive routine first writes 3 (target 7) or 6
+(target 6) but then falls through and overwrites `+0x03` with 4 or 5
+(`0x1CEB8–0x1CEDD`), so no nation keeps modes 3 or 6; they appear only in the
+objective and argument tables. The selector (`0x397FF`) reads the table's
+word for the mode and shifts it by 8 for positions 1–4, by 4 for positions 0,
+5 and 6, and by 0 for 7–9.
 
 ### Only fleets based at the capital sortie
 
@@ -179,20 +188,32 @@ the map, and only on arrival are snapped home and begin the loop above.
 After selecting an objective, `MAIN.EXE` `0x396DB–0x397FE` chooses its argument
 and initializes the navigation target:
 
-|   Objective | Argument rule                                                          |
-| ----------: | ---------------------------------------------------------------------- |
-|           0 | The fleet's own home port.                                             |
-|         1–2 | The nation's cached merchant-fleet destination at nation byte `+0x04`. |
-|           3 | The existing port argument is retained.                                |
-|           4 | The current player's fleet is tracked.                                 |
-| 5–7, mode 3 | The current player's fleet is targeted.                                |
-| 5–7, mode 4 | A random position 0–4 in the target nation's fleet block is targeted.  |
-| 5–7, mode 5 | One of positions 5–6—the target nation's convoy fleets—is targeted.    |
-| 5–7, mode 6 | One of pirate fleet IDs 61–69 is targeted.                             |
-| 5–7, mode 7 | The current player's fleet is targeted.                                |
-| 5–7, mode 8 | A random position 0–4 in the target nation's fleet block is targeted.  |
-|           8 | One of the nation's own four merchant fleets is guarded.               |
-|           9 | The fleet's own home port is guarded.                                  |
+T is the nation's target `+0x02`, or the protagonist's affiliation when it
+is 7. The jump table is at `0x3971C`:
+
+|          Objective | Argument rule                                                                                                                                              |
+| -----------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|               0, 9 | The fleet's own home port (`0x394F1`).                                                                                                                     |
+|                1–2 | The nation's cached merchant-fleet destination at nation byte `+0x04`.                                                                                     |
+|               3, 7 | Nothing: the existing argument and course are kept.                                                                                                        |
+|                  4 | The current player's fleet (`0x395B9`).                                                                                                                    |
+|                  8 | One of the nation's own merchant fleets, `n × 10 + 1 + random(4)`.                                                                                         |
+| 5–6, modes 3 and 7 | The current player's fleet.                                                                                                                                |
+| 5–6, modes 4 and 8 | `T × 10 + random(5)` when the protagonist's rank is above 2, which includes T's protagonist fleet; otherwise `T × 10 + 1 + random(4)` (`0x39777–0x397AF`). |
+|        5–6, mode 5 | `T × 10 + 5 + random(2)`, a convoy.                                                                                                                        |
+|        5–6, mode 6 | `61 + random(9)`, a pirate fleet.                                                                                                                          |
+|     5–6, modes 0–2 | Nothing.                                                                                                                                                   |
+
+The two assignment helpers do the writing. `0x394F1` (to a port) sets the
+port's position as target for objective 0 at once; unless the fleet has
+story flag `0x40`, a tripped class guard with an objective other than 0
+writes objective 0, the home port and a 5-day delay instead. A docked fleet
+inside the loaded area first moves to the first of 12 tiles around it that is
+water for its 2 × 2 block (`0x294E0`; with none, the same home-and-wait).
+Then the objective (`0xFF` keeps it), the port as argument, its position as
+target, route word `0x4000`, and `+0x29 &= 0xCF`. `0x395B9` (after a fleet)
+does the same with the target's commodore as argument, but its guard has no
+exemption for objective 0, and an inactive target sends the fleet home.
 
 For fleet-targeted objectives the stored argument is the target captain's
 sailor ID, not the target fleet ID. The game resolves the sailor's current
@@ -252,9 +273,10 @@ objective is chosen.
 
 ### Arrival-action delay
 
-`fleet[0x27]` is the timer behind the apparent turnaround wait. Whenever the
-game converts an objective into a new navigation target, it assigns
-`8 + random(8)`, so the saved value is 8 through 15 days. The handlers for Return
+`fleet[0x27]` is the timer behind the apparent turnaround wait. It is set
+to `8 + random(8)` on arrival (`0x1F440–0x1F44A`), to `5 + random(10)` when a
+fleet is relaunched (`0x1D977–0x1D981`), and to 5 by the class guard; nothing
+else writes it. The handlers for Return
 Home, Invest, and Trade decrement it and take no action until it reaches zero.
 Thus it delays the action on arrival at a port, not just a fleet's departure
 from home. The timer remains present but is not consumed while a fleet is
@@ -287,6 +309,49 @@ inside the loaded sea area are moved every tick by `0x2025D`, but its port
 handler runs only at tick 0 (`0x202CF`), also once a day. The arrival wait is
 therefore 8–15 days, and a fleet held back by the class guard retries after
 5 days.
+
+At sea, the per-tick loop (`0x2025D`) runs the port handler at tick 0 for
+every docked fleet before testing whether it is inside the loaded area
+(`0x202C2–0x202D1`). A docked fleet outside the area is also handled by its
+daily update, so at sea its delay counts down twice a day; in port, and
+inside the area, once.
+
+### Guarding a port
+
+The port handler (`0x39C43`) acts only for objectives 0, 1 and 2, through
+the far pointers at `DS:0xBCBA`; the entries for 3–10, guarding a port (9)
+included, are a bare `retf` (`0x39C3A–0x39C41`). Arrival (`0x1F3E3`) sets
+`+0x29 |= 0x30`, places the fleet on its port (objectives 0, 1, 2 and 9) or
+on its target's fleet (5–8, 10), clears the docked bit again for objective
+3, sets the delay and runs the handler at once. A guard-port fleet therefore
+docks at its home port on arrival and stays docked: its delay never counts
+down and it never chooses another objective. Only relaunch, a scenario, or
+the guard reaction below sends it out again.
+
+Convoy, voyaging and pirate fleets guarding (objectives 8 and 9) react to
+attacks on their nation only when the clock is a multiple of 12 during their
+daily update (`0x1F841`); at sea, where fleet t is updated when the clock
+reaches t + 1, that means fleets 35, 47 and 59. Each active fleet on
+objective 5–7 whose target belongs to the guard's nation is answered with
+objective 5 (position 6 or below) or 6 against it, on
+`random(2)` = 0 when the commander's personality has bit `0x80`, always
+otherwise; the last call wins, subject to the class guard.
+
+### Invest and Trade in detail
+
+Invest (`0x39991`) adds `floor(treasury / 2) × 100` to the Market
+investment when the port's Industry exceeds its Economy, else to the
+Shipyard's, using the other account when the first holds 50,000 and nothing
+when both do; the treasury becomes `treasury − floor(treasury / 2)`. The
+Support gain uses that halved treasury, and the points are taken from the
+other nations one at a time in nation order, pass after pass, up to their
+total. Trade (`0x39B0D`) picks goods `10 + random(16)`, prices them as
+`floor((rate + 50) × sale base / 100)` from the port's Market table, needs
+`100 × treasury` to cover one unit, buys
+`min(1000, floor(100 × treasury / price))`, raises the category's rate by
+`min(100 − rate, 3 + random(3))`, and takes `trunc(amount × price / 100)`
+from the treasury. Both then set objective 0 and run the argument selector,
+which sends the fleet home.
 
 ### Pursuit and return transitions
 
@@ -361,8 +426,12 @@ daylight window, and one exchange per sortie, computer fleets rarely sink one
 another's ships and almost never destroy a whole fleet.
 
 These fights never involve the player. The only battle-screen call in the
-encounter (`0x263E8`, at `0x1FABE`) is reached when the target is the
-protagonist (`0x1FA7E–0x1FA87`), and no message is shown for a fight between
+encounter (`0x163E8`, `FC4:11A8`, a near call at `0x1FABE` that wraps
+within segment `0xFC4`) is reached when the target is the
+protagonist (`0x1FA7E–0x1FA87`): a fleet without flag `0x40` is sent home
+instead when the protagonist's rank is 0 (`0x1FA87–0x1FAAA`), and after the
+battle a surviving attacker without `0x40` and not on objective 7 goes home
+on `random(3) = 0` (`0x1FAC6–0x1FAE7`). No message is shown for a fight between
 two computer fleets, even on screen. Fleets join a battle as assisting fleets
 only when a battle involving the player starts: `0x1843A` lists the active,
 undocked fleets within 2 tiles of the player's fleet on both axes (`0x183EC`)
@@ -404,6 +473,11 @@ the stored rank, from No Rank 0 through Duke 9. A zero rank sends the fleet
 home; any nonzero rank permits the encounter to continue. Corsairs therefore
 break off from a commoner but attack a protagonist holding any title, from
 Page upward.
+
+The daily encounter check (`0x1FCEF`) for objective 4 is written
+`position ≥ 1 || position ≤ 4`, so every active, undocked fleet 0–59 in the
+corsair's 24 × 24 block qualifies whose strength byte `+0x28` is below the
+corsair's.
 
 The pursuit refresh has a second corsair branch (`0x1F778–0x1F943`). When a
 pirate fleet on objective 4 is inside the loaded sea area, it rolls

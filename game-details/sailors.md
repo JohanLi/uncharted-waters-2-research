@@ -482,6 +482,11 @@ nation `ID mod 6`, until a mate unmasks them; see
 |  68 | Jack Raccam      | Piracy      |         88 |         66 |        68 |        88 |      51 |            78 |    96 |   70 |                9 |           13 |  24 | —                                                          |
 | 114 | Hamid Lal        | Piracy      |         72 |         66 |        71 |        81 |      52 |            76 |    89 |   66 |                9 |           15 |  22 | Gunnery, Celestial Navigation                              |
 
+## Ageing
+
+At each year end (`0x1B214`, after December) every sailor's age `+0x22`
+rises by 1 (`0x1B23B`), and so does byte `+0x0A` of the 30 waitress records.
+
 ## Open questions
 
 None remain.

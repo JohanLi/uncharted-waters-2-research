@@ -354,6 +354,36 @@ A stuck fleet is therefore released when the player enters port or when the
 player's movement shifts the loaded area far enough that the fleet falls
 outside it; being off screen alone is not enough.
 
+### Movement and speed of computer fleets
+
+Inside the area, computer fleets move with `0x200D0` at a speed from
+`0x1FF3A`. For each active ship it takes the wind table by the ship's sail
+type and the angle between the wind and the heading, times Power and wind
+speed over 150 (as a byte); adds the commodore's Navigation Level bonus
+(capped at 30) and scales by his Seamanship over 75 (capped at 40); and
+against the wind (rows 3–5) multiplies by Tacking over 100. The fleet takes
+the slowest ship, at least 2; then the current adds up to its speed when it
+runs within 45° of the heading and subtracts up to its speed (keeping at
+least 1) when it runs 135° or more against it. A fleet with no oared ship
+makes 0 in a calm. There are no crew, navigation or load factors, and the
+current never moves a computer fleet directly. The step itself adds only
+heading × speed to the accumulators; leaving the 72 × 72 area moves one tile
+further and skips the land test, and a blocked step waits only when the tile
+one heading step away is open (`0x200D0`). The heading and both neighbours
+blocked re-plans (`0x203F6`).
+
+Off screen, the daily update (`0x1FE94`) runs the pursuit refresh, the
+give-up and reaction step, the encounter check and the port handler, then the
+route state; `0x1F456` puts the fleet straight on the resolved target (the
+waypoint, the exact target, or the cached node), so it jumps one point a day.
+A target inside the loaded area is clipped to the area's border along the line
+from the fleet, then moved to the first water tile scanned along that border
+column or row (`0x1F4CF–0x1F6AB`). A fleet whose route word has bit `0x40`,
+standing on its target with no route, is sent home unless it is a story fleet
+(`0x1F36B`). Fleet t is updated once a day, when the clock passes tick t
+(`0x205AF–0x205B5`); in port that happens for every tick a building visit
+passes, and the player's own fleet, being docked, is never met there.
+
 ## Coordinate seam
 
 Port coordinates in the save use the game's raw world X coordinate. The map

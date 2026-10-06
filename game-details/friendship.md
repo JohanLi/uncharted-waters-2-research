@@ -26,6 +26,24 @@ occupies bytes `+0x0B` through
 `+0x11` in each record. The two reciprocal cells are normally kept in sync by the known update paths, but they are
 separate bytes in the save.
 
+The 32-byte nation record (accessor `0x5938`):
+
+| Offset        | Field                                                                      |
+| ------------- | -------------------------------------------------------------------------- |
+| `+0x00`       | Guild Profit (word)                                                        |
+| `+0x02`       | target nation (7 = the player)                                             |
+| `+0x03`       | strategic mode                                                             |
+| `+0x04`       | merchant destination (`0xFF` = none; the pirates keep `0xFF`)              |
+| `+0x05`       | royal aid, gold in thousands                                               |
+| `+0x06`       | royal aid, unread                                                          |
+| `+0x07`       | royal aid, ship type (`0xFF` = none)                                       |
+| `+0x08`       | royal aid, ship count                                                      |
+| `+0x09`       | aggression (new game: 60, 70, 80, 90, 50, 85, pirates 100)                 |
+| `+0x0A`       | capital (0, 1, 2, 29, 8, 33, and Algiers, 4, for the pirates)              |
+| `+0x0B–+0x11` | Relations                                                                  |
+| `+0x12–+0x18` | status (alliance `0x20`, blockade `0x10`, monthly value in the low nibble) |
+| `+0x19–+0x1F` | `0xFF` in the new-game data; no reader found                               |
+
 ### Starting Relations
 
 The starting displayed Relation matrix is:
@@ -176,6 +194,22 @@ nation[6][0x02] = 7 if 100 + random(50) < |200 − protagonist Friendship with p
 Here _relation_ is the stored byte at `+0x0B + m`. The loop skips the nation's own index (0x1CDAD), so byte `+0x02` never
 names the nation itself. The only other writer is **Defect**, which changes the new nation's `+0x02` from 7 to 6
 (0x305D5–0x305E2), because the player can no longer be their own nation's target.
+
+The merchant destination (`0x1D051`) starts from the nation's mode m and
+scans ports 0–99 in ID order with m's test (far pointers at `DS:0xA7C8`);
+each port that passes draws `random(5)` and becomes the destination on 0. If
+some port passed but none was picked, the scan repeats; if none passed, the
+mode falls back (0 → 1, 1 → 2, 3–5 → 0; mode 2 always finds one):
+
+| Mode | A port passes when                                                                             |
+| ---- | ---------------------------------------------------------------------------------------------- |
+| 0, 6 | it has no controller (`+0x13 & 7` = 6)                                                         |
+| 1    | the nation controls it and it is not the nation's capital                                      |
+| 2    | its ID is 75–92 (Cairo to Calicut)                                                             |
+| 3    | the protagonist's affiliation controls it and it is not that nation's capital                  |
+| 4, 5 | the nation's target controls it (the protagonist's affiliation for target 7), not that capital |
+
+Lower port IDs are therefore strongly favoured.
 
 `MESSAGE.DAT` contains the corresponding English templates at file offsets
 `0x1864` (`It seems %s is out to get %s.`) and `0x1882` (`A merchant fleet is
