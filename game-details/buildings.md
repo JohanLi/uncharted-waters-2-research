@@ -296,8 +296,10 @@ four messages:
 | Projected days exceed 180 |        58 | Says the fleet can sail for more than six months and asks to cast off. |
 
 Accepting a permitted departure resets the current-voyage midnight counter
-to zero, changes the protagonist's fleet state to at sea, initializes the
-departure position, and returns success to the town loop. As described under
+to zero, changes the protagonist's fleet state to at sea, stops the fleet
+(heading 8) without moving it, uses one day's food and water, and returns
+success to the town loop (see
+[Leaving port](at-sea.md#leaving-port-and-port-call)). As described under
 [Visit duration](#visit-duration), Sail itself adds no clock tick; the pending
 40-, 60-, or 80-minute Harbor-visit duration is still applied afterward.
 

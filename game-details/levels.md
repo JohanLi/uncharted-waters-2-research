@@ -96,8 +96,13 @@ capped at 100:
 
 Here `random(3)` means 0, 1, or 2.
 
-The subsequent Navigation level-up presentation makes one additional
-independent `random(3)` increase to Leadership, Seamanship, and Knowledge.
+The subsequent Navigation level-up presentation (`0x20E8C`) makes one
+additional independent `random(3)` increase to Leadership, Seamanship, and
+Knowledge, and builds its line from the strings at `DS:0xAA38`: “My ” when
+the crew spokesman is the sailor who rose, “Commodore's ” for the
+protagonist otherwise, and the sailor's first name with “'s ” for a mate;
+then “navigation level”, “ and Leadership”, “ and Seamanship”, “ and
+Knowledge” for each nonzero roll, and “ increased.”
 Both sets of rolls occur once per Port Call award that advances at least one
 level, not once per level gained. The dialogue names only the attributes whose
 additional roll was nonzero.

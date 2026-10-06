@@ -170,8 +170,13 @@ The route builder at `MAIN.EXE` `0x28A18–0x28F37` works as follows:
 4. From the fleet's node it walks toward the destination, at each step taking
    the first neighbour whose label plus the connecting edge equals the current
    label (`0x28E3C–0x28E7A`).
-5. At `0x28F05–0x28F23` it stores as many as four successive node IDs in the
-   fleet's `+0x10..+0x16` cache.
+5. At `0x28EAB–0x28F2B` it stores as many as four successive node IDs in the
+   fleet's `+0x10..+0x16` cache, skipping the fleet's own node when it stands
+   exactly on it. Filling starts at the first empty slot at or after the
+   current one, without moving the current slot, and stops at the
+   destination's node, setting `0x08`. It then clears `0x40`, except when the
+   fleet already stands on the node nearest the target, which sets `0x28` and
+   returns.
 
 A player fleet on auto-sail uses a copy of the loop (`0x28AAA–0x28C38`) that
 also skips nodes whose X lacks bit 15, set from a bitmap at `DS:0x11CA` by
@@ -276,16 +281,22 @@ sea area around the player:
 
 `0x28FE5` fills the 72 × 72 cost grid (handle `DS:0x0E0C`) with `0x801` for
 tiles `0x34` and above and `0x800` otherwise, and fails at once if the target
-cell itself is land (`0x2904D`, a 1 × 1 test). It then floods outward from the
-target in eight directions, 2 per orthogonal step and 3 per diagonal (table
-`DS:0xB378`), staying inside the grid and admitting a cell only when it and
-the three cells to its right and below are water, the fleet's 2 × 2 block
-(`0x2913F–0x2915B`). It succeeds on reaching the fleet's cell.
+cell itself is land (`0x2904D`, a 1 × 1 test). The fleet's own cell is forced
+to `0x800`. It then floods outward from the target in eight directions, 2 per
+orthogonal step and 3 per diagonal (table `DS:0xB378`), keeping its queue
+sorted by label as it inserts and fixing each label when first set, staying
+inside the grid and admitting a cell only when it and the three cells to its
+right and below are water, the fleet's 2 × 2 block (`0x2913F–0x2915B`). The
+fleet's cell counts as reached before that test; the search succeeds on
+reaching it.
 
-`0x291FD` then descends from the fleet's cell to the lowest neighbour, up to
-256 steps, and writes as the waypoint the first step, extended while the path
-keeps the same direction. The window origin is added to turn the local cell
-into world coordinates (`0x294C2`).
+`0x291FD` then descends from the fleet's cell to the strictly lowest of the
+eight neighbours (north when they tie), up to 256 steps, and writes as the
+waypoint the first step, extended while the path keeps the same direction.
+With its flag set (by the route state, not by `0x299CD`) it allows one turn,
+45° right first, then left, and keeps extending after the turn only if the
+straight part had at least one extra step. The window origin is added to
+turn the local cell into world coordinates (`0x294C2`).
 
 When the target is not inside the area, `0x2980C` first tries `0x2976D`,
 which handles a target at the very edge of a 720-column map part, and
@@ -355,6 +366,11 @@ Lisbon             (120, 358)              (840, 358)
 Veracruz          (1736, 532)              (296, 532)
 Pernambuco        (2064, 722)              (624, 722)
 ```
+
+After a move into another map part, `0x3764E–0x3765E` reduces fleet word
+`+8`, the temporary waypoint's X, mod 2160. That is what makes `0x2976D`'s
+two-tile step past a part's first column (target X − 2) reachable across the
+X 0 / 2159 seam.
 
 With the raw width of 2160, Lisbon to Pernambuco correctly wraps west by 216
 X units. Lisbon to Veracruz also chooses the westward Atlantic direction. The

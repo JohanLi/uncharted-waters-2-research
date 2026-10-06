@@ -322,7 +322,10 @@ limits, caps assigned crew and loaded guns to them, then charges the quote.
 At `MAIN.EXE 0x32344`, the normal Figurehead menu contains
 `min(floor(port Economy / 100) + 1, 8)` choices. The selected figurehead at
 one-based position `n` costs `500 × n²` gold; the ship's figurehead field is
-updated only after confirmation and payment at `0x320CB..0x3218C`.
+updated only after confirmation and payment at `0x320CB..0x3218C`. It
+stores the one-based position (the menu's value list at `DS:0x073A` holds
+`n`, `0x320DF`), so 0 means no figurehead, as weather and the figurehead
+average read it ([At sea](at-sea.md#checks-every-four-hours)).
 
 | Position | Figurehead  | Economy requirement |  Price |
 | -------: | ----------- | ------------------: | -----: |
