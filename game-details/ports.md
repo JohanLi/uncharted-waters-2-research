@@ -205,7 +205,7 @@ either fixed or clamped to 100, so the towns differ only in the port name.
   African ports and Southeast Asia.
 - **Walkable tiles.** On both paths, the 4-byte second entry is copied to
   `DS:0xC1BC` (`0xDE40–0xDE59` and `0xDF34–0xDF4D`). For supply ports it is
-  `PORTCHIP.007` = `00 16 1A 1F`. The player's test at `0xB3C9` and the
+  `PORTCHIP.007` = `00 16 1A 1F`. The player's test at `0xB3C9` (see [Walking in port](port-walking.md)) and the
   walkers' test at `0xB453` read the two tiles in the row below a position,
   at x and x + 1. A step is allowed when the left tile is below `0x1A` and the
   right tile is below `0x16` or from `0x1A` to `0x1E`. Under this rule the
@@ -241,6 +241,7 @@ either fixed or clamped to 100, so the towns differ only in the port name.
   So the player never sees or talks to a townsperson at a supply port. The
   waving man's supply-port line, message 578 (`0xB8F7–0xB906`), is
   therefore never shown.
+
 - **No hostile-port guards.** The guards are added at `0xE070–0xE0FC` only
   when the port's nation, the low 3 bits of display-record byte `+0x13`
   (`0xAFEE`), is below 6. `DATA1.015` gives all 30 supply ports the value
@@ -255,6 +256,7 @@ either fixed or clamped to 100, so the towns differ only in the port name.
 
   The documented scenario-script writes touch ports 97–99, or loop over
   ports 0–99.
+
 - **Character graphics.** The `CHAR` entries loaded at `0xDE62–0xDEAC` and
   `0xDF56–0xDFA0` (`DS:0x1439`, then entry 6) are the same on both paths.
   Supply ports have no graphics of their own beyond the map and tileset above.
