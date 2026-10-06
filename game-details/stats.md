@@ -201,8 +201,9 @@ In port:
   ([Item Shop](buildings.md#item-shop-command-dialogue)).
 - Keeps a debtor from escaping in Collect Debt
   ([Pub](buildings.md#pub-command-dialogue)).
-- Shapes the Rumor coordinates a cartographer gives
-  ([Collector and cartographer](buildings.md#collector-and-cartographer-dialogue)).
+- Decides whether a collector's Rumor gives true coordinates (true when
+  `random(80)` ≤ Luck;
+  [Collector and cartographer](buildings.md#collector-and-cartographer-dialogue)).
 - Read by the House of Fortune's Life and Mates readings
   ([House of Fortune](buildings.md#house-of-fortune-command-dialogue)).
 

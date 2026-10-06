@@ -76,12 +76,13 @@ names are read from the table at `DS:0x0A1E`.
 
 ### Bookkeeper
 
-- **Market haggling** (`0x2A152`). When an offer is refused, a protagonist
+- **Market haggling** (`0x2A152`). After a counteroffer (raw index 12), a protagonist
   with Negotiation (`0x01`), or failing that a Bookkeeper with Accounting
-  (`0x02`), says message 851. The seller answers with message 852 and drops the
-  price to its floor `floor(P × (19 − N) / 20)`, where `P` is the asked price
+  (`0x02`), says message 851. The seller answers with message 852 and sells at
+  the floor `floor(P × (19 − N) / 20)`, where `P` is the asked price
   and `N` is the protagonist's rank (byte `+0x0D` of their Fame record) in a
-  port of their own nation, and 0 elsewhere (`0x2A16C–0x2A190`). The routine overwrites the protagonist's record pointer with the
+  port of their own nation, and 0 elsewhere (`0x2A16C–0x2A190`; see
+  [Market command dialogue](buildings.md#market-command-dialogue)). The routine overwrites the protagonist's record pointer with the
   Bookkeeper's, so on a later round the Negotiation test reads the
   Bookkeeper's Negotiation bit. The line is still shown with the protagonist's
   portrait.

@@ -630,15 +630,16 @@ then follows this dialogue:
 | -------------------------------- | --------: | ----------------------------------------------------------------------------------------- |
 | Commodity is unavailable         |         4 | Supplies the goods name and returns to the list.                                          |
 | Commodity is the local specialty |         5 | “%s %s the local specialty.” with the name and “are” for Glass Beads and Arms, else “is”. |
-| Quantity prompt                  |         9 | Supplies the goods name; the input is limited by stock, cargo room, and available gold.   |
-| Ordinary price confirmation      |       150 | Supplies the goods name and per-lot price.                                                |
-| Mate's price assessment          |     23–25 | Classifies the price as a bargain, expensive, or acceptable.                              |
 | Gold below half the price        |        22 | Spoken by the crew spokesman; the purchase is not performed.                              |
-| Counteroffer prompt              |         6 | Supplies the highest permitted offer.                                                     |
-| Offer is much too low            |        11 | Rejects the offer.                                                                        |
-| Seller makes a counteroffer      |        12 | Supplies the revised unit price.                                                          |
-| Unprofitable attempted trick     |       851 | Rejects the offer and supplies the lowest still-profitable price.                         |
-| Successful negotiated price      | 10 or 852 | Accepts directly or yields with a revised price.                                          |
+| Mate's price assessment          |     23–25 | Classifies the price as a bargain, expensive, or acceptable.                              |
+| Ordinary price confirmation      |       150 | Supplies the goods name and per-lot price, as a yes/no.                                   |
+| Counteroffer prompt              |         6 | Supplies the asked price `P`; the offer may be 0–`P`.                                     |
+| Offer below `T`, `T − F` ≤ 1     |        11 | Rejects the offer; the prompt repeats.                                                    |
+| Offer below `T` otherwise        |        12 | Names a higher price `C`; the prompt repeats unless 851 follows.                          |
+| Negotiation or Accounting        |       851 | Spoken for the buyer with `F`.                                                            |
+| Seller yields                    |       852 | Sells at `F`.                                                                             |
+| Offer of at least `T`            |        10 | Sells at the offered price.                                                               |
+| Quantity prompt                  |         9 | Supplies the goods name; the input is limited by cargo room and gold at the agreed price. |
 
 Before the list opens, a pre-check at `0x29E0F` refuses the command: raw
 index 26 or 27 from the First-Mate-first spokesman when the fleet has no
@@ -649,10 +650,45 @@ least half the price but less than the full price, the quantity input opens
 with a maximum of 0; entering 0 returns to the goods list, which repeats the
 specialty line.
 
-The negotiation is part of the same commodity-selection loop. A completed
-purchase deducts the total price, adds the lots to the selected fleet's cargo,
-raises the selected category rate and the smaller market-wide rate adjustment,
-and returns to the goods list.
+The price is settled before the ship and quantity are chosen. After the gold
+check, the Bookkeeper-first spokesman assesses the price by the goods'
+category rate (23 at 40 or less, 25 from 41 to 60, 24 above 60;
+`0x2A63D–0x2A681`), and raw index 150 asks whether the price is acceptable
+(`0x2A686–0x2A6AC`). Yes buys at the asked price; No opens the negotiation at
+`0x2A152`. Either way, the ship choice, cargo checks and quantity prompt
+(`0x29F71`) follow with the agreed price.
+
+The negotiation draws no random numbers. For asked price `P` and rank `N`
+(the protagonist's Fame-record byte `+0x0D` in a port whose cached allegiance
+is the protagonist's nation, otherwise 0; `0x2A161–0x2A192`):
+
+```text
+F = floor(P × (19 − N) / 20)        lowest price the seller can be talked to
+T = P − floor((P − F) / 2)          lowest offer accepted
+C = P − floor((T − F) / 2)          price named in raw index 12
+```
+
+Each round asks for an offer from 0 to `P` (`0x2A1CA–0x2A1F3`). Cancelling,
+or offering 0, returns to the goods list. An offer of at least `T` is accepted
+at the offered price (raw index 10, `0x2A2D9`). A lower offer never ends the
+negotiation. When `T − F` is 0 or 1 the seller answers with raw index 11;
+otherwise the seller names `C` (raw index 12), which is not offered for
+acceptance; in both cases the prompt repeats (`0x2A212–0x2A24F`).
+
+After raw index 12, a negotiator with Negotiation (`0x01`) says raw index 851
+with `F`. The negotiator starts as the protagonist. Failing that, a Bookkeeper
+becomes the negotiator for the rest of the negotiation and says 851 only with
+Accounting (`0x02`); a Bookkeeper with Negotiation but without Accounting
+therefore succeeds on the next low offer. After 851 the seller yields with raw
+index 852 and sells at `F` (`0x2A254–0x2A2D7`). With either skill, an offer of
+1 buys at `F`; without them, the lowest price is `T`. The product
+`P × (19 − N)` keeps only its low 16 bits (`0x2A1A2–0x2A1A9`), but purchase
+prices stay below 3,450, so it never overflows. Messages 6, 10–12, 851 and
+852 are used only by this routine; Sell Goods does not haggle.
+
+A completed purchase deducts the total price, adds the lots to the selected
+fleet's cargo, raises the selected category rate and the smaller market-wide
+rate adjustment, and returns to the goods list.
 
 The 13 regional Market definitions begin at `DATA1.015 0x67DC`, in `0x80`-byte
 records:
@@ -965,8 +1001,17 @@ check.
 Accepting the quoted wage puts the sailor in the first empty mate slot, stores
 the wage in tens of gold, clears the sailor's port, assigns the protagonist's
 fleet and duty 6, and adds 10 Loyalty capped at 100. Refusing returns to the
-selected sailor's submenu. **Gossip** chooses its reported port and navigator
-with the general gameplay RNG.
+selected sailor's submenu. **Gossip** (`0x2C283`, also the Lodge's) picks a port near
+the current one: `p = min(99, port + random(8))`, then `p` minus
+`min(random(4), p)` (`0x2C2D4–0x2C304`). If `p` is the current port, the
+patron asks raw 47, “Do you like this port's %s?”, with the port's Pub drink
+(metadata byte `+0x24`, names at `DS:0x9A4`). Otherwise it takes the first of
+the 120 sailor records whose port byte `+0x25` is `p` and whose `+0x29` has
+the in-use bit `0x20` (`0x2C307–0x2C32D`), and answers raw 570 with that
+sailor's last name and the port, or raw 571 when there is none. Before any of
+this, while a Guild job is active (`DS:0xEE2`) and the patron is its sailor
+(`DS:0xF0E`), job state 11 runs `0x2BF2A` and job state 5 runs the debtor
+scene `0x2C021` instead.
 
 The selected patron's **Treat** command buys one bottle of the same local
 specialty. Loyalty rises by `6 × P × M`, capped at 100, where `P` is 2 when
@@ -1057,7 +1102,9 @@ chooses HIT or STAND (`DS:0xBA01`, `0xBA07`; Esc counts as HIT) until
 standing, busting, or holding 7 cards (`0x34A8A`). An Ace counts 11 unless
 that would bust, and J, Q, and K count 10 (`0x346B4`, `0x344D0`). The dealer
 then draws to 17 or more, standing on soft 17, up to 6 cards (`0x34AEF`,
-`0x34AF4`), even after the player has busted.
+`0x34AF4`), even after the player has busted. The dealer reacts to the bet
+with raw 963 for a bet under 20, 964 for a bet over 200, and 965 otherwise
+(`0x34616–0x3463D`).
 
 Settlement (`0x346C7`) pays only when the player's total is higher than the
 dealer's; a tie goes to the dealer. A winning hand returns (stake included):
@@ -1088,29 +1135,53 @@ matches another and always takes all three throws (`0x34FE9`). A one counts
 as six (`0x35D2E`), so ones are the highest face; stored die value 0 is
 assumed to be the one-pip face.
 
+After every throw, `0x356EE` sorts the five dice in ascending order of stored
+face, and their hold flags move with them, so the ones (stored 0) sit at the
+left; they become sixes only when the hand is scored (`0x35D2E`). The throw
+order is kept for the whole Dice session and starts with the first opponent,
+then the second, then the player (`0x36023`, `0x35CC6–0x35CFC`); order 1
+starts with the second opponent and order 2 with the player. The round's
+winner throws first in the next round. When two tie for the win and the
+current first thrower lost, the next of the two in turn order throws first; a
+three-way tie keeps the order (`0x35E4C–0x35F57`).
+
 Hands rank five of a kind, four of a kind, full house, three of a kind, two
 pair, one pair, and nothing; there are no straights (`0x35067`). Within a
 category the set's value decides; a full house compares the triple, then the
-pair. Two pair compares the lower pair first unless it is a pair of ones.
-Kickers are never compared (`0x3522B`, `0x350F3`).
+pair. Two pair compares first the pair found first in the sorted dice
+(`0x35093`), which is the lower pair, or the ones if there is a pair of ones,
+then the other pair (`0x350C0`). Kickers are never compared (`0x3522B`, `0x350F3`).
 
-For bets under 200, the opponents haggle first (`0x3598B`, messages 985–994):
-with probability 3/4 one proposes `bet + floor(bet × k / 10)`, with `k` from 1 to 10 for
-bets under 100 and from 1 to 5 for 100–199.
-Accepting makes that the bet. Refusing keeps the bet with probability 1/3;
-otherwise the bet becomes the proposal or the average of the two, equally
-likely. The result is capped at `min(gold, 500)`.
+Before the bet, `random(2)` picks the opponent who shows the bet prompt (raw 962) and answers in the haggle (`0x35C02`); the other one proposes. For bets
+under 200, with probability 3/4 (`0x3598B`), the proposer offers
+`bet + floor(bet × k / 10)` (985), with `k` = `random(10) + 1` for bets under
+100 and `random(5) + 1` for 100–199. Accepting makes the proposal the bet
+(986, then 987 from the proposer). On a refusal, `random(3)` = 0 keeps the bet
+(991 with the original bet, then 992 “All right, coward!”); otherwise
+`random(2)` ≠ 0 takes the proposal (988, then 987) and 0 takes
+`floor((bet + proposal) / 2)` (989, then 990). Without a haggle the two say
+993 and 994. Only after this is the bet cut to `min(gold, 500)`
+(`0x35B07–0x35B21`), so 985, 988 and 989 can name more than the player can
+stake.
 
-| Result (`0x35DFA–0x35F93`)                            | Returned | Message |
-| ----------------------------------------------------- | -------: | ------: |
-| The player beats both opponents                       |       3× |     997 |
-| The player ties one opponent and beats the other      |     1.5× |    1000 |
-| All three tie                                         |       1× |     999 |
-| Either opponent wins, or the opponents tie each other |        0 |     998 |
+`0x3522B` returns a result code; the settlement (`0x35DFA–0x35F93`) pays and
+picks the speaker by it:
 
-When all three have one pair of the same value, or all three have nothing,
-the comparison reports the second opponent as the winner, so the player
-loses instead of getting the stake back.
+| Code | Result                                                  | Returned | Message | Speaker         |
+| ---: | ------------------------------------------------------- | -------: | ------: | --------------- |
+|    0 | The player beats both opponents                         |       3× |     997 | Second opponent |
+|    1 | The first opponent beats both                           |        0 |     998 | First opponent  |
+|    2 | The second opponent beats both                          |        0 |     998 | Second opponent |
+|    3 | The opponents tie each other above the player           |        0 |     998 | Second opponent |
+|    4 | All three tie                                           |       1× |     999 | Second opponent |
+|    5 | The player ties the first opponent and beats the second |     1.5× |    1000 | Second opponent |
+|    6 | The player ties the second opponent and beats the first |     1.5× |    1000 | First opponent  |
+
+When all three have one pair of the same value, `0x3522B` returns code 2
+(`0x35684`). When all three have nothing, no branch writes the result, and it
+returns a stale stack word: the hand-label pointer `0xBA54` pushed at
+`0x35B62`. As a signed value this is negative, so it settles like code 3.
+Either way the player loses instead of getting the stake back.
 
 ##### Odds
 
@@ -1124,7 +1195,7 @@ betting: about +41% of the bet with an Ace, −1% with a ten-value card, and
 
 ##### Messages
 
-Black Jack uses `MESSAGE.DAT` raw 959–983: 963–965 react to the bet, 966–971
+Black Jack uses `MESSAGE.DAT` raw 959–983: 963–965 react to the bet (see Black Jack), 966–971
 announce the player's wins, 972–977 the dealer's, 978 is the total, and
 979–983 open and close the game (980 when the gold falls below 10, 982 and
 983 on leaving more than 500 up or down). Dice uses raw 984–999 and
@@ -1603,10 +1674,25 @@ article and the discovery name, followed by combined raw `1081 + q` with the
 gold paid. The article is empty for the 19 discovery IDs listed at
 `DS:0xB3B2` (0, 5, 8, 9, 16, 17, 21, 22, 23, 25, 26, 28, 33, 40, 44, 60, 72, 77,
 89); otherwise it is “The ” when `q = 0` and “the ” above that. Difficulty 100
-also uses its separate 1,500-Fame and 100,000-base-gold reward. Rumor instead takes
-the first record with both `0x80` and `0x40` clear. The selected record is
-therefore deterministic; Luck and the general RNG blur the coordinates that
-are reported for it.
+also uses its separate 1,500-Fame and 100,000-base-gold reward.
+
+Rumor (`0x3384A–0x339A9`) instead takes the first of discovery records 0–49
+with both `0x80` and `0x40` clear; with none it answers raw 491. It then
+draws `random(80)`. If the draw is at most the protagonist's Luck, the
+coordinates are the record's own, computed as for Locate but rounded down to
+a multiple of 5 with no random step:
+
+```text
+shown lon = trunc(trunc(lon / 6) / 5) × 5
+shown lat = trunc(trunc(|d| × 8 / 57) / 5) × 5
+```
+
+Otherwise they are invented (`0x338B1–0x33902`): `a = random(72)` gives
+longitude `|a − 36| × 5`, west when `a` is 36 or more, and `b = random(27)`
+gives latitude `|b − 10| × 5`. The hemisphere test compares `b` with 50, so
+an invented rumor is always south. The answer is raw 383, “Come to think of
+it...”, then raw 492 with the hemisphere letters from `MENU.DAT` entry 48. A
+rumor is therefore true with probability `min(Luck + 1, 80) / 80`.
 
 A cartographer opens **Contract**, **Learn Skills**, **Report**, and **Locate**
 through the main handler at `0x33F17`:

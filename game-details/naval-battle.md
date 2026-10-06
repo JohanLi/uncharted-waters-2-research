@@ -530,8 +530,27 @@ merchant ship or a battle ship, and ends with one of three phrases, chosen by th
 | Nightfall                                 | “but sunset ended it in a draw”     |
 | The player's flagship fled or surrendered | “but we were forced to flee”        |
 
-The journal also records arrivals in port, restocking at the Harbor, and
-newly sighted ports (`0x212FA`, `0x2D7AF`, `0x36C3C`).
+The journal is not part of the main save record. It is a separate 0x300-byte
+block (handle `DS:0x0E12`, allocated at `0x1C399`) holding 48 records of 16
+bytes, cleared to `0xFF` for a new game (`0x1BADD–0x1BB01`). Saving writes it
+straight after the 0x79C8 bytes from `DS:0x0E28`, so it fills save-slot
+offsets `0x79C8–0x7CC7` (`0x1BD30–0x1BD7D`; loading, `0x1BF86–0x1BFC4`). A
+record holds six words and 4 unused bytes (`0x2355B`): the date
+`(year byte × 12 + month) × 31 + day` (`0xFFFF` when empty), a type, and four
+parameters. Adding an entry (`0x235E1`) fills the first empty record, or
+moves records 1–47 down and writes the last. The text is built when the
+journal is shown (`0x2367A`), from the date and a handler chosen by type
+(table at `0x2378B`):
+
+| Type | Writer                     | Message                                             | Parameters                                        |
+| ---: | -------------------------- | --------------------------------------------------- | ------------------------------------------------- |
+|    0 | Arrival, `0x212FA`         | 366                                                 | days at sea (`DS:0x2BAA`), port                   |
+|    1 | Harbor restock, `0x2D7AF`  | 367                                                 | days, port                                        |
+|    9 | Port sighted, `0x36C3C`    | 381, “Discovered %s.”                               | port                                              |
+|   12 | Market purchase, `0x2A087` | 384, “Bought %d %s of %s for %ld gold pieces each.” | goods, price (high word, then low word), quantity |
+
+The display also handles types 2 and 13–18 (`0x23815`, `0x238FA–0x23A37`);
+types 3–8, 10 and 11 print nothing.
 
 ## Spoils of victory
 

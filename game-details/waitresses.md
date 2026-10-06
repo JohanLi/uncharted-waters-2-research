@@ -170,12 +170,41 @@ implemented as:
 required favor = floor(80 / (1 + low-threshold flag))
 ```
 
-Once accepted, the investigation completes after a few days. The resulting
-report is assembled from the fleet's current objective and can describe
-returning home, investing, trading, waylaying or attacking fleets, pursuing a
-captain, guarding a fleet, or guarding a port. If the fleet has cargo, the
-report appends that fact. See [NPC fleet objectives](npc/fleet-objectives.md)
-for the objective values and their exact waitress wording.
+The waitress first asks for a nation (raw 534): one of Portugal through
+Holland, or Piracy (names at `DS:0xA2C`). She then asks for a class (raw 535)
+from `MENU.DAT` entry 44, “Merchant fleet / Convoy / Voyaging Fleet”, or for
+Piracy entry 45, “Buccaneers / Corsairs / Privateer”. Cancelling the class
+leaves no request. Record byte `+0x0D` keeps the nation in its low four bits
+and the class in its high four. Byte `+0x0E` is the number of days, announced
+with raw 536:
+
+```text
+days = random(3) + floor((110 − favor) / (5 × (1 + protagonist +0x29 bit 0x10)))
+```
+
+As the bit is never set, an investigation takes 14–16 days at 40 favor and
+2–4 days at 100 (`0x2C9CD–0x2CAA4`). Each day `0x1E936` lowers `+0x0E` for
+every record where it is neither 0 nor `0xFF`. Asking again before it reaches
+0 gives raw 537.
+
+Once it reaches 0, Investigation gives the report instead
+(`0x2CAA5–0x2CCD6`): raw 538, then raw 539 with the class and nation, or raw
+540 with the class for Piracy. The report covers every fleet of the class in
+the nation's block of ten (fleet ID = nation × 10 + position): positions 1–4,
+5–6, or 7–9 (table `1, 5, 7, 10` at `DS:0xB56A`). For each fleet:
+
+- Destroyed (fleet `+0x29` bit `0x01` clear): raw 556 with its position
+  within the class, as 1st, 2nd, 3rd (suffixes at `DS:0xB55C`).
+- Otherwise raw 541 with the commodore's last name, followed by the objective
+  fragment chosen by fleet `+0x1B` (dispatch table at `0x2CBED`; see
+  [NPC fleet objectives](npc/fleet-objectives.md#objective-values)). Values
+  above 9 add no fragment. If fleet `+0x21` is not `0xFF`, raw 544 names the
+  cargo in a separate message. Raw 553 then gives the fleet's exact position
+  (`0x2B08C`), unrounded and with no random element: raw 126/127 with
+  `trunc(|640 − Y| × 8 / 57)` and raw 128/129 with `trunc(lon / 6)`, where
+  `lon` is `(X + 1981) mod 2160`, folded to `2160 − lon` (west) above 1080.
+
+The report then clears `+0x0D` and `+0x0E` to `0xFF`.
 
 The favor gate is at `MAIN.EXE 0x2CCD7–0x2CD37`. It skips the threshold when
 protagonist byte `+0x29` bit `0x10` is set (`0x2CD10–0x2CD14`), but no sailor
@@ -190,8 +219,10 @@ Request an immediate rumor. The useful choices are:
 - **Job Info**: provides a hint for the current search or quest. It can point
   toward a Guild, Pub, cartographer, or other next lead, but is a hint rather
   than a replacement for the required quest interaction.
-- **Port Info**: gives local trivia about the current port. It is flavorful but
-  generally has no mechanical benefit.
+- **Port Info** (`0x2D06C`): gives local trivia about the current port, the
+  same line as the Market woman's (raw 642 + port ID), but only when her
+  favor is above 80; otherwise she answers raw 403, “Well, that's a secret!”.
+  It is flavorful but generally has no mechanical benefit.
 
 ## House of Fortune Love reading
 
