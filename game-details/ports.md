@@ -269,6 +269,77 @@ A routine at `0xB1FD` loads the `PORTMAP` entry for `DS:0x0E32` without the
 clamp to 100. Nothing calls it: there are no near or far calls to it, and its
 address appears in no pointer table.
 
+## Port screen side panel
+
+The side panels are drawn by `MAIN.EXE 0xD9DC` in the panel font (below).
+Text positions are in 8-pixel columns and pixel rows, set through `0x9ACE`;
+text is drawn in colour 0 on an opaque background of colour 7
+(`ESC C0 ESC B7`, `DS:0x8FA7`).
+
+| Column, y                | Format (`DS:`)             | Value                                                                                                                       |
+| ------------------------ | -------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 1, 16                    | `%s.%2d` (`0x8FB4`)        | Month abbreviation (table at `DS:0x8EA0`) and day + 1                                                                       |
+| 1, 32                    | `15%2d` (`0x8FAE`)         | Year byte `DS:0x0734` + 1                                                                                                   |
+| 1, 144                   | `%2d:%02d %c.M` (`0x8FBB`) | Hour `(t / 3 + 11) mod 12 + 1`, minutes `(t mod 3) × 20`, `A` below tick 36, else `P`                                       |
+| 1, 256                   | `%s`                       | Fame label: Adventure for protagonists 0, 3 and 4, Piracy for 1 and 2, Trade for 5 (`0xDAA9–0xDAF2`, labels at `DS:0x8F90`) |
+| 5, 272                   | `%5u`                      | That Fame                                                                                                                   |
+| 5, 320                   | `%5d`                      | Gold mod 10,000                                                                                                             |
+| 5, 360                   | `%5u`                      | Gold ÷ 10,000                                                                                                               |
+| 70 − ⌊len / 2⌋, 8        | `%s`                       | Port name, centred (`0xDBB0–0xDBE9`)                                                                                        |
+| 70 − ⌊L / 2⌋, 24         | message 385 + Market ID    | Area name; `L` is a fixed length per Market ID: 7, 15, 17, 11, 13, 11, 15, 13, 11, 11, 5, 13, 7 (`0xDC0C–0xDC49`)           |
+| 65, 24                   | `Supply port` (`0x8FED`)   | Ports 100 and up                                                                                                            |
+| 70, 96 / 128 / 184 / 216 | `%5d`, `%5u`, `%5d`, `%5u` | Economy, Market investment, Industry, Shipyard investment                                                                   |
+| 70, 272                  | `%4d`                      | Price index (50 + the average of the ten rates, `0x206C0`)                                                                  |
+
+“Fame in”, “Gold Coins”, “A.D.”, the “%” after the price index and the other
+Gothic captions are part of the frame picture. The opaque text background
+covers a stray dot in the frame picture after the month.
+
+### Panel font
+
+`MAIN.EXE`'s text routine (`0x97C7` → `0x9D90` → `0x9B7E`) takes the glyph
+for codes 0x20–0x7F from its own table, `DS:0x865A + 16 × code` (`0x9AFB`):
+96 glyphs of 8 × 16 pixels at `DS:0x885A–0x8E59` (file offset `0x443CA`),
+most significant bit leftmost. Its capitals are 13 rows tall, taller than
+those of the VGA font. Codes 0x80–0x9F and 0xE0–0xFC are taken as the first
+byte of a two-byte character (`0x9DE8–0x9E06`), whose conversion `0x9A4C` is
+a stub. Escape sequences: `ESC = x y` position, `ESC C n` text colour,
+`ESC B n` background colour (0 = transparent), `ESC M n` default background,
+`ESC R n` left margin, `ESC F n` style (1 bold, 4 shadow, 5 bold and shadow;
+`0x9B9E–0x9BFF`), `ESC W` wait.
+
+### Time-of-day palettes
+
+Towns use the sea's time-of-day palettes (`DS:0xA892`, chosen by four-hour
+slot through `DS:0xA88A`: night before 04:00 and from 20:00, dawn from 04:00,
+day from 08:00, dusk from 16:00). Time passes in port only when a building
+visit ends: the visit's `random(3) + 2` ticks are added (`0x204A5`), or the
+clock is set to tick 72 when `DS:0x0E34` bit `0x80` is set (`0x204BD–0x204C9`).
+So the palette can change only then. Each time the town loop is entered,
+`0x20480–0x2049B` sets the target to the current slot's palette and runs the
+whole fade at once (`0x98A7`: one level of 16 per channel per step, one timer
+wait per step) before the street is shown. The gradual fade used at sea
+([Fading between palettes](at-sea.md#fading-between-palettes)) never shows in
+town.
+
+### Port music
+
+`0x2062A` picks the port's track from a 13-byte table built on the stack at
+`0x20631–0x2065E`, indexed by the port's Market ID (metadata `+0x21`,
+`0x2066B–0x20672`): track = table entry + 0x0A. Ports 100 and up get 0x0F
+(`0x20661`, `0x20680`). It runs on entering a town (`0xE226`) and after every
+building visit (`0x20B22`), so the port track always returns after a Pub, a
+Palace or a scenario `CA`.
+
+| Track  | Market IDs    | Markets                                                        |
+| ------ | ------------- | -------------------------------------------------------------- |
+| `0x0A` | 0, 1, 2       | Iberia, northern Europe, the Christian Mediterranean           |
+| `0x0B` | 3, 5, 6, 7, 8 | North Africa, West Africa, both New World markets, East Africa |
+| `0x0C` | 4, 9          | Istanbul, the Levant and Black Sea; the Middle East            |
+| `0x0D` | 10            | India                                                          |
+| `0x0E` | 11, 12        | Southeast Asia, the Far East                                   |
+| `0x0F` | —             | All 30 supply ports                                            |
+
 ## Storage layout
 
 The port ID is an implicit record index. The first record is port `0`, and

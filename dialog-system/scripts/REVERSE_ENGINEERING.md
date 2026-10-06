@@ -930,8 +930,11 @@ disassembler writes the same values in decimal in generated JSON.
 wrapper at `0x37980`. That wrapper passes the ID to the central music driver at
 `0000:952E`. Non-scenario systems call the same driver directly:
 
-- port entry derives `0x0A` through `0x0F` from the port's music-region field
-  and calls the driver at `0x20682`;
+- port entry (`0x2062A`) derives `0x0A` through `0x0E` from the port's Market
+  ID through a 13-entry table, or `0x0F` for a supply port, and calls the
+  driver at `0x20682`; it runs on entering a town (`0xE226`) and after each
+  building visit (`0x20B22`)
+  ([Port music](../../game-details/ports.md#port-music));
 - ordinary building entry plays `0x13` for a Pub or `0x12` for a Palace at
   `0x20A0E`; other building types make no music call and retain the port track;
 - after a naval victory, `0x15B4A` selects `15` for the brief initial victory

@@ -524,7 +524,8 @@ protagonist. `scripts/ports` writes the starting state to
 The world is charted in cells of one block, 24 × 24 tiles, 90 columns by 45
 rows. The bitmap is `DS:0x0F6C`, save-slot offset `0x0144`: 12 bytes per cell
 row, 540 bytes in all. Cell column `c` is byte `row × 12 + c / 8`, bit
-`0x80 >> (c mod 8)`. Columns count from save X 0, the left edge of
+`0x80 >> (c mod 8)`, so the most significant bit is the westmost of a byte's
+eight columns (`0xBF73–0xBF80`). Columns count from save X 0, the left edge of
 `WORLDMAP.000`, so column `c` covers map X `(24c + 720) mod 2160` onward in
 the `ports.json` system. Two counters follow it: `DS:0x1192` (save `0x036A`),
 the charted cells, and `DS:0x1194` (save `0x036C`), the cells not yet reported
@@ -1311,6 +1312,16 @@ same `DS:0x05EC` byte also takes `0x88` when the player confirms “Is it okay
 to end this game?” (message 881) in the in-game menu (`0x26D2E–0x26D4B`).
 
 Each epilogue begins with the in-game date and the protagonist's name.
+
+### Month lengths
+
+The day loop (`0x1B2BC–0x1B2E9`) ends a month when the zero-based day reaches
+the month's length (`0x1B115`), read from the table at `DS:0xA658`: 31, 28,
+31, 30, 31, 30, 31, 31, 30, 31, 30, 31. February gains a day when `0x1B0DD`
+returns 1. That routine tests `y` = year byte + 1,500, one less than the year,
+and returns 1 only when `y` is divisible by 100 but not by 400; years
+divisible by 4 alone, or by 400, return 0. No year from 1522 to 1553 passes,
+so February always has 28 days within the game's span.
 
 ## Open questions
 

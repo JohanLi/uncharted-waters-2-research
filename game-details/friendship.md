@@ -227,17 +227,36 @@ twice.
 
 ## Investment and port control
 
-When investment changes a port's cached controlling nation, the displaced nation loses 5 points of personal Friendship
-with the player. This penalty applies when the former controller is a non-Pirate nation different from the player's
-current nation:
+After either kind of investment (Market `0x2ACBA`, Shipyard `0x32989`),
+`0x327C3–0x328A3` recomputes the port's cached controller and applies the
+Friendship side effects. `P` is the protagonist's nation (sailor byte
+`+0x29 & 0x0F`, 6 for a pirate), `old` the cached controller (port display
+record `+0x13 & 7`), and `new` the highest nation 0–5 whose Support is at
+least 75, or 6 if none (`0x327F8–0x3281D`); `new` is written back into
+`+0x13`.
 
-```text
-former controller Friendship -= 5
-```
+- **Penalty** (`0x32831–0x3285D`): if `old` is a nation (not 6), differs from
+  `new`, and is not `P`, Friendship with `old` falls by 5, floored at
+  displayed −100. This includes a port dropping to no controller.
+- **Gain** (`0x32860–0x3289B`): if `old` is not `P` and `new` is `P`, Trade
+  Fame rises by Economy + Industry (capped at 50,000;
+  [Trade Fame](fame/trade-fame.md)) and Friendship with `P` rises by 5,
+  capped at displayed +100. A port that had no controller counts too.
 
-If the new controller is the player's current nation and the former controller was another nation, personal Friendship
-with the player's nation also increases by 5. Friendship gains are capped at displayed `+100`, and losses are floored at
-displayed `-100`.
+For a pirate protagonist `P` is 6, so a port losing its controller counts as
+the gain case: Trade Fame is awarded and Piracy Friendship (the seventh byte)
+rises by 5.
+
+The Support change before this (`0x2AAA5`, shared by both commands) moves
+`gain = min(100 − Support[P], floor(amount / E))` points to `P`, where `E` is
+the port's Economy (Market) or Industry (Shipyard), divided with no zero check
+(`0x2AAC6`). A pirate's gain is `min(100, floor(amount / E))`, taken from the
+nations but given to none (`0x2AAB9–0x2AAFB`). The points are taken from the
+`n` other nations with nonzero Support: each loses `floor(gain / n)`, floored
+at 0, with any shortfall added to the remainder `gain mod n`
+(`0x2AB29–0x2AB85`). The remainder is then taken one point at a time in
+nation order from those still above 0, until it is used up or a pass removes
+nothing (`0x2AB87–0x2ABC0`).
 
 These are player-Friendship changes. Port Support determines which nation controls the port, but the controller change
 does not modify the nation-to-nation Relations matrix.

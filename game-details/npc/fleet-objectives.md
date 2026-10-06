@@ -103,7 +103,9 @@ temporarily dispatches dialogue value 11 and says “And you know what? You are
 my next prey.” It does not write 11 back to the fleet record.
 
 Cargo is reported independently of the objective. If fleet byte `+0x21` is not
-`0xFF`, the waitress appends “carrying %s” after the objective description.
+`0xFF`, the waitress's report follows the objective sentence with a separate
+message, raw 544 “carrying %s.”, naming the goods
+([Waitresses](../waitresses.md#investigation)).
 
 ## How a new autonomous objective is selected
 
