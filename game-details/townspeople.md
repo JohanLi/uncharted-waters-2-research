@@ -152,11 +152,14 @@ occupants. This check identifies the player's nation from the player fleet's ID
 
 ## Talking to townspeople
 
-When the player's step is blocked by a townsperson, the game shows that
-townsperson's line (`MAIN.EXE 0x0B800`), but only if the player has taken at
-least ten unobstructed steps since the last such line (counter `DS:0x8EE8`).
-Otherwise the player is simply blocked. The line depends on who was bumped, not
-on where they are standing. Message numbers below are combined zero-based
+When the player tries to step next to a townsperson, the game shows that
+townsperson's line (`MAIN.EXE 0x0B800`), but only if the talk counter
+`DS:0x8EE8` has reached 10. Showing a line resets the counter to 0. Each
+other move attempt adds one, up to 10, whether or not the player can move.
+Entering a town sets it to 10 (`0x0E198`). While the counter is below 10, the
+townsperson is an obstacle that the player walks around; see
+[Walking in port](port-walking.md#the-move-routine). The line depends on who
+was bumped, not on where they are standing. Message numbers below are combined zero-based
 indices: 0–999 are `MESSAGE.DAT` and 1000–1422 are `MESSAGE2.DAT` minus 1,000.
 
 | Townsperson             | Message               | Content                                                            |
@@ -221,5 +224,4 @@ Ship stock cannot be predicted from a save.
 
 ## Open questions
 
-- The starting value of the ten-step conversation counter when entering a
-  town.
+None remain.
