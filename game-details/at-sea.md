@@ -488,10 +488,21 @@ is tested with `0x80` (`0x371C6`), but nothing in `MAIN.EXE` sets it.
 
 ### Another fleet's details and pirate disguises
 
-The sea menu's **View** command (menu entry 4, `0x2673F` → `0x255F9`) shows a chosen fleet's captain, a
-fleet type, a nation, its heading and speed, and its ships. The fleet type is
-chosen by the fleet's position in its block of ten: one label for
-positions 1–5 and another for 6–9. The nation is the captain's nation nibble
+The sea menu's **View** (`0x2620A` → `0x255F9`) opens the tile picker over
+the view (`0x25470`, as in destination mode); Esc ends it. A known port whose
+top-left tile is chosen is described in a plain window: message 380 for a
+supply port, 961 for a capital, 956 with its cached controller, or 930 when
+neutral. Otherwise the fleets other than the player's whose top-left tile is
+the chosen one are listed (`0x1849A`); with none, message 215. The window
+shows the commodore's name, the nation adjective (`DS:0x0A3A`) and the fleet
+type from `MENU.DAT` entry 39 (“Fleet” for position 0, “Merchant Fleet” for
+1–4, “Battle Fleet” for 5–9), the speed in knots (`trunc(speed / 2)`,
+messages 1401 and 1402, or 1403 “%s's fleet is at anchor.” for 0), the
+heading (`MENU.DAT` entry 40), and the ships' names in two columns. The
+speed comes from the computer-fleet speed routine `0x1FF3A`, but View passes
+it the wind's speed and direction swapped, and the current's too
+(`0x256D9–0x256FC`), so it rarely matches the speed the fleet sails at. The
+nation is the captain's nation nibble
 (sailor `+0x29 & 0x0F`), except for a pirate, whose nibble is 6: the window
 shows nation **captain ID mod 6** instead (`0x2564A–0x2565C`). Every pirate
 captain therefore flies a fixed false flag:
@@ -518,6 +529,23 @@ from %s, but I think they're really pirates.” (message 766), with the false
 fleet type and flag. With no mates, or a low roll, the disguise stands. Fleet
 60 is skipped explicitly (`0x25805`); its captain, Antonio Khan (sailor 60),
 is recorded as Portuguese, so it shows Portugal and is never unmasked.
+
+### Gossip and Battle
+
+**Gossip** (`0x2620F`) and **Battle** (`0x1648C`) both list the fleets
+within 2 tiles of the player's on both axes that are active, not docked and
+not commanded by the protagonist, in fleet-ID order (`0x1843A`); with none,
+messages 225 and 778. Gossip shows the chosen commodore's line with his
+portrait (`0x2589B`, table at `0x25954`): 216 “I am %s of %s.” for objective
+`0xFF`; 152–160 by objective, with the port for 1–2 and the target's first
+name and nation for 5–7; 161 for 5–7 aimed at the protagonist. Objectives 3,
+4 and 11 then start a battle with the commodore attacking; otherwise the list
+reopens. Battle works only at ticks 15–59 (message 781), confirms the
+choice, and for a fleet of the protagonist's own nation (not Piracy) asks
+message 782 before attacking. Both enter the battle at `0x163E8`
+(`FC4:11A8`), which records the opposing captain at `DS:0x0F64` and
+`DS:0x0EDA`, adds supporting fleets, runs the pre-battle and the battle, and
+then the end sequence `0x16040`.
 
 ## The sea map
 
@@ -839,7 +867,11 @@ the sprite sheet in the second half of `DATA1.011`, loaded at `0xD835`:
 [`ship-tileset.png`](../scripts/tilesets/output/ship-tileset.png), eight per
 row.
 
-During a **Storm** or **Fog** only the player's fleet is drawn
+No Wind still draws every fleet; only a Storm or Fog hides them
+(`0xC1F6–0xC206`). A fleet is drawn when its top-left tile is in view columns
+0–22 (`0xC378–0xC382`), so one in column 23 is not, and the loop does not test
+the ashore bits, so fleets are drawn while a party waits ashore. During a
+**Storm** or **Fog** only the player's fleet is drawn
 (`0xC1F6–0xC2B1`). Otherwise the routine draws every fleet in view, row by
 row so that lower fleets overlap higher ones (`0xC34B–0xC472`). A fleet is
 drawn when its record is active (`+0x29` bit `0x01`), not docked (bit `0x10`

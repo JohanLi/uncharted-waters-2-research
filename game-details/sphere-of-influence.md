@@ -77,6 +77,19 @@ sailed to %s recently” response.
 
 ### Monthly Guild refresh
 
+The monthly update runs after the month's last day, before the month byte
+advances (`0x1B306` → `0x1E16D`), and is skipped when an end state is set.
+In order: permit expiry and the wind-table swap (`0x1CA0E`), bank interest
+(`0x1CA8F`), investment and price drift (`0x1CB4E`), Guild Profit
+(`0x1CBE6`), the target nation, strategic mode and merchant destination
+(`0x1D132`: `0x1CD7F`, `0x1CEFB`, `0x1D051`), the Relations update
+(`0x1D363`), fleet refills, new commanders and royal aid (`0x1DC3E`:
+`0x1D455`, `0x1D549`, `0x1D63E`, `0x1DAF4`, `0x1DB6C`), and finally sailor
+regeneration, the rival protagonists' levels and ships, and wages
+(`0x1E15C`: `0x1DC64`, `0x1DDD0`, `0x1DE71`, `0x1DFF6`). The year end
+(`0x1B214`) also adds 1 to every sailor's age and to byte `+0x0A` of every
+waitress record.
+
 Guild Profit is stored as a little-endian word at nation record `+0x00`. The
 monthly routine at `MAIN.EXE` 0x1CBE6–0x1CD7E rebuilds the same Economy and
 Industry totals used by the Palace, applies the regional activation rules, and

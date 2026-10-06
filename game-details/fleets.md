@@ -234,6 +234,21 @@ which a nation reaches once its Guild Profit is 1,000, most rows offer a
 single ship, so every refilled ship is the same: all Galleons, all Venetian
 Galeasses, or all Carracks.
 
+Each table entry is a word holding three 4-bit choices, picked with
+`random(3)` as `(word >> 4 × choice) & 0x0F`. The ship-instance template is
+that value plus `0x28` for the merchant and voyaging tables and plus `0x30`
+for the convoy table (`0x1D4D5–0x1D4FE`, `0x1D5ED`, `0x1D6D6`). The slot
+copies the model's durability (as both current and maximum), Tacking and
+Power, the template's gun count `+0x13` and crew word `+0x14`
+(`0x1D3AE–0x1D409`). Within a fleet the merchant and convoy routines fill
+slot by slot and test the fleet's active bit after each slot, so an active
+fleet with an empty first slot still gets one ship there. The convoy
+routine spends its allowance per ship like the merchant one; the voyaging
+routine counts `floor(Guild Profit / 75) + 5` down per fleet instead, which
+always covers its three fleets (`0x1D707`). After each fleet the strength
+`+0x28` is recomputed as `floor((total durability + 4) / 5)`, and a fleet
+with no durability loses its active bit (`0x1D40F`).
+
 A refill does not always reach ten ships. The merchant and convoy allowances
 are shared and filled in fleet order. Guild Profit is recomputed earlier in
 the same monthly pass (`0x1CBE6`), and every capital's Industry (720 or more
@@ -274,15 +289,21 @@ new-game data these are 60–65, 67, 68, 73, 74, 95, 110–115, 117, and 119.
 
 The commander gets fleet `+0x24`, location `0xFF`, and duty 1 (Commodore),
 and the fleet is relaunched (`0x1D8E8`) at its nation's capital, which also
-becomes its home port. Its treasury is `floor(Guild Profit / 10) + 1 +
-random(3)`, its cargo is emptied, and its flags become `0x31` (active).
+becomes its home port: the fleet is placed on the capital's tile and given
+objective 0 toward it through the assignment helper (`0x394F1`). Its
+treasury is `floor(Guild Profit / 10) + 1 + random(3)`, its cargo and the
+four item bytes `+0x1D..+0x20` are emptied, its arrival delay becomes
+`5 + random(10)`, and its flags become `0x31` (active). A newly made national
+commander gets personality bits `random(2)`, a pirate's 2.
 
 ### New generic sailors
 
 `0x1D71D` writes a new sailor over a record:
 
-- a full name built from the nation's name table, retried until no other
-  sailor has the same first and last name;
+- a full name built from the nation's 16 entries in `NAME.TBL` (18 bytes
+  each), the first name from entry `random(16)` and the last name from
+  another `random(16)`, retried until no other sailor has the same first and
+  last name;
 - age `20 + random(16)`;
 - each of the eight attributes `60 + random(35)`;
 - Navigation and Battle Level `min(100, max(8 + random(5), old + 2 +
@@ -290,13 +311,16 @@ random(4)))`, so a record that is reused again and again gains levels;
 - experience 0; skills `random(16)` in `+0x28` (`0x1D8C1`), so each of
   Negotiation, Accounting, Gunnery, and Cartography is a coin flip and
   Celestial Navigation (`0x10`) is never given;
-- a generic portrait, and nation plus in-use bit `0x20` in `+0x29`.
+- personality `random(16) × 16` plus the caller's low bits;
+- a generic portrait, `random(0x3FFF) | 0xC000` in word `+0x12`, and nation
+  plus in-use bit `0x20` in `+0x29`.
 
 The same routine replaces free sailor records each month (`0x1DC64`): a record
 without bit `0x20` has a 1-in-3 chance of becoming a new sailor of a random
 nation 0–5, unemployed in a random port 0–41 and pirate-eligible one time in
-three. The same pass moves each unemployed sailor in a port, without `+0x29`
-bit `0x40`, by up to two port IDs one time in three
+three (personality bits `random(3)`). The same pass moves each unemployed
+sailor in a port, without `+0x29` bit `0x40`, by `random(5) − 2` port IDs one
+time in three, kept within ports 0–96
 ([Temporary vagabonds](sailors.md#temporary-vagabonds)).
 
 ### Sailor flags `0x10` and `0x40`
@@ -318,6 +342,32 @@ including all six protagonists.
   [temporary vagabonds](sailors.md#temporary-vagabonds), 86, 88–90, 92, 100,
   106, 107, and 116 stay put and 81, 84, 95, 96, 104, and 105 can move. A
   regenerated sailor loses the bit and drifts.
+
+### Rival protagonists
+
+Two monthly routines keep the other protagonists in step with the player.
+`0x1DDD0` runs for sailors 0–5 and 60, skipping the current protagonist: a
+rival behind the player's Navigation Level jumps to the player's + 1 +
+`random(2)`, and per level gained adds `random(3)` to Leadership and
+`random(5)` each to Seamanship, Knowledge and Intuition (`0x1DD0F`); a rival
+behind the player's Battle Level gains `random(2) + trunc(difference / 2) + 1`
+levels, each adding `random(3)` to Leadership and `random(5)` each to
+Courage and Swordsmanship; all capped at 100. In the iteration for sailor 60
+the level bytes read and changed are sailor 6's, because the pointer has
+already moved on, while the attribute rises go to sailor 60.
+
+`0x1DE71` then gives rival fleets one ship a month. It recomputes the
+player's fleet strength first. Sailors 0–5 qualify when their fleet `+0x24`
+is below 70; other sailors need personality bit `0x04`, the in-use bit,
+duty 1, and a fleet below 70 that is not a national merchant fleet. A fleet
+already as strong as the player's continues only on `random(3)` = 0. The
+class is the sailor ID for 0–2, 0 for 3–4, 3 for 5, and otherwise 2 for
+positions 7–9, else 1. The ship goes into the first empty slot, or replaces
+the occupied slot with the lowest ship-instance number, and is template
+`0x31 + nibble` of `DS:0xA886[class]` (`05 BC 15 02`), the low nibble for
+ranks 0–4 and the high one for ranks 5–9: Frigate or Carrack, La Reale or
+Venetian Galeass, Frigate or Galleon, Xebec or Carrack. It is filled as a
+refill is (`0x1D3AE` with gun type `1 + random(3)`).
 
 ## Open questions
 
