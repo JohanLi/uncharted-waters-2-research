@@ -19,7 +19,9 @@ controlling nation ([Cached allegiance](sphere-of-influence.md#cached-allegiance
 and counts down the Balm.
 
 At the start of each month the mates' [wages](sailors.md#wages) are paid; at
-sea, outside a weather anomaly, a crew spokesman reports the amount.
+sea, outside a weather anomaly and when the total is not 0, the
+Bookkeeper-first spokesman reports message 574 with the total, or 572 when
+the gold is short (`0x1DFF6`, `0x1E126–0x1E139`).
 
 The **days-at-sea counter** (`DS:0x2BAA`, save-slot offset `0x1D82`) is a
 single byte. It is set to 0 when the fleet sails from a Harbor (`0x2D7B4`) and
@@ -27,6 +29,86 @@ incremented at each midnight (`0x1E979`); midnights in port also increment it,
 but sailing resets it. Story routes for voyage days
 receive this counter; see the
 [dialog system](../dialog-system/README.md#from-a-building-to-a-scenario-route).
+
+### Tick pacing
+
+At sea each tick (`0x204F9–0x2052C`) reads input, starts a timer of one unit
+(`0x6C78`: INT 66h, AX=F101h, BX=1), moves the other fleets (`0x2025D`) and
+the player's fleet (`0x37479`), advances the clock, and waits until the timer
+reaches 0 (`0x6C85`, AX=F100h). The sea view is redrawn afterwards, outside
+the timed span. INT 66h belongs to `FMDRV.COM`, which runs the PIT at
+1,193,182 / 4,096 ≈ 291.3 Hz (`FMDRV.COM 0x129B–0x12C2`) and decrements the
+timer each time a phase byte that gains `0x35` per interrupt carries
+(`0x0200–0x0210`): about 60.3 units per second. A tick therefore lasts at
+least one unit, about 17 ms, plus the redraw, so the speed of a voyage on
+screen depends on the machine.
+
+### Order of play
+
+The calendar loop (`0x1B2A4–0x1B328`) runs the day loop for each day, the
+month-end group (`0x1E16D`, wages) after a month's last day, and the year end
+(`0x1B214`) after December. At sea the day loop first runs the voyage-day
+story routes with the days-at-sea counter (`0x2053C–0x2055A`), so they run at
+the start of a day, after the midnight that counted it. Each tick `t`, from
+`DS:0x0E31` to 71, then does, in order:
+
+1. the wind re-roll and anomaly check (`0x1F282`), at every fourth hour or on
+   every tick while `DS:0x0E31` is nonzero;
+2. one palette fade step (`0x20447`);
+3. input (`0x268E4`; [Steering](#steering));
+4. every fleet's movement (`0x2025D`) and the player's move (`0x37479`),
+   unless an end state is set;
+5. clock + 1 (`0x20521`), and the timer wait;
+6. fleet number `t`'s strategic update (`0x1FE94`);
+7. the sea-view redraw (`0xC022`) and the lookout and sea events
+   (`0x36AD9`).
+
+At tick 72 the midnight routine (`0x1E95E`) clears `DS:0x0E37` bit `0x80`
+and `DS:0x0E34`, increments the days at sea, and at sea runs `0x1E764`:
+
+1. food, then water, then message 1146, 1147 or 1148 if food, water or both
+   have just run out;
+2. rats: the check if not yet present, then the loss the same night
+   (`0x1E5D5`); scurvy likewise (`0x1E6BF`);
+3. the crew check (`0x1E6D6`): message 442 with no crew left, 577 with no
+   ships, and end state `0x19`.
+
+The port-controller refresh, the waitress and Balm countdowns, and the side
+panel redraw follow.
+
+## Leaving port and Port Call
+
+Accepting Harbor **Sail** (`0x2D79B–0x2D7EE`) writes the journal entry, sets
+the days-at-sea counter to 0, sets the fleet's heading to 8 (stopped) and
+clears the anchor bit (`DS:0x1189` bit `0x20`). It then runs one food pass
+and one water pass (`0x1E35E`, `0x1E434` with AX = 1), the same passes as at
+midnight with their health changes, so a day's food and water is used on
+departure. The at-sea setup `0xD876` follows: it scans the inventory for the
+Telescope and Cat, marks the fleet at sea (`DS:0x0E32` = `0xFF`), loads the
+map part `X / 720`, plays track protagonist + 4 (`0xD95C`), builds the view
+and sets the palette for the hour or the weather (`0x1E9B4`). Finally
+`DS:0x0E33` is set to `0xFF`, so the next town entry starts at the Harbor.
+
+The fleet stays on the tile where it entered the port, and the view keeps
+its saved origin (`DS:0x118A`, save-slot offset `0x362`). Only a new game
+re-centres it (`0x1BA38`): origin = fleet − 11, kept inside the fleet's map
+part and within rows 0–1056.
+
+**Port Call** (`0x211EE`) looks at the 12 tiles touching the sides of the
+fleet's 2 × 2 block, corners excluded (offsets at `DS:0xAAE0`), and takes the
+first one holding a port's top-left tile (`0x74`, or `0x78` for a supply
+port) in the sea view. Unknown ports are drawn as land there, so only known
+ports can be entered. The port is found by its exact position (`0x20DC2`),
+and message 365, “Commodore, we're going to stop in %s. Is this OK?”, asks
+for confirmation. With no port beside the fleet nothing happens. On
+confirmation the fleet anchors, the arrival is journalled (type 0),
+`0x20F8B` marks the port known and visited (`0x50`), clears rats, scurvy and
+any weather anomaly (`DS:0x0E37 &= 0xC0`), awards the voyage experience
+([Levels](levels.md#navigation-experience)) and refreshes the Used Ship cache
+([Ships](ships.md)), and `0xE101` enters the town
+([Walking in port](port-walking.md#buildings)). **Go Ashore** on a port tile
+and a fleet steering itself to a destination call the same routine. The call
+happens during a tick's input step, and that tick still completes.
 
 ## Wind and current
 
@@ -114,10 +196,22 @@ each axis it moves on, plus up to 8.4 tiles from the current. Odd speeds round
 up for display, so speed 21 shows as 11 knots.
 
 The current is always added. A becalmed fleet drifts with it, but a fleet with
-heading 8 (stopped) does not move at all. If the step is blocked by land, the
-routine tries the headings 45° to either side at the same speed
-(`0x374E0–0x37524`). The fleet occupies a 2 × 2 block of tiles, and tiles
-numbered `0x34` or above are impassable (`0x36E6C`).
+heading 8 (stopped) does not move at all. The fleet occupies a 2 × 2 block
+of tiles, and tiles numbered `0x34` or above are impassable (`0x36E6C`).
+
+The step (`0x3723A`) adds the velocity to the accumulators as signed bytes
+and moves at most one tile on each axis. When the new block is land, it tests
+the block one tile away in the direction of the velocity's signs
+(`0x373A5–0x373E7`): if that is land too, the step fails; if it is open, the
+fleet stays where it is but keeps the new accumulators, with an axis that
+would have crossed pinned at 59 (moving forward) or 0 (moving back), so it
+slides along a coast as the other axis carries it. A failed step is retried
+at 45° to the right and then 45° to the left, at the speed computed for the
+original heading (`0x374E0–0x37524`). Within its 720-tile map part the fleet
+never straddles the seam: a step that would put its left tile in the part's
+last column, or past either edge, moves one tile further, keeps its row, and
+skips the land test (`0x372F9–0x37355`). A step past the top or bottom row
+is cancelled.
 
 ### Fleet speed
 
@@ -224,7 +318,12 @@ from the lookout) ([Ports](ports.md#known-and-visited-ports)). For each port
    and the mates (sailor byte `+0x17`, `0x36BB3–0x36BE0`). If the draw fails,
    the routine returns at once (`0x36C2F`).
 
-A found port gets flag `0x10` and becomes known (`0x36C41`). Either outcome
+A found port gets flag `0x10` and becomes known (`0x36C41`), and is
+journalled (type 9). The announcement (`0x3663A`) reads “Commodore, we found
+the port of %s!” or “Commodore, we found a village!” (`DS:0xBB2A`,
+`DS:0xBB4F`), followed by message 476 when Adventure Fame is awarded: 25 ×
+the region of a regular port, nothing for a supply port, and 50 for a
+village ([Adventure Fame](fame/adventure-fame.md#discovering-ports)). Either outcome
 ends the tick's scan, so the game makes **at most one roll per tick**, always
 for the lowest-numbered candidate. A second port in range waits until the
 first is found or leaves range. A failed roll on a lower-numbered port also
@@ -264,6 +363,10 @@ scroll left/up    when fleet − origin < 11 − Scroll Range
 scroll right/down when fleet − origin > 11 + Scroll Range
 ```
 
+The window stays inside the fleet's map part (origin `X mod 720` from 0 to 696) and rows 0–1056 (`0x37661–0x376E7`). When the fleet moves into another
+part, the origin first snaps to the start of the fleet's block
+(`0x3760B–0x37645`).
+
 The distance from the fleet to the edge of the view is therefore:
 
 | Scroll Range | Visible from the fleet, per side  | Ahead when sailing one way |
@@ -296,6 +399,92 @@ and dispatches through a jump table at `0x2670F`:
 |     5 | Gossip      | `0x26746` ([Nightfall](naval-battle.md#nightfall))                             |
 |     6 | Battle      | `0x26754`                                                                      |
 |     7 | Options     | `0x2675B`                                                                      |
+
+### Steering
+
+Each tick's input (`0x268E4`, called from `0x204F9`) reads a table of 13
+entries at `DS:0xAF42`, each a screen rectangle (x, y, width, height) and a
+key (`0x26791`):
+
+| Entries | Rectangles                                                              | Keys            | Action                                                                                    |
+| ------- | ----------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------- |
+| 0–7     | the wheel's spokes, from (532, 256, 40, 48) round to (492, 268, 40, 40) | 8 9 6 3 2 1 4 7 | Heading N through NW (`0x26775`): fleet `+0x1A`, clearing the anchor and destination bits |
+| 8       | the wheel's hub (532, 308, 40, 40)                                      | 5               | Destination mode (`0x36CAB`)                                                              |
+| 9–12    | the tabs at x 618, y 72, 152, 232, 312 (24 × 80)                        | F1–F4           | Fleet, Crew, Info and Navigation (the sea menu, `0x266AC`), the same handlers as in port  |
+
+F1–F4 arrive as `/`, `*`, `+` and `=` (`0x9605`, `0x2687A`); typing those
+characters does nothing, and the arrow keys do not steer. A rectangle only
+matches during a click or a pause (`DS:0xAF0A & 3`). The heading holds with
+no further input, so the fleet keeps sailing every tick.
+
+While the left button is held over the 384 × 384-pixel view, the view acts
+as a 3 × 3 grid of 128-pixel cells in numeric-keypad order, 1 at the bottom
+left (`0x268F1–0x2695B`); the grid is fixed on the screen, not centred on the
+fleet, and the button is polled every tick. The pointer takes a shape for the
+cell under it: an arrow for each outer cell and a centre mark
+(`0xC2E4–0xC348`). Esc, 0, or the right button (tested at `0x202A5`) pauses
+until the next key or click, which is then handled as usual
+(`0x26960–0x269C7`). While a party is ashore (`DS:0x1189 & 0x18`) only the
+tabs respond.
+
+**Destination mode** (key 5, the hub, or the view's centre cell, `0x36CAB`)
+anchors the fleet and, unless a destination is already set, shows “Set your
+destination.” (`DS:0xBBBC`) in a window at column 21, y 200, 30 columns by
+32 pixels (`0xCC48`). A tile picker over the view (`0x1AEEB`) then moves a
+2 × 2-tile box, drawn in colour 7, over columns and rows 0–22: the arrow keys
+or 8, 2, 4, 6 move it one tile, wrapping at the edges; Enter confirms and Esc
+or 0 cancels. Pressing the button in the view makes the box follow the
+pointer until release, which confirms, and a click outside the view cancels.
+Cancelling leaves the fleet anchored. The chosen tile becomes fleet `+4/+6`.
+If a port's top-left tile is chosen (`0x20DC2`), the target moves to the
+first of 12 tiles around the port (offsets (0, −2), (0, 2), (2, 0), (−2, 0),
+(−1, −2), (1, −2), (2, −1), (2, 1), (−1, 2), (1, 2), (−2, −1), (−2, 1),
+`0x294E0`) that is water for the fleet's 2 × 2 block and reachable in the
+loaded 72 × 72 area (`0x2957E`, `0x28FE5`); with none, it stays at the port
+
+- (−2, 1). The fleet word `+0x0C` becomes `0x6000`, the anchor is lifted and
+  bit `0x80` set (`0x36D4A–0x36DB6`).
+
+While bit `0x80` is set, the heading is recomputed every tick (`0x371C5`)
+with the computer fleets' routines
+([NPC fleet navigation](npc/fleet-navigation.md#following-the-cached-route)):
+the route state (`0x29927`) picks a waypoint by the local 72 × 72 search,
+and `0x36EC1` steps toward it Bresenham-fashion, choosing the heading from
+the signs of the step through the table `7 0 1 / 6 8 2 / 5 4 3` at
+`DS:0xBBDE`. The heading is written to fleet `+0x1A`, so the heading dial
+follows it. When the heading and both neighbours are blocked, the local
+search is run again (`0x299CD`). When no waypoint can be found,
+auto-steering ends and the fleet stops. On exact arrival at the target
+(`0x288D6`) the game tries Port Call; if the fleet is still at sea
+afterwards, destination mode starts again. Otherwise the effective heading
+is 8 while anchored (bit `0x20`) and fleet `+0x1A` the rest of the time.
+**Anchor** and
+**Sail** (`0x26661`) only toggle bit `0x20` (“We will drop the anchor here.”,
+“We will lift the anchor.”); dropping it also clears bit `0x80`. In port the
+sea menu offers only Options, and while ashore Auto Sail, Sail/Anchor and
+Port Call are disabled (`0x266DD–0x266F0`).
+
+### Auto Sail
+
+**Auto Sail** (`0x36DC3`) needs a First Mate with Celestial Navigation;
+otherwise the crew spokesman says message 855 or 856, “To automatically sail
+to a port, you need a first mate who has the skill of Celestial Navigation.”
+It lists the known ports in ID order (`0x1850E`, list type 5 at column 60,
+y 120, 16 columns by 10 rows) and sets the chosen port's position as the
+target, fleet `+0x0C` to `0x4000`, the fleet's objective to 0, lifts the
+anchor and sets bit `0x80`. The fleet then follows a route through the
+622-node navigation graph
+([The world-navigation graph](npc/fleet-navigation.md#the-world-navigation-graph)),
+using the player's copy of the search, which follows links only into nodes
+marked as charted (`0x28C14`). The marks come from a bitmap at save-slot
+offset `0x3A2`, one bit per node (most significant first), set for each node
+whose chart cell is charted (`0x2883E`) at a new game, after each Port
+Call's voyage award, and on entering a village; it is applied to the graph
+when the fleet goes to sea (`0xD88D–0xD8D8`). After the last graph node the
+target becomes exact, and since the port's tile is land, `0x295B8` replaces
+it with a reachable tile beside the port as above. Arrival brings the Port
+Call question; answering No starts destination mode. `DS:0x1189` bit `0x40`
+is tested with `0x80` (`0x371C6`), but nothing in `MAIN.EXE` sets it.
 
 ### Another fleet's details and pirate disguises
 
@@ -511,6 +700,53 @@ it is `0x1B367`, which clears it when a new game starts (`0x1C2C5`), and no
 pointer to it exists, so in this version it is always 0. What display the
 mode was meant for is not recorded; inverted colours and fewer text colours
 fit a monochrome screen.
+
+## The sea screen
+
+The frame is `GRAPH.DAT` record 2 (`0xD975–0xD988`). The side panel
+(`0xD3FC`) is redrawn after every tick. Its seven Status gauges (`0xE7C0`)
+are 50-pixel bars from x 26, rows y + 2 to y + 5, filled in colour 2 on
+colour 1, for values clamped to 0–100 and halved:
+
+| y   | Caption    | Value                                                                                           |
+| --- | ---------- | ----------------------------------------------------------------------------------------------- |
+| 72  | Power      | ship-slot byte `+4` of the limiting ship (the Fleet Info score, [fleet-info.md](fleet-info.md)) |
+| 96  | Tacking    | ship-slot byte `+5` of the same ship                                                            |
+| 120 | Durability | the lowest `+2` among the active ships                                                          |
+| 144 | Draft      | `100 × load / capacity` of the limiting ship (`0xD61F–0xD64E`)                                  |
+| 168 | Range      | `floor(100 × lookout range / 24)` (`0xD6CE–0xD6E4`)                                             |
+| 192 | Crew       | `floor(100 × total crew / Σ instance word +0x14)` (`0xD6F9–0xD727`)                             |
+| 216 | Health     | `Σ(health × crew) / total crew` (`0xD72A–0xD744`)                                               |
+
+The first two sit under the captions Power and Tacking, so the bar captioned
+Power shows the byte this page calls tacking. A divisor of 0 counts as 1
+(`0xD6E7–0xD6F6`).
+
+All numbers are in the panel font ([Ports](ports.md#panel-font)), black on
+colour 7 (`DS:0x8F7D`):
+
+| Column, y | Format | Value                                                 |
+| --------- | ------ | ----------------------------------------------------- |
+| 6, 264    | `%5d`  | total water ÷ 10 (whole barrels)                      |
+| 6, 296    | `%5d`  | total food ÷ 10                                       |
+| 6, 328    | `%5d`  | total lumber (supply word `+4`)                       |
+| 6, 360    | `%5d`  | total shot (supply word `+6`)                         |
+| 62, 16    | `%s.`  | month abbreviation (`0xC4EC`)                         |
+| 66, 16    | `%2d`  | day + 1                                               |
+| 69, 16    | `%2d`  | year byte + 1,501                                     |
+| 69, 208   | `%2d`  | knots, `floor((DS:0xC1F0 + 1) / 2)` (`0xC2C2–0xC2DF`) |
+| 69, 240   | `%3d`  | days at sea, `DS:0x2BAA`                              |
+
+The wind, current and heading are 40 × 40 compass dials at x 568 and y 64,
+112 and 160 (`0xE488` → `0xE418`), from `DATA1.014`: the dial for direction
+`d` at offset `0x490 + 0x320 × d`, four planes interleaved per eight pixels
+(plane 0 first, most significant bit leftmost), and an empty dial at `0x1D90`
+for speed 0. The wind (`DS:0x0E35`, save-slot offset `0x0D`) and current
+(`DS:0x0E36`, offset `0x0E`) speeds are printed with `%d` at column 67,
+24 pixels below their dials. The heading dial reads fleet byte `+0x1A`
+directly, so it keeps its arrow while the fleet is anchored. The movement
+routine skips the speed calculation for a stopped fleet (`0x37491`), so the
+panel keeps showing the last speed.
 
 ## Charted areas and known ports
 
@@ -797,6 +1033,32 @@ on one of the eight tiles bordering the fleet's 2×2 block. The corner tiles
 are not offered. Landing, searching, and loading water take no time: none of
 these routines advances the clock or the days-at-sea counter.
 
+### Choosing where to land
+
+The eight candidate tiles are offered clockwise from the one above the
+fleet's top-left tile, (0, −1), (1, −1), (2, 0), (2, 1), (1, 2), (0, 2),
+(−1, 1), (−1, 0) (`DS:0xBD6E`, `DS:0xBD7E`), leaving out any pair that would
+fall outside the 24 × 24 view (`0x3ABF2–0x3AC29`). They are picked with the
+shared rectangle selector (`0x18AFD`); Enter selects, Esc or 0 cancels. While
+a party is already ashore the choice and the question are skipped
+(`0x3ABCB`). The questions and reports ashore are spoken by the
+First-Mate-first spokesman (`0x8F64`).
+
+The open-land menu is `MENU.DAT` entry 36, “Sail / Repair / Search / Wait”
+(`0x3AB07`), and the village menu entry 35, “Search / Entertain / Plunder /
+Sail / Wait” (`0x3A9CD`); neither can be cancelled. **Sail** asks “Shall we
+cast off?” (message 417) and on Yes lifts the anchor (`0x39C84`). **Wait**
+sets `DS:0x1189` bits `0x28` on plain land, `0x30` on desert and `0x38` in a
+village (`0x3AB40`, `0x3AA3B`).
+
+**Repair** (`0x3A10C`) picks a ship, shows its durability, Tacking and Power
+against their maximums (`0x39D9D`; the model's values for Tacking and Power,
+captions 1380–1382), and repairs the chosen one (`0x39F76`): with no lumber in
+the fleet, message 419; with nothing missing, 420; otherwise message 421
+offers up to `min(lumber, floor((missing + 4) / 5))` planks, taken from the
+ships in slot order, and the value rises by 5 per plank, capped. A ship with
+nothing to repair gives 418.
+
 ### Where a party can land
 
 The chosen tile is checked at `0x3AD49`:
@@ -913,7 +1175,11 @@ ashore, so repeating Search always gives the same answer. Landing again rolls
 again. Going ashore after **Wait** (below) skips the tile choice and the
 question but still rolls again.
 
-**Search** on open land (`0x3A244`) reads the stored result. On desert it
+**Search** on open land first digs up a treasure when the tile's discovery
+has flags `0xA0` (unselected, map bought, not dug): message 431 with “the”
+and the treasure's name, the map in the inventory is replaced by the
+treasure, and the record gets `0x10` (`0x3A311`, `0x3A2B0`). Otherwise
+**Search** (`0x3A244`) reads the stored result. On desert it
 first asks, “I doubt that there is a spring here, but would you like to
 search for water?” (message 424). It then reports either “We couldn't find
 water.” (425) or “We found a clear spring.” (426). One exception comes first:
@@ -1009,6 +1275,20 @@ falls by `min(2, Charm − 50)` computed unsigned (`0x3A904`): Charm 50 or 51
 stops at 50, any other Charm loses 2, and Charm 0 or 1 wraps to 254 or 255. A village never offers water unless its record has
 flag `0x80`, in which case it is treated as open land.
 
+**Entertain** (`0x3A794`) asks message 433 and takes 2 barrels from the first
+active ship holding at least that much, then reports message 434 with the new
+friendship, or 435. **Plunder** (`0x3A866`) asks message 436, takes
+`(random(5) + 2) × 10` barrels (message 437), loads them through
+`0x1E5F:0x17C2`, and on `random(4) = 0` reports the counterattack (438)
+before the crew loss. A find is followed by the discovery's card
+(`0x3A37D`): its `COLONY.DAT` picture (record byte `+0x19`), name, type
+(message 1383; type names at `DS:0x0AC2`) and grade, `MENU.DAT` entry 34's
+letter for `difficulty / 25` (message 1384), and its description, with
+message 1418 added for picture `0x1C`. The crew-loss lines are 427 or 584,
+and 1136 for crew staying behind (“man” or “men”, “wants” or “want”, “he's”
+or “they're”). Entering the village menu also refreshes the Auto Sail node
+marks ([Auto Sail](#auto-sail)).
+
 ### Waiting ashore
 
 **Wait** (`0x3AB40`) returns to the sea loop with the fleet at anchor and the
@@ -1028,6 +1308,16 @@ items (9) at `0x2F6C2`, and maps (`0x0C`) at `0x2F8BC`
 ([Treasure maps](#treasure-maps)). Any other item answers that it cannot be
 used here (`0x2F4E4`). An emergency item (Rat Poison, Balm, Lime Juice) is
 used up whether or not it had anything to do (`0x2F6EF`).
+
+Every Use line appears in a plain window. Items that cannot be used answer
+message 1385 (arms), 1386 (shields), 1387 (armour) or 1388 (`0x2F4E4`). The
+Telescope and the unused items `0x1B` and `0x1C` say “We can see far!” (368),
+the Cat “Meow!” (369). Rat Poison answers 370 or 371, Lime Juice 375 or 376,
+and the Balm 373 (day, ticks 12–59) or 372 (night) when it ends a Storm, 374
+otherwise (`0x2F60D–0x2F6C1`). Without Celestial Navigation the protagonist
+asks for a mate who has it (message 757; 755 for one who has not), and on
+cancelling tries alone (759, 761). An instrument reading prints the latitude
+(message 126 or 127) and then the longitude (128 or 129), followed by “.”.
 
 ### Measuring latitude and longitude
 
@@ -1177,6 +1467,27 @@ The **Balm** item (`0x2F639`) ends an active Storm (message 372 or 373; 374
 otherwise) and prevents new Storms for `10 + random(6)` days (`DS:0x122A`,
 counted down at `0x1E989`). It has no effect on the other anomalies.
 
+Save-slot byte `0x0F` (`DS:0x0E37`) holds the anomaly type in its low four
+bits, `0x40` from its beginning until its announcement, and `0x80` from the
+announcement until midnight, which keeps it from ending the day it is
+announced (`0x1EBDB`, `0x1F24E–0x1F253`). While an anomaly is active the
+re-roll keeps the wind's low six bits and copies bits 6–7 from the region's
+wind byte (`0x1F29F–0x1F2A7`), and the end tests read bit 7 to see whether
+the fleet has left the region. The warning is spoken with the warning mate's
+portrait (`0x1EC1E`); a new Storm also plays effect `0x30`. The announcement
+(`0x1F1B9`) comes from the First-Mate-first spokesman, plus 1 for a
+rough-spoken one, and a Storm's announcement first shows graphics record
+`0x3A`. The endings are 360/361, 362/363 and 364. In a Storm each ship's
+damage is subtracted from durability, half of it (rounded toward zero) from
+Tacking and from Power, and the maximum durability falls by 1 but not below a
+quarter of the model's (`0x1EE5A–0x1EF12`). A wrecked ship is reported with
+message 358 (359) and, for a named captain, 809 in the same window; the
+named captain is put back on the roster as an unassigned mate, while a
+generic captain leaves the game with the ship (`0x1EA8F`: roster entry
+cleared, sailor `+0x25` = `0xFF`, status bit `0x20` cleared). No Wind holds
+the wind speed at 0 after its end test, so the wind rises only at the next
+check (`0x1F15F`).
+
 ### Missing Ship
 
 In the two Missing Ship regions, after the Luck and figurehead checks,
@@ -1238,7 +1549,15 @@ type's two lines, `MESSAGE.DAT` entries `510 + 2 × type` and the next one.
 (`0x36768`, `0x36828`, `0x3692D`). The Vanishing ship, Phoenix, and Whales
 events do nothing, and show no message, when every active ship is captained by
 the protagonist. The Vanishing ship clears the ship's active status bit
-(`0x10`) and its captain field rather than deleting the ship record.
+(`0x10`) and its captain field rather than deleting the ship record, and
+sets the captain's duty to 6, an unassigned mate (`0x367A9–0x367BB`).
+
+The active entry is cleared and refilled from `MONSTER.DAT` whether or not
+the event applied (`0x36B36–0x36BAC`; queue position byte `DS:0x11C8`). An
+event that applies plays effect `0x30` twice, shows “Aaaah! Commodore, look
+at the sea!” (`DS:0xBB6F`) in a window without a portrait, and then its two
+lines, each in its own window (`0x369A3`, `0x36624`). A tick with an event
+makes no sighting. Sighting announcements use the same portrait-less window.
 
 ### Event tiles
 
