@@ -266,6 +266,33 @@ export async function run(): Promise<void> {
     join(generatorData, "world-tiles.bin"),
   );
 
+  // A small picture of the whole world map for the home page, one pixel
+  // per tile (each tile's average daylight colour), then halved. Column 0
+  // is the game's 1440, so the Atlantic is in the middle, as on the map page.
+  const mapTiles = await readFile(join(worldMap, "world-map.bin"));
+  const tilePixels = await readFile(join(worldMap, "world-tiles.bin"));
+  const day = (
+    JSON.parse(
+      await readFile(join(worldMap, "sea-palettes.json"), "utf8"),
+    ) as { day: number[][] }
+  ).day;
+  const average = Array.from({ length: tilePixels.length / 256 }, (_, tile) =>
+    [0, 1, 2].map((channel) => {
+      let sum = 0;
+      for (let pixel = 0; pixel < 256; pixel++)
+        sum += day[tilePixels[tile * 256 + pixel]!]![channel]!;
+      return Math.round(sum / 256);
+    }),
+  );
+  const overview = Buffer.alloc(mapTiles.length * 3);
+  mapTiles.forEach((tile, index) => {
+    overview.set(average[tile]!, index * 3);
+  });
+  await sharp(overview, { raw: { width: 2160, height: 1080, channels: 3 } })
+    .resize(1080, 540)
+    .png()
+    .toFile(join(site, "public/images/world-map.png"));
+
   // Town maps by port name; the supply ports share one map.
   const towns = await fresh(join(site, "public/images/towns"));
   const ports = JSON.parse(
