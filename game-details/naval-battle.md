@@ -57,9 +57,14 @@ candidate must be a convoy or voyaging fleet (position 5–9 of its block,
 `0x16351`); merchant fleets and protagonist fleets never join. The first
 candidate of the defender's nation supports the defender (message 779,
 “%s %s will support the defending side.”), and the first of the attacker's
-nation supports the attacker (message 780). The only test is the fleet's
-nation (`0x16368`, `0x163A2`): Relations and the alliance flag are not read,
-so an allied nation's fleet never joins either side. If the player's
+nation supports the attacker (message 780); the two `%s` are the supporting
+commodore's first and last names, shown in a plain message window. A nation
+here is the commander's fleet ID divided by 10, the protagonist's included
+(`0x16368`, `0x163A2`): Relations and the alliance flag are not read,
+so an allied nation's fleet never joins either side. A candidate of the
+defender's nation found after the defender's support is chosen falls through
+to the attacker's test, so in a battle between two fleets of one nation the
+first such fleet supports the defender and the second the attacker. If the player's
 affiliation is Piracy, no fleet joins at all (`0x1630C–0x16320`). Pirate
 corsairs and privateers can support a pirate fleet the player attacks.
 
@@ -85,24 +90,223 @@ counts on the flagship if any of the three has it (`0x1289C`). On every other
 ship these are simply the captain's own values. See
 [Duties](sailors.md#duties).
 
+## The battle screen
+
+### Layout
+
+The battle draws into the 640 × 400 area (`0x572E` adds 40 lines). The left
+416 pixels show 13 × 12 hexes of the 52 × 48 map (`0x11345`); the view's top
+left is `DS:0xA069`/`0xA06A`. Terrain is a plain grid of 32 × 32 tiles,
+`HDAT.PUT + 0x200 × t` for map byte `DS:0x928E + 52 × row + col` & `0x1F`,
+400 lines tall (`0x1160B`). Ships, markers, and hit boxes sit in hex cells:
+x = 32 × (col − `A069`), y = 32 × (row − `A06A`), plus 16 in odd columns
+(`0x113D5`, `0x11203`, `0x10DDE`).
+
+The right side is `GRAPH.DAT` record 26 at (416, 0) (`0x11974`), then
+(`0x1196B`):
+
+- the mini-map, a colour-5 box at (424, 8), 208 × 192, with land cells as
+  colour-0 dots (`0x115A3`) and each ship as a 4 × 4 dot at
+  (424 + 4 × col, 8 + 4 × row): the player's ships colour 7, allies 6, the
+  main enemy 2, the assisting enemy 3 (`0x11376`);
+- the wind dial for the battle direction `d`, `DATA1.014` picture
+  `floor((15d − floor(d / 3)) / 10)` at (440, 230), which maps directions 0–5
+  to the dial's 0, 1, 3, 4, 5, 7;
+- the message box, black at (424, 328), 192 × 64, text from (432, 336)
+  (`0x117A8`).
+
+The flagship panel (`0x117E1`) always shows the player's flagship, colour 0 on
+colour 7, and is redrawn after every ship's turn (`0x151C9`):
+
+| y   | x              | Value                                  |
+| --- | -------------- | -------------------------------------- |
+| 216 | centred on 560 | Ship name, colour 1                    |
+| 232 | 560            | Crew / crew bunks                      |
+| 248 | 560            | Durability / maximum durability        |
+| 264 | 560            | Tacking / model Tacking                |
+| 280 | 560            | Power / model Power                    |
+| 296 | 448, 472       | Clock: tick / 3, (tick mod 3) × 20     |
+| 296 | 592            | Shots remaining                        |
+
+The battle palette is `DS:0xA0F0` (stored blue, red, green, 0–15), faded in
+one level per timer unit (`0x111BE`, `0xEDD7`) at the start, after an Info
+screen, and after a duel.
+
+### Ships on the map
+
+A ship's sprite is `HDAT.PUT + 0x1A00 + 0x280 × (6 × set + facing)`: an AND
+mask of 0x80 bytes, then a four-plane image OR'ed on top (`0x113D5`). The set
+is 0 for the player's side and 1 for other fleets, plus 2 for an oared ship
+(instance byte `+0x12` bit `0x10` clear). A ship with crew also shows its slot
+digit in an 8 × 16 black cell at the hex's top left, or 24 pixels to the right
+for an assisting fleet: white for a flagship, blue otherwise. Sunk ships and
+ships that have left are not drawn (`0x1151A`); a ship that loses its last
+crew stays on the map and its hex becomes an obstacle (`0x13A63`).
+
+The view centres on the player's flagship at the start (`0x14BCD`), clamping
+the corner to columns 0–39 and rows 0–36 (`0x14B84`), and scrolls back to it
+one hex per axis, 4 timer units per step, after each of the player's moves
+(`0xFC8F`). There is no free scrolling.
+
+### Hex markers
+
+All markers are 32 × 32 stencils drawn at a hex (`0x11203`):
+
+| Kind       | Shape                                     | Colour            | Meaning                       |
+| ---------- | ----------------------------------------- | ----------------- | ----------------------------- |
+| 1          | `DATA1.014 0x3820`, bracketed cross       | 4 (`cx` = `0x34`) | Next step                     |
+| 2          | `DATA1.014 0x3820`                        | 4                 | Reachable, or selectable ship |
+| 3          | `DATA1.014 0x38A0`, circled cross         | 6                 | Target in gun range           |
+| 4          | `DATA1.014 0x3920`, sword                 | 3                 | Adjacent target (boarding)    |
+| `0x80 + f` | `HDAT.PUT 0x6B40 + 0x80 × f`, arrow       | 4                 | A plotted step facing `f`     |
+
+Kind 1 is passed colour `0x34`, which the 16-colour mask reduces to 4, so the
+next steps look the same as the other reachable hexes. The picker cursor XORs
+colour 7 over the chosen cell (`0x18704`). Enter or the left button chooses;
+Esc, `0`, or the right button cancels (`0x1939A`, `0x18698`).
+
+### The battle menu
+
+The flagship's turn opens `MENU.DAT` entry 50 at the pointer (`0x10D7A`,
+`0x19659`); it cannot be cancelled, and it repeats until a command ends the
+turn:
+
+| Command | Routine   | Disabled when (`0x10C20`)                 |
+| ------- | --------- | ----------------------------------------- |
+| Move    | `0x1018C` | never                                     |
+| Attack  | `0x101A4` | no enemy in gun range and arc or adjacent |
+| Info    | `0x106CD` | never                                     |
+| Plan    | `0x1077B` | the flagship has no other ship            |
+| Order   | `0x10BAA` | no other own ship is in view              |
+| Wait    | `0x10BC1` | never                                     |
+| Item    | `0x10BEA` | `FC4:0x335C` returns 0                    |
+| Escape  | `0x10BF2` | the flagship is not on an edge (`0xEFBB`) |
+
+**Move** (`0xFD11`) marks the reachable hexes (`0x12FE1`) and shows message
+767. Each pick of a marked neighbour ahead or 60° to either side adds a step,
+picking the course's end removes one, and cancelling finishes; after 10 steps
+it finishes at once. “Is it OK to follow this course?” (768) confirms; No
+starts over. The ship then moves one hex per step, 8 timer units each
+(`0xF76D`). With no steps, “In what direction should we set our sails?” (769)
+lets the ship turn 60° on the spot (`0xFF26`), which empties its turn charge.
+The attack prompt follows, and the turn ends whether or not a target is
+chosen.
+
+**Attack** (`0x100E9`) marks targets and asks “Whom do you want to attack?”
+(772). A ship in range is fired on (`0x13C72`); an adjacent one is boarded
+(`0x13D04`), after the duel question “Will you challenge the enemy commodore
+to a duel?” (770) if it is the first ship of an enemy side. When the duel's
+crew test fails, “The enemy's crew has blocked your attempt.” (771) is shown
+and the ship is boarded.
+
+**Wait** asks “Is it OK to end the turn?” (775); **Escape** asks “Are you
+sure you want to flee?” (776) and removes the flagship (`0x139A4`). **Item**
+opens the item list (`1E5F:0xBD2B`) and returns to the menu. **Info** opens
+`MENU.DAT` entry 51, which can be cancelled, and shows the fleet information
+screens (`DS:0x9170`); its Other Ships and Order List entries can be
+disabled (`0x1061B`). The Order List shows each live ship's slot number and
+name (message 1378), then “Flagship” (1379) or its Tactic, Method, and Target.
+
+### Plan and Order
+
+**Plan** (`0x1077B`) shows the flagship's three settings at (432, 368) in
+colour 6, Fight/Flee (bit `0x08`), Fanout/Pack (`0x04`), and Defend/Chase
+(`0x01`), with hit boxes 56 pixels apart from x 440. Choosing one toggles it;
+on leaving, every other ship's orders become
+`(orders & 0xF0) | (flags & 0x0D) | ((flags & 1) << 1)`, so Chase also sets
+Attack.
+
+**Order** (`0x10BAA`) marks the player's other ships in view and asks “Give
+orders to which ship?” (773), then lists (`0x10939`), labels in colour 7 at
+x 432 and values in colour 6:
+
+- Tactic at y 336: Attack or Escape (bit `0x02`); choosing it toggles bit
+  `0x02` and sets bit `0x01` to match;
+- Method at y 352: Fire or Rush (bit `0x10`);
+- Target at y 368: Delegate without bit `0x80`; with it, Support or Enemy
+  followed by “Flagship” or “No. n” (unit `+0x06`). Choosing Target without
+  one marks the enemies and asks “Select your target.” (774); with one it is
+  cleared.
+
+### Animations
+
+Combat prints no messages; the map, the mini-map, and the flagship panel
+show the results.
+
+- **Cannon fire** (`0x121B0`): when either ship is in view, an 8 × 8 ball
+  (`HDAT.PUT 0x7B60`) flies from the firing ship to the target one pixel per
+  timer unit along an arc up to 12 pixels above the straight line
+  (`0x11C38`). When the target is in view, its hex then shows three groups of
+  four 8-unit frames of the 32 × 32 explosion (`0x6E40 + 0x280 × f`) and the
+  16 × 20 splash (`0x7840 + 0xC8 × f`, 12 pixels down and, when
+  `random(2)` is 0, 16 to the right); the middle group shows only the splash
+  when a gun with range 4 or more fires at exactly its range, and only the
+  explosion otherwise.
+- **Boarding** (`0x125AB`): `DATA1.014 0x2E20 + 0x280 × f` frames
+  0, 1, 2, 3, 1, 3, 0, 2, 2 units each, on the target, the attacker, and the
+  target again, each in view only.
+- **Sinking** erases the ship's hex and mini-map dot (`0x13A21`,
+  `0x11ADF`).
+- After each ship's turn the game redraws the flagship panel and waits 8
+  units (`0x151C9`, `0x151CC`).
+
 ## Map, turns, and movement
 
 ### The battle map
 
 The battle map is 52 × 48 hexes (`0x12A8A`), arranged in vertical columns with
 every odd column half a hex lower. It is drawn from the 6 × 6 world-map tiles
-around the fleet (`0x141A2`): each tile becomes an 8 × 8 block of hexes, and
-tiles numbered `0x34` or above become land, map bit `0x80`. Hexes where land
-meets sea are made land or sea at random, the two outer columns on each side
-copy their neighbours, and `0x13F74` then shapes the coastline. No ship can
-enter land. Distance is counted in hexes (`0x12902`,
+starting two tiles west and north of the defending fleet (`0x141A2`): each
+tile fills an 8 × 8 block (rows `8r…8r+7`, columns `8c+2…8c+9`); tiles `0x34`
+or above become land (`0x84`, map bit `0x80`), the others sea (1).
+
+Then, for every sea block, each hex within 4 of it (rows `8r−4…8r+11`, columns
+`8c−2…8c+13`, clipped to the map) becomes water: tile 0 or 1 at random where
+the test cell `(x >> 3, y >> 3)` is land, else tile 1 (`0x142B1–0x1437F`).
+Both are water; the low five bits of a map byte only pick the tile graphic
+(`0x1162F`). Land therefore survives only more than 4 hexes from any sea
+block, which gives straight coasts. The test uses the shifted column rather
+than `(x − 2) >> 3`, and columns 48–49 read one cell past the row
+(`[row][6]`, the next row's first cell). Columns 0–1 copy column 2 and
+columns 50–51 copy column 49 (`0x1438C`).
+
+`0x13F74` then gives each land hex a coast tile from a mask of its non-land
+neighbours (NW `0x80`, N `0x40`, NE `0x20`, W `0x10`, E `0x08`, SW `0x04`,
+S `0x02`, SE `0x01`; neighbours past the edge are clamped). Any mask not listed
+keeps `0x84`:
+
+| Tile   | Masks                  |
+| ------ | ---------------------- |
+| `0x8B` | 1, 2, 3, 4, 6, 7       |
+| `0x89` | 8, 9, 32, 40, 41       |
+| `0x8C` | 11, 15, 43, 47         |
+| `0x88` | 16, 20, 128, 144, 148  |
+| `0x8A` | 22, 23, 150, 151       |
+| `0x86` | 64, 96, 192, 224       |
+| `0x87` | 104, 105, 232, 233     |
+| `0x85` | 208, 212, 240, 244     |
+
+Bits `0x20` and `0x40` mark a hex holding a ship of the attacking or defending
+side. No ship can enter land. Distance is counted in hexes (`0x12902`,
 `0x12996`). Adjacent ships are at distance 1; they can board each other but
 cannot fire on each other.
 
 A ship faces one of six directions (unit byte `+0x0A`): 0 north, 1 northeast,
 2 southeast, 3 south, 4 southwest, and 5 northwest (neighbour table
 `DS:0xA080`). Every ship of a fleet starts facing the same way, the fleet's
-heading at sea rounded to six directions (`0x149DC`).
+heading at sea `h` (0–7) turned into `floor(5h / 7)` (`0x149DC`).
+
+### Starting positions
+
+Each fleet is placed relative to the defender (`0x14AF5`, `0x14A10`). With
+`Δ` its offset in world tiles, its flagship's target hex is
+`x = 8·clamp(Δx + 2, 0, 4) + 10`, `y = 8·(clamp(Δy + 2, 0, 4) + 1)`. If that
+hex is off the map or not empty (`& 0xE0`), both coordinates are re-rolled as
+the target `+ random(16) − 8` until one fits (`0x14A23–0x14A60`). Each other
+ship takes the flagship's hex `+ random(8) − 4` on each axis, re-rolled until
+free (`0x14A97–0x14AED`). The hex is marked `0x20` or `0x40` by side, and unit
+`+4` holds `y × 52 + x`. The view opens on the player's flagship at
+`x − 6` (0–39), `y − 6` (0–36) (`0x14B84`).
 
 ### Turns
 
@@ -112,7 +316,9 @@ attacking assisting fleet, defending assisting fleet (side records
 round every fleet moves its next ship, starting with its flagship
 (`0x151D8`). Sunk ships, ships without crew, and ships that have left the
 battle are skipped (`0x15158`). Each turn advances the clock by one tick of 20
-minutes.
+minutes. The clock test comes before each turn (`0x151DA` jumps to
+`0x1522B`). A turn runs only the ships' moves, so no supplies are used and no
+other fleet, weather, or day processing happens during a battle (`0x15227`).
 
 In its turn a ship can move and then attack once. The player controls only
 the flagship; the player's other ships follow their **Plan** and **Order**
@@ -293,8 +499,10 @@ When a ship attacks an adjacent ship, the boarding fight (`0x13CC5`) runs
 M = floor((floor(Sw × BL / 100) + floor(Sw / 2)) × k / 3)
 ```
 
-`k` is 3 for the player's ships and for an enemy flagship, and 2 for enemy
-escorts. `M` therefore ranges up to 150.
+`k` is 3 for the player's ships and for the first active ship in a computer
+fleet's slot order, and 2 for its other ships (`0x146E6`, `0x147D4`,
+`0x1489F`). That first ship is not necessarily the flagship, which is chosen
+afterwards by the greatest maximum durability (`0x14670`). `M` therefore ranges up to 150.
 
 Each side's kills `K` are:
 
@@ -385,6 +593,14 @@ nation (`0x1610C` → `0x15DE5`, whose only guard is `0x15DED`, the parity
 test). Odd codes skip both, so nightfall (1), fleeing (3), and surrender (9)
 change neither Relations nor Friendship; 5 and 7 end the game first.
 
+The end-of-battle experience is `floor(B / 5)` for each captain of an active
+player ship, where `B` is the total maximum durability of every enemy ship in
+the battle, assisting fleet included: the setup routine's result (`0x1492B`,
+`0x14907`, `0x160DE`). An accepted merchant surrender makes the pre-battle
+routine return −1 instead, so it gives no experience. Sunk player ships are
+removed (`0x160C2`). Before this, each ship's remaining shots are written back
+to its supplies (`0x1606A–0x16087`).
+
 A victory (4 or 6) awards [Piracy Fame](fame/piracy-fame.md#naval-victories)
 with the full battle-result factor of 3 and the [spoils](#spoils-of-victory).
 When the enemy flagship flees (2), the player still gains Piracy Fame, with
@@ -455,35 +671,64 @@ player starts the battle at once, at any hour (`0x2589B`, battle entry
 | Any other                      | Where it is heading or what it is doing (152–160)                               | No     |
 
 The nightfall check still applies. A battle started this way before 5:00 runs
-until 21:00; one started at 21:00 or later ends in nightfall after its first
-turn.
+until 21:00; one started at 21:00 or later has no turns at all and ends in
+nightfall at once.
 
 A fleet that attacks the player on its own does so only from 6:00 to 17:40
 (`0x1FA60–0x1FA6C`).
 
 ### Before the battle: Fight, Flee, or Surrender
 
-When an enemy fleet attacks the player, the game first offers **Fight**,
-**Flee**, or **Surrender** (`0x14DFB`), unless a scenario has turned this
-choice off. When the player attacks a merchant fleet, the merchant may offer
-to surrender instead; see
-[Pre-combat merchant surrender](fame/piracy-fame.md#pre-combat-merchant-surrender).
-Accepting ends the battle with code 2, so it earns Piracy Fame with factor 1
-but no spoils.
+After the battle screen is drawn and the scenario's `0xA1` routes have run
+([Cancelled battles](#cancelled-battles)), an encounter dialogue follows
+unless either route left variable 63 set (`0x1507B`). Both sides' strength
+totals here include the supporting fleets (`0x1492B`; a fleet's rating is
+described under
+[Pre-combat merchant surrender](fame/piracy-fame.md#pre-combat-merchant-surrender)).
+A commodore whose sailor status is Piracy counts as fleet 60 in these tests.
 
-Before the choice, a mate sizes up the enemy using the same fleet strength
-ratings as the [merchant surrender](fame/piracy-fame.md#pre-combat-merchant-surrender)
-test: “Nothing to fear, Commodore, they're no match for us.” (message 821)
-when `floor(3 × player strength / 2)` is at least the enemy's, otherwise
-“Commodore, I think we're in big trouble.” (820) (`0x14EA0`).
+**When the protagonist attacks** (`0x14D12`), the protagonist speaks first,
+in the lower panel:
+
+- To a pirate: “Pirate %s %s, your days of terrorizing the seven seas are
+  numbered.” (810) when the shared scenario has an `0xA1` route for the
+  battle, otherwise “Pirate %s %s, your luck has run out.” (811), with the
+  pirate's first and last names. The pirate answers in the upper panel, “What
+  rubbish! You're the one who is doomed to sink!” (813).
+- To anyone else: “Stop your ship, or we'll attack!” (812). A merchant fleet
+  (IDs ending in 1–4) much weaker than the player's side answers with the
+  [surrender offer](fame/piracy-fame.md#pre-combat-merchant-surrender) (815)
+  and a Yes/No choice; accepting ends the battle with code 2. A merchant that
+  refuses says “Huh, why should we listen to you?” (816), and any other fleet
+  “You are pretty brave to challenge us.” (814).
+
+**When an enemy fleet attacks** (`0x14DFB`), its commodore speaks first, in
+the upper panel:
+
+- A pirate: “If you don't want to get hurt, surrender your cargo and gold!!”
+  (817).
+- A fleet sent after the player (objective 3): “We finally got you, %s! You
+  are under arrest for your actions against %s!” (818), with the
+  protagonist's last name and the fleet's nation.
+- Any other: “You're from %s, our sworn enemy! …” (819), with the player's
+  nation.
+
+A mate then sizes up the enemy, the First Mate first (duty order First Mate,
+Bookkeeper, Chief Navigator, Captain, Navigator): “Nothing to fear,
+Commodore, they're no match for us.” (821) when
+`floor(3 × player strength / 2)` is at least the enemy's, otherwise
+“Commodore, I think we're in big trouble.” (820) (`0x14EA0`). With no mate
+holding any of those duties, the speaker is the last mate on the roster. The
+game then offers **Fight**, **Flee**, or **Surrender** (menu 54).
 
 **Flee** succeeds when the protagonist's own Luck plus Navigation Level is
 greater than `random(150)` (`0x14EF6–0x14F0E`), “We managed to escape!”
 (message 822); the battle is skipped and ends with code 3. Otherwise
 “Commodore, there's nowhere to run! We have no choice but to fight.” (824),
-and the battle begins.
+and the battle begins. The same mate speaks both.
 
-**Surrender** skips the battle and ends it with code 9 (`0x14F3D–0x15066`):
+**Surrender** skips the battle and ends it with code 9 (`0x14F3D–0x15066`);
+the enemy commodore speaks:
 
 - A national fleet announces, “You are wise to surrender. According to our
   law, we'll take away 2/3 of your gold and cargo.” (825). In fact the player
@@ -496,6 +741,23 @@ and the battle begins.
 Water, food, lumber, and shot are never taken. After a surrender the enemy
 fleet heads back to its home port, unless it is a story fleet (fleet flag
 `0x40`, which scenario scripts set) or is pursuing someone (`0x15C9F`).
+
+When the dialogue ends the battle (an accepted offer, a successful flight, or
+a surrender), the pre-battle routine returns −1 at once (`0x15102`), so the
+Loyalty withdrawal below does not run and no end-of-battle experience is
+given.
+
+### Mates who withdraw
+
+When the battle goes ahead, the
+[Loyalty withdrawal](sailors.md#mate-loyalty) runs next (`0x14C3E`), but
+only when the enemy side's strength is at least 20 more than the player
+side's. Each of the player's ships after the flagship whose captain has
+Loyalty below 40 then leaves: the captain speaks one of messages 787–790,
+chosen by personality bits 6–7, in the lower panel with their portrait; they
+are dismissed with their ship (`0x13EE5`), and the ship is removed from the
+battle and the map. The strength totals and the end-of-battle experience
+base were already taken, so the ship still counts in them.
 
 ### After fleeing or surrendering
 
@@ -515,6 +777,15 @@ and personal-Friendship changes are applied against that fleet's nation as if
 it had been fought, including the same-nation shame and exile checks. The
 end-of-battle experience is zero, because its base is the pre-battle
 routine's result, −1 for a cancelled battle, divided by 5. The scenario's after-battle routes also still run (`0x16191`), as after any other battle.
+
+Before the battle the protagonist's `0xA1` route runs first; if it cancels,
+the shared route is not run (`0x150E5–0x15105`). After the battle the shared
+`0xA2` route runs first (`0x16191–0x161A2`). Each route's find routine clears
+its variable 63 first (`0x38FF4–0x3929C`); variable 63 set by either `0xA1`
+route skips Fight/Flee/Surrender and the merchant offer (`0x15121`). Against a
+pirate, the merchant-offer path shows message 810 when a shared `0xA1` route
+exists, else 811 (`0x14D56`). When the game is over, everything after the
+ending, both `0xA2` routes included, is skipped (`0x16101`).
 
 ### Journal entry
 
@@ -547,9 +818,16 @@ journal is shown (`0x2367A`), from the date and a handler chosen by type
 |    0 | Arrival, `0x212FA`         | 366                                                 | days at sea (`DS:0x2BAA`), port                   |
 |    1 | Harbor restock, `0x2D7AF`  | 367                                                 | days, port                                        |
 |    9 | Port sighted, `0x36C3C`    | 381, “Discovered %s.”                               | port                                              |
+|    2 | Battle, `0x15B30`/`0x15C73`/`0x15CCA` | 837, “Our fleet had a battle with a %s %s, %s.” | opponent's fleet ID (sailor `+0x24`), phrase |
 |   12 | Market purchase, `0x2A087` | 384, “Bought %d %s of %s for %ld gold pieces each.” | goods, price (high word, then low word), quantity |
 
-The display also handles types 2 and 13–18 (`0x23815`, `0x238FA–0x23A37`);
+In a battle entry the nation is the adjective `DS:0xA3A[id / 10]`, the kind is
+MENU entry 52 (“Ship” for an ID of 60 or more or ending in 0, “Merchant ship”
+for 1–4, “Battle ship” for 5–9), and the phrase is MENU entry 53: 0 for a
+victory or a fleeing enemy, 1 for nightfall, 2 for fleeing or surrender
+(`0x23815`).
+
+The display also handles types 13–18 (`0x23815`, `0x238FA–0x23A37`);
 types 3–8, 10 and 11 print nothing.
 
 ## Spoils of victory
@@ -830,8 +1108,9 @@ the battle; if none is in reach, the ship ends its turn without attacking.
 
 **Moving and attacking.** When the destination recorded a facing, the path
 (`0x136CD`) must arrive with that facing, so the ship ends with a target in
-its broadside arc. Otherwise it takes the course with the fewest turns, trying
-left, straight, then right. A ship that stays in its hex only turns in place,
+its broadside arc; of several such courses the last one found, trying left,
+straight, then right at each step, wins. Otherwise it takes the course with
+the fewest turns, the first found on ties. A ship that stays in its hex only turns in place,
 to the recorded facing or else toward its target (`0x137F5`); this costs no
 points and does not empty the turn charge (`0xF7AD`). It then attacks once
 when its hex recorded a facing: its own target if the player set one,

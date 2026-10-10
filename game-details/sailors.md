@@ -226,11 +226,13 @@ same experience and wage calculation without that Loyalty restriction.
 
 Loyalty has two independently decoded low-value consequences:
 
-- At the start of a naval battle, a mate with Loyalty below **40** who
-  captains one of the player's secondary ships withdraws from the battle and
-  permanently leaves the player's service. This check itself is
-  deterministic; the exact farewell line is selected from four variants by
-  the mate's personality bits.
+- At the start of a naval battle against a side at least 20 strength points
+  stronger than the player's (`0x14C3E`; see
+  [Mates who withdraw](naval-battle.md#mates-who-withdraw)), a mate with
+  Loyalty below **40** who captains one of the player's secondary ships
+  withdraws from the battle and permanently leaves the player's service.
+  This check itself is deterministic; the exact farewell line is selected
+  from four variants by the mate's personality bits 6–7.
 - A separate [Harbor-entry event](buildings.md#mate-departure-on-harbor-entry)
   can make a mate with Loyalty below **30** ask to leave the fleet. Persuading
   the mate to remain requires accepting a raise and sets Loyalty to 30.

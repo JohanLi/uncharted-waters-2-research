@@ -400,6 +400,16 @@ and dispatches through a jump table at `0x2670F`:
 |     6 | Battle      | `0x26754`                                                                      |
 |     7 | Options     | `0x2675B`                                                                      |
 
+The menu opens against the side tabs: `0x262AE` places it at column 74 less
+its width and, for the sea menu, at y 176 (`0x266F5`). In port the same
+handler runs from the town's Navigation tab with every command but Options
+disabled (`0x266F0`). **Options** (`0x26D57`) opens `MENU.DAT` 20 at y 248 the
+same way: Settings (`0x26C63`), Save and Load (`FC4:0x6DA8`), and End Game
+(`0x26D18`). The Settings window is drawn at (192, 32): Graphics Delay and BGM
+as ON/OFF values at x 336, then Mouse Delay, Scroll Range, and Sail Delay as
+sliders between arrows at x 312 and 400, the labels at x 208 on rows 32
+pixels apart from y 48; the picker moves over the eight value and arrow cells.
+
 ### Steering
 
 Each tick's input (`0x268E4`, called from `0x204F9`) reads a table of 13
