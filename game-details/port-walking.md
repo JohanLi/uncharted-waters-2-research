@@ -39,7 +39,24 @@ The town loop at `0x20BDC` turns input into one of four directions (1 up,
   the input's key code equals its own or the pointer is inside its rectangle.
   Entries 0–3 and 4–7 give the four directions and override the mouse
   direction; entries 8–11 call the side-panel commands through the far
-  pointers at `DS:0xAA08`.
+  pointers at `DS:0xAA08`, indexed by the entry number itself, so the four
+  handlers are the table's entries 8–11 (`0x20BB3`): Fleet `0x26365`, Crew
+  `0x26480`, Info `0x2652C`, and Navigation `0x266AC`, the sea menu. Each
+  opens its menu against the tabs, at column 74 less the menu's width
+  (`0x262AE`), at y 48, 136, 196, and 176 (`0x2639B`, `0x264B5`, `0x265D4`,
+  `0x266F5`).
+
+  | Entries | Rectangle (x1, y1, x2, y2)                        | Keys                     |
+  | ------- | ------------------------------------------------- | ------------------------ |
+  | 0, 4    | (528, 304, 576, 344), the compass's up arrow      | `8`, scan code `0x1E`    |
+  | 1, 5    | (552, 336, 600, 376), right                       | `6`, `0x1C`              |
+  | 2, 6    | (528, 368, 576, 408), down                        | `2`, `0x1F`              |
+  | 3, 7    | (504, 336, 552, 376), left                        | `4`, `0x1D`              |
+  | 8–11    | the tabs at x 618–639, y 72, 152, 232, 312, 80 tall | `/`, `*`, `+`, `=` (F1–F4) |
+
+  The compass in the side panel is therefore the four direction arrows; the
+  first matching entry wins where the rectangles overlap. A pointer inside a
+  rectangle counts only with an input (`0x20B86`).
 
 There are no diagonal moves. The loop sets one of five pointer shapes, one
 for no direction and one for each direction (the table at `[bp−0x18]`, filled
