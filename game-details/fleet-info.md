@@ -156,6 +156,54 @@ The resulting fleet value is **Battles 2,324** (`780 + 1,050 + 494`).
 
 The slot and instance structure is also documented in [fleets.md](fleets.md).
 
+## Assign Crew
+
+The Crew tab's **Assign Crew** (`MAIN.EXE 0x249A0`) sets each ship's
+navigation and lookout shares. It first draws the crew list (`0x23BF6`): a
+window at x 104–448 from y 32, `(n + 2) × 24` tall for `n` active ships in
+slot order (`FC4:0x2E8A`). The header “Nav. Look Cmbat Load Spd”
+(`DS:0xAD38`) is at (208, 48) in blue, and row `i` at y `72 + 24i` holds the
+ship's name at x 120 and, from x 216, `"%3d  %3d  %3d  %3d%% %3d"`
+(`DS:0xAD5B`):
+
+```text
+Nav.  = floor(navigation % × crew / 100)
+Look  = floor(lookout % × crew / 100)
+Cmbat = crew − Nav. − Look
+Load  = trunc(100 × (crew + guns + cargo load) / model capacity)
+Spd   = trunc((S + 1) / 2)
+```
+
+The cargo load is the remake's ship load (`0:0xB08A`: water and food in
+tenths, lumber, shot and goods); the capacity is the model's (stats word
+`+6`). `S` comes from `FC4:0xC0DC`, the at-sea speed formula with no wind or
+heading: `f = floor(power × T × 4 / 150)` with `T` the wind table
+`DS:0x8DA` read by **ship type** rather than sail type, then the navigation
+ratio, the load factor from the list's load (its minimum unsigned, so a
+negative factor counts as 150), Navigation Level (`min(30, …)`) and
+Seamanship (`min(40, floor(f × Sea / 75))`). There is no Tacking term and no
+oared minimum. A ship whose captain byte (supply `+0x1B`) has bit `0x80`
+shows “Scrapped” in red instead (`DS:0xAD75`) and can still be picked.
+
+The rows are picked with the grid picker (`FC4:0x43B1`; hit boxes x 120–424,
+16 tall). Choosing one opens the crew panel (`0x24897`) at x 408–632,
+y 224–352, while the list stays on screen, redrawn after the panel closes.
+Row `r` (Navigation, Lookout, Combat) has its label at (416, 240 + 32r),
+arrows at x 504 and 592 (`DATA1.014` pictures `0x390` and `0x410`), a bar at
+column 65, y `244 + 32r` (`0:0x90DF`: light-blue ends, the value 0–100 as
+half a pixel per point of red over blue), and `"%4d :%3d%%"` (`DS:0xAE0C`)
+at (512, 256 + 32r): the crew count and percentage as in the list. The six
+arrow cells (21 × 16) are picked with the same picker; a press
+(`0x24864`) on a row's arrow changes that row's share `a`, with `b` the next
+row and `c` the one after (Navigation → Lookout → Combat → Navigation):
+
+- the right arrow raises `a` by 1 if it is below 100, and lowers `b` by 1,
+  or `c` if `b` is 0;
+- the left arrow lowers `a` by 1 if it is above 0, and raises `b` by 1.
+
+Every press writes supply `+8`/`+9` at once; closing the panel (Esc, `0`, or
+the right button) keeps the changes.
+
 ## Open questions
 
 None remain.

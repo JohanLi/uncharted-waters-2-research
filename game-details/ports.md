@@ -271,7 +271,7 @@ address appears in no pointer table.
 
 ## Port screen side panel
 
-The side panels are drawn by `MAIN.EXE 0xD9DC` in the panel font (below).
+The side panels are drawn by `MAIN.EXE 0xD9DC` in the game's font (below).
 Text positions are in 8-pixel columns and pixel rows, set through `0x9ACE`;
 text is drawn in colour 0 on an opaque background of colour 7
 (`ESC C0 ESC B7`, `DS:0x8FA7`).
@@ -295,13 +295,38 @@ text is drawn in colour 0 on an opaque background of colour 7
 Gothic captions are part of the frame picture. The opaque text background
 covers a stray dot in the frame picture after the month.
 
-### Panel font
+### Text and font
 
-`MAIN.EXE`'s text routine (`0x97C7` → `0x9D90` → `0x9B7E`) takes the glyph
-for codes 0x20–0x7F from its own table, `DS:0x865A + 16 × code` (`0x9AFB`):
-96 glyphs of 8 × 16 pixels at `DS:0x885A–0x8E59` (file offset `0x443CA`),
-most significant bit leftmost. Its capitals are 13 rows tall, taller than
-those of the VGA font. Codes 0x80–0x9F and 0xE0–0xFC are taken as the first
+`MAIN.EXE`'s text routine (`0x97C7` → `0x9D90` → `0x9B7E`) draws every
+window and panel: dialogue, menus, lists, and the side panels. It takes the
+glyph for codes 0x20–0x7F from its own table, `DS:0x865A + 16 × code`
+(`0x9AFB`): 96 glyphs of 8 × 16 pixels at `DS:0x885A–0x8E59` (file offset
+`0x443CA`), most significant bit leftmost. Its capitals are 13 rows tall,
+taller than those of the VGA font. The font draws `|` as a curled mark, which
+is how the `|Name|` speaker labels of the messages appear, and `` ` `` as a
+down arrow.
+
+The style byte `DS:0x8801` is set to 1, bold, at start-up (`0x1C632`, in the
+initialisation at `0x1C616`), so all text is bold: style 1 ORs each glyph row
+with itself shifted one pixel left (`0x9B22`, `shl`), before the glyph is
+drawn (`0x9BB0`). Only `ESC F n` changes the style (`0x9F65`). No string in
+`MAIN.EXE` contains it; the message files use `ESC F4` (shadow) around a few
+labels and switch back with `ESC F1`, such as `ESC C6 ESC F4 Navigation:%3d
+ESC C0 ESC F1` in `MESSAGE2.DAT`. A speaker label is part of the message
+text, so it wraps with the line like any other word.
+
+A message that waits for a key (`FC4:0x4638`) shows a caret: the 16 × 16
+stencil at `DATA1.014` offset `0x20B0`, a hollow downward triangle, drawn in
+colour 2 (red, blit mode `0x402`, `0x198D6`). Its left edge is at the text
+window's centre column, `left + (right − left) / 2` from `DS:0x87F8` and
+`0x87FA`, and it sits on the cursor's line when the cursor is at the start of
+a line, otherwise 24 pixels lower (`0x1987E–0x198B4`; at most column 78 and
+y 384). Messages do not end with a line break, so the caret normally appears
+24 pixels below the top of the last line, 6 more than the 18-pixel line
+spacing. It blinks until a key or click: drawn, then the saved background
+restored, each for `0:0x5841(4)` (`0x198F9–0x1992E`). That routine waits
+`0xADFD(6 × n)`, the timer wait that also ends on Enter, Esc, `0` or a
+click, so each phase lasts 24 timer units, about 0.4 seconds. Codes 0x80–0x9F and 0xE0–0xFC are taken as the first
 byte of a two-byte character (`0x9DE8–0x9E06`), whose conversion `0x9A4C` is
 a stub. Escape sequences: `ESC = x y` position, `ESC C n` text colour,
 `ESC B n` background colour (0 = transparent), `ESC M n` default background,

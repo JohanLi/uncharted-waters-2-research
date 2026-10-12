@@ -245,7 +245,10 @@ The inputs are:
 - **Load factor** is `min(150, 180 − floor(100 × load / capacity))`, from
   supply word `+0x0A` and model capacity `+0x06`. Because the game computes
   `−100 × load` in 16 bits (`0x370EE`), a ship loaded with more than 327 units
-  gets an unrelated factor, usually the maximum of 150.
+  gets an unrelated factor, usually the maximum of 150. The minimum is
+  unsigned (`0:0x4B54`, a `jbe` compare, called at `0x37104`), so a factor
+  that comes out negative, when the load is more than 1.8 times the
+  capacity, also counts as 150.
 - **Navigation Level** (`+0x1C`) and **Seamanship** (`+0x15`) belong to the
   ship's captain, the sailor in supply byte `+0x1B`.
 
@@ -406,9 +409,14 @@ handler runs from the town's Navigation tab with every command but Options
 disabled (`0x266F0`). **Options** (`0x26D57`) opens `MENU.DAT` 20 at y 248 the
 same way: Settings (`0x26C63`), Save and Load (`FC4:0x6DA8`), and End Game
 (`0x26D18`). The Settings window is drawn at (192, 32): Graphics Delay and BGM
-as ON/OFF values at x 336, then Mouse Delay, Scroll Range, and Sail Delay as
+as ON/OFF values at x 336 (save byte `0x00` bits `0x01` and `0x04`,
+toggled at `0x26B69` and `0x26B7E`), then Mouse Delay, Scroll Range, and Sail Delay as
 sliders between arrows at x 312 and 400, the labels at x 208 on rows 32
 pixels apart from y 48; the picker moves over the eight value and arrow cells.
+Graphics Delay paces the town loop ([Walking in port](port-walking.md#input)).
+The bit is also tested at `0xC848`, `0xCCF2`, `0xE874`, `0xE9D1`, `0xEAC9`,
+`0x11B86`, `0x2D5A3`, `0x2D746`, and `0x2D786`, which are not traced here; at
+`0x2D746`, for one, the palette fade `0:0x98A7` runs only when it is off.
 
 ### Steering
 
@@ -760,7 +768,7 @@ The first two sit under the captions Power and Tacking, so the bar captioned
 Power shows the byte this page calls tacking. A divisor of 0 counts as 1
 (`0xD6E7–0xD6F6`).
 
-All numbers are in the panel font ([Ports](ports.md#panel-font)), black on
+All numbers are in the game's font ([Ports](ports.md#text-and-font)), black on
 colour 7 (`DS:0x8F7D`):
 
 | Column, y | Format | Value                                                 |
