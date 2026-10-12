@@ -1868,6 +1868,14 @@ religious-building routine substitutes record 20 for a Mosque.
 |  10 | Mosque                |                 20 | `graph-020-136x112.png` |
 |  11 | House of Fortune      |                 17 | `graph-017-136x112.png` |
 
+Entering a building (`0x209F7` → `0:0x8D4E`) clears the screen, draws the
+backdrop, and draws only the vendor image at (104, 16), record building ID + 6
+or 20 for a Mosque (`0xE37B`, `0xE370`). The text window beside it is not
+part of that picture: each building's handler opens it when it greets, after
+the scenario routes have run (`0x20A1B–0x20A4C`). A story scene played on
+entry, such as João's first visit to the Lisbon residence, therefore shows
+the vendor image alone until the vendor speaks.
+
 The vendor image occupies the upper dialogue panel. A story character can
 visually cover that presentation with an upper scenario panel, but the vendor
 and story portrait are not displayed there simultaneously. The lower dialogue

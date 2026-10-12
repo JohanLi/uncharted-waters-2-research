@@ -159,7 +159,13 @@ other move attempt adds one, up to 10, whether or not the player can move.
 Entering a town sets it to 10 (`0x0E198`). While the counter is below 10, the
 townsperson is an obstacle that the player walks around; see
 [Walking in port](port-walking.md#the-move-routine). The line depends on who
-was bumped, not on where they are standing. Message numbers below are combined zero-based
+was bumped, not on where they are standing. The line is shown in a window of
+fixed size, whatever its length: `0xCB6C` (called at `0xB834`) saves the
+background and opens a window at column 16, y 160, 36 columns by 128 pixels
+(x 128–416, y 160–288). Its text runs from column 18 to column 49
+(`0xCAB2–0xCAC3`: the window's column + 2 and column + width − 3), so lines
+wrap at 32 characters, starting 16 pixels below the window's top
+(`0xCAC6`). Message numbers below are combined zero-based
 indices: 0–999 are `MESSAGE.DAT` and 1000–1422 are `MESSAGE2.DAT` minus 1,000.
 
 | Townsperson             | Message               | Content                                                            |

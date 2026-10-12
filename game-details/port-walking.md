@@ -30,10 +30,20 @@ rule).
 The town loop at `0x20BDC` turns input into one of four directions (1 up,
 2 right, 3 down, 4 left, or 0 for none):
 
-- **Mouse** (`0x20C37–0x20C82`): the pointer's horizontal and vertical offsets
-  from the player are compared. If neither is more than 8, there is no move.
-  Otherwise the larger one decides: right or left for the horizontal offset,
-  down or up for the vertical one; a tie goes to the vertical.
+- **Mouse** (`0x20C37–0x20C82`): each pass reads the mouse driver's motion
+  counters (`0:0x4DB7`, INT 33h function 0Bh), the distance the mouse has
+  moved since the last read, not the pointer's position. If neither axis is
+  more than 8, the direction is kept. Otherwise the larger one decides: right
+  or left for horizontal motion, down or up for vertical; a tie goes to the
+  vertical. The direction (`di`) persists from pass to pass, so the mouse
+  sets a heading that holds until it moves again. Entering the loop clears
+  both: the counters are read and discarded (`0x20C0A`) and the direction
+  starts at none (`0x20BFD`). The loop is entered afresh after every building
+  visit (`0x20930` returning nonzero ends it at `0x20D05`), so leaving a
+  building always shows the plain pointer and walks nowhere until the mouse
+  moves. The side-panel commands and townspeople run inside the loop and keep
+  the direction. The pointer position itself comes from function 3
+  (`0:0x4CCE`) and is used only for the click areas below.
 - **Keyboard and click areas** (`0x20B3E`): a table of twelve 9-byte entries at
   `DS:0xA984` holds a screen rectangle and a key code. An entry matches when
   the input's key code equals its own or the pointer is inside its rectangle.
@@ -61,6 +71,14 @@ The town loop at `0x20BDC` turns input into one of four directions (1 up,
 There are no diagonal moves. The loop sets one of five pointer shapes, one
 for no direction and one for each direction (the table at `[bp−0x18]`, filled
 at `0x20BE4–0x20BF8` and selected at `0x20CAC–0x20CCB`).
+
+Each pass of the loop is paced by a timer started at `0x20CDF` and awaited at
+`0x20D68`: 8 timer units when Graphics Delay is on (save byte `0x00` bit
+`0x01`, set in the new-game data), 4 when it is off (`0x20CD0–0x20CDC`). A
+pass makes at most one step and gives the townspeople one turn (the walker
+routine `0:0x5FA6`, called at `0x20D51` when the player does not move), so
+switching Graphics Delay off doubles the walking speed, from 8 timer units
+per tile to 4.
 
 The player moves only while there is an input (`[bp−1]`, tested at `0x20CE5`)
 and a direction. The loop then calls the move routine with the direction
@@ -150,5 +168,5 @@ walks into speaks at once.
 
 ## Open questions
 
-- The exact reference point and unit of the mouse offsets: they come from
-  `0:4DB7` and `0:4CCE`, which are not traced here.
+- How many mouse-driver units (mickeys) a given hand movement produces,
+  which sets how quick a flick the threshold of 8 per pass needs.
