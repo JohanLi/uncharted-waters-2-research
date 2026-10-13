@@ -5,10 +5,11 @@ balance meter at 100. Damage dealt by one side moves the meter toward 200,
 while damage dealt by the other moves it toward 0; reaching either endpoint
 ends the fight.
 
-The combatants alternate attacking. On each exchange, the attacker chooses
-**Thrust**, **Slash**, or **Strike**, and the defender chooses **Parry**,
-**Block**, or **Dodge**. The game offers advice on which moves to use against
-each attack and defense.
+The combatants alternate attacking for up to 20 exchanges (10 turns). On each
+exchange, the attacker chooses **Thrust**, **Slash**, or **Strike**, and the
+defender chooses **Parry**, **Block**, or **Dodge**. The game's tips suggest
+counters for each attack and defense, but the damage routine never compares
+the two moves.
 Swordsmanship, Battle Level, the equipped weapon and armor, random rolls, and
 the combatants' preceding moves all affect the damage actually applied.
 
@@ -35,6 +36,10 @@ player flagship's current crew + random(player Luck) >= enemy flagship's current
 `random(Luck)` is uniformly distributed from 0 through `Luck - 1`. If Luck is
 zero, it returns zero. Failure displays "The enemy's crew has blocked your
 attempt."
+
+An enemy flagship can also challenge the player's flagship when it boards
+(`0x13D0E`); the game then shows message 99, "The enemy's commodore proposed a
+duel.", and waits for a key before the duel (`0x18006–0x18017`).
 
 Let `P` be the player's current flagship crew, `E` the enemy's current
 flagship crew, and `L` the protagonist's Luck. The exact success chance is:
@@ -175,11 +180,13 @@ For the attacker, let:
 
 - `S` = Swordsmanship;
 - `BL` = Battle Level;
-- `W` = equipped weapon rating, or 0;
+- `W` = equipped weapon rating, or 0 (a weapon counts as equipped when `W`
+  is at least 1, `0x177DE`);
 - `a` = current attack (`0` Thrust, `1` Slash, `2` Strike);
 - `pa` = the attacker's preceding move (`0`–`2`, initially `1`); and
-- `favored` = whether a fencing sword is using Thrust, a curved sword is using
-  Slash, or a heavy sword is using Strike.
+- `favored` = whether the weapon family equals `a + 1`: a fencing sword
+  (family 1) using Thrust, a curved sword (2) using Slash, or a heavy sword
+  (3) using Strike (`0x177F6`). Straight swords and no weapon are family 0.
 
 ```text
 base power = floor(S / 2) + floor(S × BL / 50)
@@ -206,13 +213,17 @@ defense score = R + min(DBL, 20) + 5 × (2 - d)
 
 ordinary damage = min(
                     50,
-                    floor((100 - defense score) × attack power / 100)
+                    trunc((100 - defense score) × attack power / 100)
                   )
 
 damage = ordinary damage + random(floor(BL / 2))
 
-negation score = 2 × (5 + 2 × (2 - d)) × (4 - pd) - floor(R / 2)
+negation score = 2 × (2 × d + 5) × (4 - pd) - floor(R / 2)
 ```
+
+The negation score is computed at `0x178A1–0x178BC`. Dodge (`d = 2`)
+therefore negates most often and Parry least: without armour and with a
+preceding move of 1, the scores are 30, 42 and 54.
 
 The hit is reduced to zero when `negation score >= random(100)`; otherwise the
 calculated damage is applied to the duel balance meter. The comparison is an
@@ -225,7 +236,8 @@ a new choice, it shifts the history left by two bits. On the first exchange,
 both previous-move values are initialized to `1`; no earlier moves exist.
 After that, because attack and defense roles alternate, `pa` is the attacker's
 defense from the preceding exchange and `pd` is the defender's preceding
-attack.
+attack. The histories are `DS:0xA1AE` (the challenger's) and `DS:0xA1AF`
+(`0x1687B`, `0x16709`).
 
 ## AI / NPC Captains
 
@@ -235,6 +247,11 @@ NPC duel equipment is generated from the captain's levels rather than read
 from an inventory.
 
 Armor depends on Navigation Level:
+
+The setup routine (`0x178CC`) fills a 7-byte record for each side
+(`DS:0xA482` for the challenger, `DS:0xA489` for the other): weapon ID, armor
+ID, weapon family, weapon rating (word), armor rating (word). A side without
+a weapon has family 0.
 
 | Navigation Level | Armor      | Rating |
 | ---------------: | ---------- | -----: |
@@ -266,8 +283,19 @@ captain's actual Navigation Level for the modulo operation.
 ### Move tendencies
 
 NPCs use all three attacks and all three defenses. Every selection makes a
-fresh `random(10)` roll; moves are not drawn from a finite hand and do not run
-out.
+fresh roll `r = random(10)`; moves are not drawn from a finite hand and do not
+run out. The move is 0 (Thrust or Parry) when `r < low`, 2 (Strike or Dodge)
+when `r > high`, and 1 otherwise:
+
+| Choice                      | `low` | `high` |
+| --------------------------- | ----: | -----: |
+| Attack, fencing sword       |     6 |      7 |
+| Attack, curved sword        |     2 |      7 |
+| Attack, heavy sword         |     2 |      3 |
+| Attack, straight or none    |     3 |      6 |
+| Defense, armor 60 or more   |     6 |      7 |
+| Defense, armor 20–59        |     2 |      7 |
+| Defense, armor below 20     |     2 |      3 |
 
 Attack probabilities depend on weapon family:
 
@@ -294,6 +322,111 @@ weapon table above.
 The AI selection routine is at `MAIN.EXE` `0x16709–0x167EA`, and NPC equipment
 selection is at `0x178CC–0x17A4D`.
 
+## The duel screen
+
+The duel runs at `0x17DD4`. The screen (`0x17A4E`) is `GRAPH.DAT` record 23
+at (0, 0), with record 24 at (80, 168) when the duel is in port (`DS:0x0E32`
+is not `0xFF`). Its colours are the battle palette's entries 0–7.
+
+| Element            | Position                                   | Code                       |
+| ------------------ | ------------------------------------------ | -------------------------- |
+| Names, `%12s %s`   | opponent (96, 24), protagonist (336, 24)   | `0x17A4E`                  |
+| Portraits          | opponent (96, 56), protagonist (480, 56)   | `0:7A5A`                   |
+| Opponent's weapon and armor, `%s` | (200, 56), (200, 80)        | `0x17A4E`                  |
+| Protagonist's weapon and armor, `%14s` | (328, 56), (328, 80)   | `0x17A4E`                  |
+| Turn box           | cleared at (208, 112), 224 × 48, colour 7; text from (224, 128), columns 28–53 | `0x166CC` |
+| Balance numbers, `%3d   ` | opponent's points (184, 360), protagonist's (408, 360) | `0x168DF` |
+| Damage, `-%d` in colour 2 | (208, 360) on the opponent's side, (432, 360) on the protagonist's | `0x1721A` |
+| Move picker        | window (560, 240), 80 × 96, rows 24 pixels apart | `0x167EB`, `0x16833` → `0x194DE` |
+
+The turn box shows `DS:0xA4B4`, "Turn  %2d  :  Attack", or message 1376 with
+"Defense"; the colon is a two-byte Shift-JIS character. The picker cannot be
+cancelled.
+
+### The fight
+
+The fight is drawn in a window 24 cells (192 pixels) wide and 120 rows high
+over a strip of 48 cells: `DATA1.000` at sea, `DATA1.001` in port, shown from
+(128, 176). The window sits at strip cell `pos + 7`, on screen at
+(184 + 8 × pos, 176), where `pos` is the opponent's points divided by 20
+(`0x16948`). Each frame (`0x16E9A`) copies the strip under the window, draws
+the protagonist's fencer, then the opponent's, then at sea the foreground
+pictures `DATA1.002` and `DATA1.003` at strip cells 0–8 and 39–47 (`0x16C99`).
+
+All these pictures are cells of 8 pixels in 4 bytes: colour bits 0, 1 and 2,
+then a mask. Where the mask bit is set, the colour is ORed onto the picture
+below; elsewhere it replaces it (`0:22C9`).
+
+The protagonist's fencer is `IAP<n>.LZW`, where n is the protagonist ID plus 1;
+the opponent's is always `IAE1.LZW`. Each has 35 members: pose p uses member
+5p for the body and member 5p + 1 + family for the weapon, drawn over it.
+Pose 0 is the idle set (frames 0 and 1 walking, 2 hit, 3 down, 4 and 5
+victory); poses 1–3 are Thrust, Slash and Strike; poses 4–6 are Parry, Block
+and Dodge. A member starts with 8-byte frame entries (x in cells, y in rows,
+width in cells, height in rows, big-endian data offset); the count is the
+first offset divided by 8. Frame numbers 6 and above in the animations mean
+frame n − 6 of the loaded move pose. A fencer is drawn at its frame's x and y
+plus its offsets (`DS:0xA1B4`/`0xA1B6` for the protagonist, `0xA1B8`/`0xA1BA`
+for the opponent). The rest stance is x −1 for the protagonist and +1 for the
+opponent.
+
+Timings are in timer units of `0:57BE`.
+
+1. **Walk-in (`0x1710B`).** The opponent's half window (12 cells) starts at
+   pos −7 and the protagonist's at 17. After each draw, the fencer farther
+   from the final pos steps one cell (both when level), wait 4. During the
+   walk the protagonist's x offset is +1 and the opponent's −1. Then both
+   offsets are 0 for one frame (wait 4) and the rest stance shows frames
+   0, 1, 0 (wait 4 each).
+2. **Exchanges.** Exchange i (0–19) is attacked by the challenger when i is
+   even. The computer chooses first (`0x16709`), then the turn box and the
+   picker (`0x1687B`), then the damage (`0x17769`).
+3. **Exchange animation (`0x175C0`).** Each side loads the pose for its move
+   (attack + 1, defense + 4) and plays six frames, four on a hit, 2 units each.
+   Each byte is (x code << 4) | frame, with x = code − 1 for the protagonist
+   and −(code − 1) for the opponent:
+
+   | Move   | Bytes             |
+   | ------ | ----------------- |
+   | Thrust | 06 01 07 08 00 01 |
+   | Slash  | 06 07 08 09 00 01 |
+   | Strike | 06 07 08 08 00 01 |
+   | Parry  | 01 16 17 17 18 11 |
+   | Block  | 01 16 17 17 18 11 |
+   | Dodge  | 06 17 27 28 28 21 |
+
+   On a hit, from the fourth frame the defender shows idle frame 2, 8 rows up.
+4. **A hit (`0x173F9`).** The challenger's hits add `min(damage, 200 − balance)`
+   to the balance `DS:0xA0A4` (the challenger's points); the other side's
+   subtract `min(damage, balance)`. The window then steps a cell at a time to
+   its new pos, the attacker walking (frames 0, 1) and the defender on frame 2,
+   8 rows up on odd steps, wait 4 each. Then the defender shows frame 3 and the
+   attacker frame 0 for four more steps of 4. The damage blinks: "-n" on even
+   steps, blank on odd ones, for steps 0–7.
+5. **Knock-out (`0x172B9`).** At 0 or 200 the window steps 7 cells past its end
+   with the winner walking and the loser on frame 2, lifted by 0, 8, 8, 8 rows
+   and lowered by 8, 8, 8 (wait 4 each). Then the loser shows frame 3, and the
+   winner alternates frames 4 and 5 for 16 frames of 4 units.
+6. **Time-out.** After 20 exchanges: frames 0, 1, 0 in the rest stance,
+   waiting 4, 4 and 20 units. No message is shown.
+
+### After the duel
+
+In a naval battle (`0x17FFB`) the opponent is remembered in `DS:0xA0A6`, and
+the balance is reset to 100 only for a new opponent, so a timed-out duel
+resumes. The challenger is the attacking ship's captain. After the duel
+(`0x17ECF`), a win clears the turn box and shows message 83, "We defeated the
+opponent.", with the caret; it gives the protagonist 10 × the opponent's
+Battle Level in battle experience, and a loss or time-out 3 ×, through the
+shared level routine (`0x20E14`). If a level is gained, or the opponent's
+Swordsmanship is at least the protagonist's, the protagonist's Swordsmanship
+and Courage each gain `random(3)`, capped at 100. A decided duel ends the
+battle (`0x18069–0x180A4`).
+
+A scripted duel (`E8`, `0x37E8E` → `0x17F8A`) makes the protagonist the
+challenger and starts the balance at 100, so the value the scripts read back
+through system selector 6 is the protagonist's points.
+
 ## Open questions
 
-None remain.
+- The pointer shape `0x2570` stored in `DS:0x08D8` at `0x17DFE` during the duel.

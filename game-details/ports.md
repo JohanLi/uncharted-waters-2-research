@@ -326,7 +326,132 @@ y 384). Messages do not end with a line break, so the caret normally appears
 spacing. It blinks until a key or click: drawn, then the saved background
 restored, each for `0:0x5841(4)` (`0x198F9–0x1992E`). That routine waits
 `0xADFD(6 × n)`, the timer wait that also ends on Enter, Esc, `0` or a
-click, so each phase lasts 24 timer units, about 0.4 seconds. Codes 0x80–0x9F and 0xE0–0xFC are taken as the first
+click, so each phase lasts 24 timer units, about 0.4 seconds.
+
+A yes/no question (`FC4:0x4529`, `0x19769`) shows `GRAPH.DAT` record 0, the
+YES and NO buttons, with hit boxes at x + 16 to x + 64 (YES) and x + 80 to
+x + 128 (NO), y + 22 to y + 42 (`0x18F10–0x18F37`). While the mouse pointer is
+still where start-up parked it, at (639, 399) (`0x1C61F`), the buttons go under
+the question's text: x = `(left + right − 10) × 4` from the text window's
+margin columns and y the cursor's line, 24 pixels lower when the cursor is not
+at a line start (`0x197A1–0x197D4`). Otherwise they go at the pointer less
+(40, 32), each part taken off only when the pointer is past it (x above 40,
+y above 32; `0x197D9–0x197E9`). Either way x is at most 496, y at most 344,
+and x is drawn on a column (`0x18F5A`).
+
+The question sets YES as the choice (`DS:0xA568` = 0, `0x1978E`) and runs the
+shared picker `0x1939A` over the two hit boxes. Its cursor (`0x18704`) is
+colour 7 XORed over the chosen hit box only (blit mode `0x107`), not the whole
+button: inside those 48 × 20 pixels black becomes cream, green pink, orange
+blue and red sky, so the chosen button's face is a pink and cream checker with
+blue letters, while the other button and both outer frames stay as drawn.
+Left and right (or `4` and `6`) swap the choice; up and down (`8` and `2`)
+look for another row, find none, and leave it (`0x1928F`, two items in two
+columns). Enter answers the choice; Esc, `0` and the right button answer NO
+(`0x186BA–0x186C8`, `0x193F8–0x1942B`). The pointer alone does not move the
+choice: only while the left button is held does the cursor follow it over the
+buttons (`0x18800`, `0x1924A–0x1927F`), and releasing over a button answers
+it. Released elsewhere it does nothing (`DS:0xA55A` = 0, `0x1919A`). Held
+over the window's top 16 rows (`DS:0xC21C–0xC222`, `0x18F5F–0x18F72`), it
+drags the window.
+
+The window's place is kept in the picker record for type 2 (12 bytes from
+`DS:0xA560 + 12 × 2`: x, y, the largest x and y, 496 and 344, and the draw
+routine `0x18EE6`), clamped with the unsigned minimum `0:0x4B54`. The draw
+routine saves the background (`0x18EBA`), draws the picture at x rounded down
+to a column (`0x18F41–0x18F5A`), and sets the hit boxes from the exact x
+(`0x18F10–0x18F37`), as well as the drag strip x to x + 144, y to y + 16. The
+cursor (`0x18704` → `0:0x63E`) takes its hit box's x as a column too, so it
+always covers the button faces.
+
+While the left button is held and the pointer is not over a button
+(`DS:0xA558` = 0 from `0x18800`), `0x1925E` calls `0x1919A`, which calls the
+drag routine `0x18F7B` when the picker type (`DS:0xA55E`) is not 0 and the
+pointer is in the strip. Dragging:
+
+1. Takes the pointer's offset from the window's corner (`0x18F8C–0x18F98`)
+   and restores the background, taking the window off (`0:0x7690`).
+2. Until the button is released (`0:0x4E52`), reads the pointer and puts a
+   1-pixel rectangle outline, 640 − 496 = 144 by 400 − 344 = 56, at the
+   pointer less the offset, each part 0 when the pointer is not past the
+   offset, at most (496, 344), x rounded down to a column (`0x19015–0x1906D`).
+   The outline is colour 7 XORed onto the screen (`1E5F:0x3924`, four lines
+   plotted by `0:0xB33`, which XORs each plane), so drawing it again at its
+   old place erases it when the place changes (`0x1907A–0x190D9`).
+3. On release erases the outline, reads the pointer again, and sets x and y
+   to the pointer less the offset, this time leaving a part unchanged when
+   the pointer is not past it, then clamps them to (496, 344)
+   (`0x19118–0x19165`).
+4. Redraws the window there through the record's routine and puts the cursor
+   back on the current choice (`0x19169–0x1918C`).
+
+The drag returns 0, so the release does not answer; the question waits for
+the next key or click.
+
+### List windows
+
+`FC4:0x5904` shows a list of `DS:0xC172` rows of list type `ax & 0x3F`
+(`DS:0xC1D8`). Flag `0x80` restores the screen afterwards (`0:0x7690`) and
+flag `0x40` returns the entry of the table at `DS:0x073A` for the chosen row
+(`0x1AC0B–0x1AC2F`). Each type has a 10-byte record at `DS:0x122C`: the
+window's column and top, the text width in columns, the most rows shown, and
+the first row shown.
+
+| Type | Column | Top | Columns | Rows | Type | Column | Top | Columns | Rows |
+| ---: | -----: | --: | ------: | ---: | ---: | -----: | --: | ------: | ---: |
+|    0 |     59 |  32 |      17 |   10 |   10 |     55 |  64 |      20 |   10 |
+|    1 |     54 |  32 |      22 |   10 |   11 |     49 | 112 |      27 |   10 |
+|    2 |     59 | 112 |      17 |   10 |   12 |     58 | 120 |      18 |   10 |
+|    3 |     58 | 120 |      18 |   10 |   13 |     53 | 112 |      19 |   10 |
+|    4 |     52 | 112 |      24 |   10 |   14 |     58 |  64 |      18 |   10 |
+|    5 |     60 | 120 |      16 |   10 |   15 |     69 | 128 |       7 |    6 |
+|    6 |     58 |  32 |      18 |   10 |   16 |     64 | 128 |      12 |   10 |
+|    7 |     49 | 112 |      27 |   10 |   17 |     62 | 128 |      14 |   10 |
+|    8 |     63 | 208 |      12 |    8 |   18 |     50 | 112 |      26 |   10 |
+|    9 |     45 | 176 |      31 |   10 |   19 |     71 | 112 |       5 |   10 |
+
+The window (`0x19F6C`) is (columns + 4) × 8 pixels wide and rows × 16 + 40
+tall for the record's full row count, however few rows there are. It is
+filled with colour 7 (`0:0x906`) and framed with 8 × 8 tiles from
+`DATA1.014` (`0:0x3D2`), with `W` = columns + 2:
+
+| Tile (`DATA1.014`) | Place (column, y from the window's corner)              |
+| ------------------ | ------------------------------------------------------- |
+| `0x39A0`           | (0, 0)                                                  |
+| `0x39C0`           | (1 … W, 0)                                              |
+| `0x39E0`           | (W + 1, 0)                                              |
+| `0x3A00`           | (0, 8 … height − 16)                                    |
+| `0x3A20`           | (W + 1, 8)                                              |
+| `0x3A40`           | (0, 16)                                                 |
+| `0x3A60`           | (1 … W, 16); (1 … W − 2, height − 8)                    |
+| `0x3A80`           | (W + 1, 16)                                             |
+| `0x3AA0`           | (0, 24)                                                 |
+| `0x3AC0`           | (1 … W − 2, 24)                                         |
+| `0x3AE0`           | (W − 1, 24)                                             |
+| `0x3B00`           | (W − 1, 32 … height − 16)                               |
+| `0x3B20`           | (0, height − 8)                                         |
+| `0x3B40`           | (W − 1, height − 8)                                     |
+| `0x3B60`, `0x3B80` | (W, 40 … height − 24) and (W + 1, …): the scroll track  |
+| `0x3BA0` (16 × 16) | (W, 24): the up arrow                                   |
+| `0x3C20` (16 × 16) | (W, height − 16): the down arrow                        |
+
+That makes a title strip 16 pixels tall over a divider, the text area, and a
+scroll bar two columns wide on the right. The title is `MENU.DAT` 47's entry
+for the type, printed with `ESC C0 ESC B7` (`DS:0xA634`), black, at column
+`column + (W + 2 − length) / 2`, 4 pixels down (`0x1A429–0x1A46D`). The text
+margins are column + 1 to column + columns + 4 (`0x19FB2–0x19FBF`). Row `n`
+is written at x (column + 1) × 8, y top + 32 + 16 × n, and its hit box is
+columns × 8 wide from there (`0x1ABCF–0x1ABFE`).
+
+The scroll thumb (`0x19E05`) is drawn in colour 7 from x + 5 to x + 10 of the
+bar's column (`DS:0xC1D2` = (column + W) × 8), inside the track that starts
+at top + 41 (`DS:0xC1D4`) and is rows × 16 − 18 pixels long (`DS:0xC1E8`),
+with colour 0 above and below it. Its length (`DS:0xC1CA`) is the whole track
+when every row fits, else rows × track / count, at least 1; its offset is
+first shown row × (track − length) / (count − rows) (`0x19FCF–0x1A029`,
+`0x19E0A–0x19E31`).
+
+Codes 0x80–0x9F and 0xE0–0xFC are taken as the first
 byte of a two-byte character (`0x9DE8–0x9E06`), whose conversion `0x9A4C` is
 a stub. Escape sequences: `ESC = x y` position, `ESC C n` text colour,
 `ESC B n` background colour (0 = transparent), `ESC M n` default background,
