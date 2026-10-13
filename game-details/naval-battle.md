@@ -196,6 +196,16 @@ column; its y is the pointer less 24 when the pointer is below 24, at most
 recoloured: the 8 × 16 checkerboard at `DATA1.014 0x280` is stamped in colour
 7 over each of its characters (`0x18DA1` → `0:0x6791`).
 
+The same popup serves Info (`MENU.DAT` 51, `0x10718`, cancellable) and the
+encounter's Fight, Flee or Surrender (`MENU.DAT` 54, `0x14ED6`); these three
+are its only callers. Being picker style 1, it can be dragged: a press held
+anywhere in the window but not on an item takes it off and moves an outline
+`(w + 5) × 8` by `16n + 40`, colour 7 XORed, with the pointer, and the
+release redraws it there without choosing
+([Ports](ports.md#which-windows-drag)). The battle's YES/NO windows and its
+list windows drag as in port; the Plan and Order windows use the grid picker
+(`FC4:0x43B1`, style 0) and do not.
+
 | Command | Routine   | Disabled when (`0x10C20`)                 |
 | ------- | --------- | ----------------------------------------- |
 | Move    | `0x1018C` | never                                     |
@@ -209,8 +219,9 @@ recoloured: the 8 × 16 checkerboard at `DATA1.014 0x280` is stamped in colour
 
 **Move** (`0xFD11`) marks the reachable hexes (`0x12FE1`) and shows message
 767. Each pick of a marked neighbour ahead or 60° to either side adds a step,
-picking the course's end removes one, and cancelling finishes; after 10 steps
-it finishes at once. “Is it OK to follow this course?” (768) confirms; No
+picking the course's end removes one, and cancelling finishes; after 10 steps,
+or as soon as no hex is left in reach from the course's end (the marker
+routine `0xFB7A` returns 0, `0xFD6D–0xFD74`), it finishes at once. “Is it OK to follow this course?” (768) confirms; No
 starts over. The ship then moves one hex per step, 8 timer units each
 (`0xF76D`). With no steps, “In what direction should we set our sails?” (769)
 lets the ship turn 60° on the spot (`0xFF26`), which empties its turn charge.
@@ -230,7 +241,10 @@ to a duel?” (770) if it is the first ship of an enemy side. When the duel's
 crew test fails, “The enemy's crew has blocked your attempt.” (771) is shown
 and the ship is boarded.
 
-**Info** (`DS:0x9170`) offers:
+**Info** (`DS:0x9170`) offers the entries below. Before it opens, `0x1061B`
+disables Other Ships when no ship of another side is in view with crew and
+durability and not left, and the Order List when no ship of the player's side
+after the flagship has them (`DS:0xA554` bits `0x20` and `0x40`).
 
 | Entry       | Routine   | Shows                                                                                                                              |
 | ----------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -239,8 +253,19 @@ and the ship is boarded.
 | Own Ships   | `0x10248` | a list of the player's ships still in the battle, then Ship Info `FC4:0xC1D5` at column 6, with the Info palette `DS:0xAB6E`       |
 | Other Fleet | `0x102C5` | the Fleet Info screen of a commander of any other side, allies included; with one, at once, else after a list                      |
 | Other Mates | `0x1032C` | the same commanders, then their Mate Info card                                                                                     |
-| Other Ships | `0x103A4` | a ship picked on the map (`0x110FB`), then its card `FC4:0xC6D2`; repeated until the pick is cancelled                              |
+| Other Ships | `0x103A4` | every ship of the other sides in view, not left, marked with kind 2 (`0xFAE6`; none, and nothing happens); one picked on the map (`0x110FB`, unmarked hexes ignored), then its card `FC4:0xC6D2` under the Info palette; repeated until the pick is cancelled |
 | Order List  | `0x1052E` | a window over the map (`0xC67B`: x 0, y 32, 52 columns, `24n + 32` tall) with, per ship of the player's side still in the battle, its slot number and name in blue (message 1378) at x 8, then “Flagship” (1379) at x 144, or from x 128 its Tactic, Method, and Target strings |
+
+The other ship's card (`FC4:0xC6D2`) is a window at column 6, y 32, 43
+columns × 336, with the model's picture at (64, 48), a colour-2 strip at
+(208, 128), 224 tall, and from x 64: the commander's first name with 886
+“%s's” (y 152), the ship's place from `DS:0xA78` (“Flagship”, “Ship No. 1”…,
+y 176), 887 Guns with the name from `DS:0x9CE` by the status byte's low three
+bits (“None” for 0, y 200), and for a ship with guns 888 loaded guns / gun
+spaces at (152, 224). Then, from (224, 128), 32 pixels apart, 895 with the
+first four labels of MENU.DAT 41 and the long bar `0:0x8F89`/`0:0x906A` at
+column 30, y 148 + 32i, for durability / maximum, Tacking / the model's,
+Power / the model's, and crew / crew bunks (`0x21912–0x21B14`).
 
 **Item** opens the same item routine as the Info tab (`1E5F:0xBD2B`): the
 inventory list, then Equip or Use (`MENU.DAT` 33) against the tabs at y 264
@@ -288,10 +313,14 @@ show the results.
   16 × 20 splash (`0x7840 + 0xC8 × f`, 12 pixels down and, when
   `random(2)` is 0, 16 to the right); the middle group shows only the splash
   when a gun with range 4 or more fires at exactly its range, and only the
-  explosion otherwise.
+  explosion otherwise. The FM effect `DS:0x0D70`, note `0x24`, plays as the
+  flight starts (`0x11CEB`) and again just before the first explosion frame
+  (`0x12227`), restarting the sound ([Sound effects](sound-effects.md)).
 - **Boarding** (`0x125AB`): `DATA1.014 0x2E20 + 0x280 × f` frames
   0, 1, 2, 3, 1, 3, 0, 2, 2 units each, on the target, the attacker, and the
-  target again, each in view only.
+  target again, each in view only. When either ship is in view, the FM effect
+  `DS:0x0D86`, note `0x30`, starts before the first frame (`0x126A5`) and is
+  silenced after the last (`0x1278B`).
 - **Sinking** erases the ship's hex and mini-map dot (`0x13A21`,
   `0x11ADF`).
 - After each ship's turn the game redraws the flagship panel and waits 8
@@ -597,7 +626,9 @@ described in [Starting a duel during a naval battle](dueling.md#starting-a-duel-
 
 A ship whose durability reaches 0 sinks: `0x13A21` clears its fleet slot. A
 ship whose crew reaches 0 is handled by `0x13A63` instead, which marks its
-square on the battle map but leaves the fleet slot intact, so the ship stays
+square on the battle map as an obstacle (keeping the terrain bits 0–4,
+clearing the ship flags, and setting `0x80`; `0x13A98–0x13AA4`) but leaves
+the fleet slot intact, so the ship stays
 in its fleet. From then on the turn loop skips it, as it skips a sunk ship
 (`0x1517C–0x15196`), so it cannot move or attack for the rest of the battle.
 A player ship left this way keeps its place in the fleet, and crew can be

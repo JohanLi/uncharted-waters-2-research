@@ -388,6 +388,37 @@ pointer is in the strip. Dragging:
 The drag returns 0, so the release does not answer; the question waits for
 the next key or click.
 
+#### Which windows drag
+
+The picker's drag works only for the styles that keep a place record, those
+whose style number (`DS:0xA55E`) is not 0 (`0x191E2`). The entry points set
+it:
+
+| Entry                             | Style | Used for                                                 | Drags |
+| --------------------------------- | ----: | -------------------------------------------------------- | ----- |
+| `0x19431`, `0x194DE`, `0x19586`   |     0 | the ordinary menus (`0x19452`, `0x194FF`, `0x195A6`)     | no    |
+| `FC4:0x43B1` (`0x195F1`)          |     0 | the grid picker over caller hit boxes (`0x19612`)        | no    |
+| `FC4:0x4419` (`0x19659`)          |     1 | the popup menu (`0x19681`), called only in naval battles | yes   |
+| `FC4:0x4529` (`0x19769`)          |     2 | the YES/NO buttons (`0x1978B`)                           | yes   |
+
+The popup's record is filled when it opens: x and y at the pointer, and the
+largest x and y, `(75 − w) × 8` and `360 − 16n` for `n` items `w` characters
+long (`0x196C5–0x19714`). Its outline is therefore `(w + 5) × 8` by
+`16n + 40`, one column wider and 8 pixels taller than the window. Its draw
+routine (`0x18E00`) sets one hit box per item a column in from either side
+(`0x18DBF–0x18DEA`) and, after them, the whole window as the drag strip
+(`0x18D35–0x18D57`, copied to the next entry at `0x18E80`), so a press held
+anywhere in the popup but not on an item, disabled or not, drags it. When
+the popup can be cancelled (`DS:0xA55A` = 1), a press outside the window
+answers Esc instead (`0x191A3–0x191E0`). Both records are refilled every
+time their window opens, so a dragged popup or YES/NO window does not keep
+its place.
+
+Message windows that only wait for a key, the number pad and the other
+screens have no drag. Only two routines draw the drag outline
+(`1E5F:0x3924`): the picker's (`0x18F7B`) and the list window's
+(`0x1A47A`).
+
 ### List windows
 
 `FC4:0x5904` shows a list of `DS:0xC172` rows of list type `ax & 0x3F`
@@ -450,6 +481,31 @@ with colour 0 above and below it. Its length (`DS:0xC1CA`) is the whole track
 when every row fits, else rows × track / count, at least 1; its offset is
 first shown row × (track − length) / (count − rows) (`0x19FCF–0x1A029`,
 `0x19E0A–0x19E31`).
+
+Every list window can be dragged by its title strip, with its own routine
+(`0x1A4C3`, called from the list's input loop at `0x1A9C0`). A left press
+from the mouse (`DS:0xA556` set, key 0x0D from `0x18698`) at x from
+(column + 2) × 8 to the scroll bar's right edge (`DS:0xC1D2` + 16) and y from
+top to top + 16 starts it (`0x1A4CE–0x1A52D`):
+
+1. It takes the offsets column − pointer x / 8 and top − pointer y, and takes
+   the cursor off (`0x1A532–0x1A569`). The window stays drawn.
+2. While the left button is held (`0x18698` returns 0x0D), the outline's
+   column is the pointer's column plus the offset, 0 when that is negative
+   and 76 − columns when the right edge would pass column 80; its top is the
+   pointer's y plus the offset, 0 when negative and 360 − 16 × rows when the
+   bottom would pass 400 (`0x1A56F–0x1A603`). The outline (`0x1A47A`) is the
+   window's size, (columns + 4) × 8 by rows × 16 + 40, in colour 15 XORed
+   (`1E5F:0x3924`), redrawn only when its place changes
+   (`0x1A606–0x1A623`).
+3. On release it erases the outline. When the place changed, it adds the
+   change to the list type's record at `DS:0x122C` (`0x1A666`), restores
+   the screen (`0:0x7690`), redraws the window (`0x19F6C`), and moves every
+   row's hit box by the same amount (`0x1A681–0x1A6A8`). The cursor, the rows
+   and the scroll thumb are then drawn again (`0x1A6AA–0x1A6B5`).
+
+The drag returns 0, so the release picks nothing. Because the record is
+changed, every later list of that type opens at the new place.
 
 Codes 0x80–0x9F and 0xE0–0xFC are taken as the first
 byte of a two-byte character (`0x9DE8–0x9E06`), whose conversion `0x9A4C` is

@@ -883,7 +883,11 @@ The sea view is redrawn by `0xC022`. It draws the map, then the fleets from
 the sprite sheet in the second half of `DATA1.011`, loaded at `0xD835`:
 32 sprites of 32 × 32 pixels, extracted as
 [`ship-tileset.png`](../scripts/tilesets/output/ship-tileset.png), eight per
-row.
+row. Each sprite is 0x200 bytes: per row, two 16-pixel groups of four words
+each, a mask then the words of colour planes 0, 1, and 2. The blitter
+`0x7A8C` ANDs the mask into all four planes and ORs each colour word into its
+plane, so a set mask bit keeps the map pixel and a clear one gives colour
+`p0 + 2·p1 + 4·p2`, one of entries 0–7.
 
 No Wind still draws every fleet; only a Storm or Fog hides them
 (`0xC1F6–0xC206`). A fleet is drawn when its top-left tile is in view columns
@@ -1292,11 +1296,13 @@ The announcement depends on the discovery type, the low 3 bits of byte `+6`
 
 The picture is graphics record `0x40`, drawn over the top of the sea view by
 `0x58B7` (arguments `0xA0`, `0x10`, `0x40`) after `0x20D3` resets a
-0x240-word table in the code segment to `0xFFFF`. The sound is an effect, not music: `0x9626` hands the FM
-driver the effect table at `DS:0x0D9C` (interrupt `0x66`, function 5), and
-`0x96C2` plays effect `0x3C` (function 6) when bit `0x08` of `DS:0x0E28`
+0x240-word table in the code segment to `0xFFFF`. The sound is an effect, not music: `0xEC26` hands the FM
+driver the voice at `DS:0x0D9C` (interrupt `0x66`, function 5), and
+`0xECC2` plays note `0x3C` (function 6) when bit `0x08` of `DS:0x0E28`
 (save-slot offset `0x00`) is set. That byte also holds the **BGM** setting
-(bit `0x04`), but the Options screen (`0x26B59`) never changes bit `0x08`.
+(bit `0x04`). The Options screen (`0x26B59`) never changes bit `0x08`, but a
+new game sets it (`0x1B1DF` writes `0xFF`), so the sound plays
+([Sound effects](sound-effects.md)).
 Neither call waits, and the background music keeps playing. Finding a discovery
 gives no Fame, gold, or experience by itself.
 
