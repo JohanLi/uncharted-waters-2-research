@@ -106,9 +106,12 @@ The right side is `GRAPH.DAT` record 26 at (416, 0) (`0x11974`), then
 (`0x1196B`):
 
 - the mini-map, a colour-5 box at (424, 8), 208 × 192, with land cells as
-  colour-0 dots (`0x115A3`) and each ship as a 4 × 4 dot at
+  colour-0 dots (`0x115A3`) and each ship as a dot at
   (424 + 4 × col, 8 + 4 × row): the player's ships colour 7, allies 6, the
-  main enemy 2, the assisting enemy 3 (`0x11376`);
+  main enemy 2, the assisting enemy 3 (`0x11376`). Every dot is the 4 × 4
+  stencil at `DS:0xA078` (rows 2, 4, 4, 2 pixels wide, a plus with its
+  corners cut), the nibble at `DS:0xA07C` for odd columns (`0x11308`).
+  Nothing marks the view's position;
 - the wind dial for the battle direction `d`, `DATA1.014` picture
   `floor((15d − floor(d / 3)) / 10)` at (440, 230), which maps directions 0–5
   to the dial's 0, 1, 3, 4, 5, 7;
@@ -130,7 +133,16 @@ colour 7, and is redrawn after every ship's turn (`0x151C9`):
 
 The battle palette is `DS:0xA0F0` (stored blue, red, green, 0–15), faded in
 one level per timer unit (`0x111BE`, `0xEDD7`) at the start, after an Info
-screen, and after a duel.
+screen, and after a duel. Windows drawn during the battle use it too, so their
+pink and orange are `F341C3` and `F3A200` (entries 3 and 6), not the port's.
+
+The water shimmers: unless the game is over or `DS:0xC770` is set, `0x111BE`
+hooks the timer interrupt (INT 1Ch, handler `0x9584`), which every 17 ticks
+(about 0.93 seconds) sets palette entries 8–15 from the next of four frames at
+`DS:0xA0A8` (12-bit words, green in bits 8–11, red in 4–7, blue in 0–3).
+Entries 8, 10, 12, and 13 stay fixed; 9, 11, 14, and 15 rotate through
+`0044DD`, `0066EE`, `0088FF`, `0088FF`, a frame apart. `0x111EA` removes the
+hook before a fade-out or an Info screen.
 
 ### Ships on the map
 
@@ -154,22 +166,35 @@ All markers are 32 × 32 stencils drawn at a hex (`0x11203`):
 
 | Kind       | Shape                                     | Colour            | Meaning                       |
 | ---------- | ----------------------------------------- | ----------------- | ----------------------------- |
-| 1          | `DATA1.014 0x3820`, bracketed cross       | 4 (`cx` = `0x34`) | Next step                     |
+| 1          | `DATA1.014 0x3820`, bracketed cross       | `cx` on entry     | Next step                     |
 | 2          | `DATA1.014 0x3820`                        | 4                 | Reachable, or selectable ship |
 | 3          | `DATA1.014 0x38A0`, circled cross         | 6                 | Target in gun range           |
 | 4          | `DATA1.014 0x3920`, sword                 | 3                 | Adjacent target (boarding)    |
 | `0x80 + f` | `HDAT.PUT 0x6B40 + 0x80 × f`, arrow       | 4                 | A plotted step facing `f`     |
 
-Kind 1 is passed colour `0x34`, which the 16-colour mask reduces to 4, so the
-next steps look the same as the other reachable hexes. The picker cursor XORs
-colour 7 over the chosen cell (`0x18704`). Enter or the left button chooses;
+Kind 1 takes its colour from `cx` (`0x11262`, blit mode `cx | 0x400` at
+`0x112B1`). The plotter (`0xFB7A`) does not set it for the call at `0xFC0A`:
+the `mov cx, 0x34` at `0xFBCB` is the map width for the `imul` that follows,
+and the far call `2DFF:0x843F` at `0xFBD8` comes between, so the colour is
+whatever that call leaves in `cx`. The picker cursor XORs colour 7 over the
+chosen cell's palette indices (`0x18704`, blit mode 1), so every colour in it
+becomes its index XOR 7. The cannonball is redrawn only when it enters another
+8 × 8 cell (`0x11DA2–0x11DEB`). Enter or the left button chooses;
 Esc, `0`, or the right button cancels (`0x1939A`, `0x18698`).
 
 ### The battle menu
 
 The flagship's turn opens `MENU.DAT` entry 50 at the pointer (`0x10D7A`,
 `0x19659`); it cannot be cancelled, and it repeats until a command ends the
-turn:
+turn. It is a popup (style record 1, `FC4:0x3BC0`): an ordinary window
+(`0:0x756C`) `w + 4` columns wide and `(n + 2) × 16` tall, `w` being the
+longest item, with 16-pixel rows, each item centred, the first 16 pixels down
+(`0x18E32–0x18E5D`, `0x18D06`). Its x is the pointer less `4(w + 4)` when the
+pointer is further right than that, at most `(75 − w) × 8`, truncated to a
+column; its y is the pointer less 24 when the pointer is below 24, at most
+`360 − 16n` (`0x1969E–0x19714`). As in every menu, a disabled item is not
+recoloured: the 8 × 16 checkerboard at `DATA1.014 0x280` is stamped in colour
+7 over each of its characters (`0x18DA1` → `0:0x6791`).
 
 | Command | Routine   | Disabled when (`0x10C20`)                 |
 | ------- | --------- | ----------------------------------------- |
@@ -192,12 +217,34 @@ lets the ship turn 60° on the spot (`0xFF26`), which empties its turn charge.
 The attack prompt follows, and the turn ends whether or not a target is
 chosen.
 
+The battle's questions (768, 770, 775, 776) clear the message box and print
+there in colour 7 (`DS:0xA132`); their YES/NO buttons go through `0x11168`,
+which sets the text window to columns 0–79 at y 200 before the shared yes/no
+(`FC4:0x4529`), so they appear at (272, 200) until the mouse is used and at
+the pointer afterwards ([Ports](ports.md#text-and-font)).
+
 **Attack** (`0x100E9`) marks targets and asks “Whom do you want to attack?”
 (772). A ship in range is fired on (`0x13C72`); an adjacent one is boarded
 (`0x13D04`), after the duel question “Will you challenge the enemy commodore
 to a duel?” (770) if it is the first ship of an enemy side. When the duel's
 crew test fails, “The enemy's crew has blocked your attempt.” (771) is shown
 and the ship is boarded.
+
+**Info** (`DS:0x9170`) offers:
+
+| Entry       | Routine   | Shows                                                                                                                              |
+| ----------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Own Fleet   | `0x1020B` | the port's Fleet Info screen `FC4:0xD221` for the player's fleet, with a fade out and back in (`0x101A9`)                           |
+| Own Mates   | `0x10213` | the mate list, then the Mate Info card `FC4:0xC8D5` at column 6 (x 48; in port column 15)                                         |
+| Own Ships   | `0x10248` | a list of the player's ships still in the battle, then Ship Info `FC4:0xC1D5` at column 6, with the Info palette `DS:0xAB6E`       |
+| Other Fleet | `0x102C5` | the Fleet Info screen of a commander of any other side, allies included; with one, at once, else after a list                      |
+| Other Mates | `0x1032C` | the same commanders, then their Mate Info card                                                                                     |
+| Other Ships | `0x103A4` | a ship picked on the map (`0x110FB`), then its card `FC4:0xC6D2`; repeated until the pick is cancelled                              |
+| Order List  | `0x1052E` | a window over the map (`0xC67B`: x 0, y 32, 52 columns, `24n + 32` tall) with, per ship of the player's side still in the battle, its slot number and name in blue (message 1378) at x 8, then “Flagship” (1379) at x 144, or from x 128 its Tactic, Method, and Target strings |
+
+**Item** opens the same item routine as the Info tab (`1E5F:0xBD2B`): the
+inventory list, then Equip or Use (`MENU.DAT` 33) against the tabs at y 264
+(`0x2F935`). Using an item does not check for a battle.
 
 **Wait** asks “Is it OK to end the turn?” (775); **Escape** asks “Are you
 sure you want to flee?” (776) and removes the flagship (`0x139A4`). **Item**
@@ -581,8 +628,25 @@ fleet.
 |    1 | Nightfall                                               | 563, “The setting sun put an end to the day's battle.”         |
 |    3 | The player's flagship fled                              | 564, “The battle ended as the flagship fled.”                  |
 |    9 | The player's flagship surrendered                       | 566, “Our flagship had no choice but to surrender.”            |
-|    5 | The player's flagship has no crew or has sunk: defeat   | The game ends ([Game over at sea](at-sea.md#game-over-at-sea)) |
-|    7 | The protagonist loses the duel: defeat                  | The game ends                                                  |
+|    5 | The player's flagship has no crew or has sunk: defeat   | 1017, “%s %d, %d. %s %s's journal stops abruptly …”; the game ends ([Game over at sea](at-sea.md#game-over-at-sea)) |
+|    7 | The protagonist loses the duel: defeat                  | 1017; the game ends                                            |
+
+Each ending shows a 192 × 128 `GRAPH.DAT` picture at (120, 32) (`0x15A56` →
+`0:0x58B7`) and prints its message in a fixed window:
+
+| Codes | Picture | Window |
+| ----- | ------- | ------ |
+| 4, 6 | 53 (`0x15B56`) | `0x15AA3`: (56, 176), 38 columns × 144 |
+| 2 | 54 (`0x15BBD`) | `0x15A6C`: (80, 176), 30 columns × 96 |
+| 3, 9 | 54 (`0x15CCD`) | `0x15A6C` |
+| 1 | 55 (`0x15C76`) | `0x15A6C` |
+| 5, 7 | 56 (`0x15D73`) | `0x15AA3` |
+
+Message 1017 takes the month, day, and year, the protagonist's names, and
+“her” or “his” (`DS:0xA19F` / `0xA1A3`, by protagonist 1); defeat then sets
+end state `0x1A`. A victory plays track `0x15`, then `0x11` once the message
+is acknowledged; defeat plays `0x14`. The screen is never cleared between the
+ending's steps, so a victory's picture stays behind the spoils.
 
 After the ending, the battle's end sequence (`0x16040–0x16185`) treats the
 codes by parity. For an even code (2, 4, 6, or 8), each of the player's
@@ -657,7 +721,12 @@ Each turn advances the clock by 20 minutes, and the battle ends in nightfall
 (code 1) after the turn that reaches 21:00 or later (`0x15227–0x15232`). The
 sea menu's **Battle** command works only from 5:00 to 19:40 (“You can't
 attack someone at night.”, message 781, `0x16493`), so a battle started with
-it lasts between 4 and 48 turns.
+it lasts between 4 and 48 turns. Its messages use the window at (160, 128),
+30 columns × 96 (`0:0x756C`; 781 at `0x16516`, 782 for a fleet of the
+player's own nation at `0x164D6`). It lists the fleets in reach under “Enemy
+Fleet” (list type 3, `0x16262`), then shows the chosen commodore's card
+(`FC4:0xC8D5`, column 15, mode 0; `0x16276–0x16285`) with a yes/no
+(`0x1628A`); No returns to the list.
 
 **Gossip** has no such limit. Gossiping with a fleet that is out to attack the
 player starts the battle at once, at any hour (`0x2589B`, battle entry
@@ -835,10 +904,15 @@ types 3–8, 10 and 11 print nothing.
 ### Gold and items
 
 After a victory (`0x15912`), the player takes `(F + 1) × 100` gold, where `F`
-is the defeated fleet's treasury, the word at fleet record `+0x24`: “We managed to seize …
-gold pieces” (messages 562 and 560). The fleet's item (`+0x1D`) is taken as
-well when the inventory holds fewer than 20 items (`0x15950`); the item stays
-in the fleet record until the fleet is relaunched.
+is the defeated fleet's treasury, the word at fleet record `+0x24`. The fleet's
+item (`+0x1D`) is taken as well when the inventory holds fewer than 20 items
+(`0x15950`); the item stays in the fleet record until the fleet is relaunched.
+One message, in a window at (160, 128), 240 × 96 (`0x15968–0x15983`), tells
+both (`0x15989–0x15A2D`, spaces from `0:0x4991`): 562 “We managed to seize”,
+560 “%ld gold pieces”, for an item 561 “and %s %s” with “an” or “a” by the
+name's first letter (`0x158E1`), then 1027 “from those scurvy dawgs!”. Item
+`0x37`, the Circlet, uses 1422 “and a Circlet from those scurvy dawgs!” in
+place of both. The gold is added after the message.
 
 Every fleet starts without an item (`0xFF`). Each time a computer fleet
 returns home, it gets one with probability ½ if it has none: one of items
@@ -862,60 +936,125 @@ prevents it.
 
 ### Capturing ships
 
-`0x154D8` then looks at the defeated fleet's ships. A ship is a candidate when
-it has not sunk and lies inside the battle screen currently shown, which is
-centered on the player's flagship (`0x11345`). Ships with no crew are
-candidates too. Only the defeated fleet's own ships are considered, so ships
-of another fleet that fought alongside it can never be captured.
+`0x154D8` then looks at the defeated side's units (`0x154FA–0x15541`). A unit
+whose durability is not 0 counts toward the surviving ships `T`, and it is a
+candidate when its hex also lies inside the battle view, which is centred on
+the player's flagship (`0:0xBD45`). Ships with no crew are candidates too.
+Only the defeated fleet's own ships are considered, so ships of another fleet
+that fought alongside it can never be captured. With no candidate the routine
+returns at once: no message and no cargo.
 
-The number that can be kept is the smallest of the number of candidates, the
-number of sailors free to captain a ship ([Assigning duties](sailors.md#assigning-duties)),
-and the free places in the player's fleet of ten. The game announces the
-capture with message 1413, “We captured 1 enemy ship! We can add it to our
-fleet.”, or 558, “We captured %d enemy %s! We can add %d of them to our
-fleet.”, and the player picks the ships, names each one (message 557), and
-confirms (559).
+The number that can be kept is `K = min(10 − active ships, free captains,
+candidates)` (`0x1571B–0x1573A`; `0x18229` lists the free captains, see
+[Assigning duties](sailors.md#assigning-duties)). When `K` is 0 nothing is
+announced and the cargo follows. Otherwise, while `K` is above 0:
 
-A captured ship (`0x15361`) keeps its durability, maximum durability, Tacking,
-Power, guns, and gun type. Its crew is
-`min(floor(crew / 10), maximum crew)`, a tenth of what it had when the
-battle ended, so a ship captured with no crew joins with none. The maximum
-crew is the ship instance's configured crew limit (identity-record `+0x14`,
-the “Used Crew” of [Ships](ships.md#24-byte-ship-identity-record)), which is
-fixed by construction, remodeling, or the Used Ship configuration. It starts with
-no supplies or cargo, a 25% lookout share and a 50% navigation share, and
-health 60. Its captain is chosen automatically and gets the Captain duty.
+1. The vendor text window (scenario panel 0, x 240, y 8, 240 × 128) shows
+   1413, “We captured 1 enemy ship! We can add it to our fleet.”, when there
+   is one candidate, else 558, “We captured %d enemy %s! We can add %d of
+   them to our fleet.”, with the candidates (which never shrink), “ships”, and
+   `K`.
+2. The ship list `FC4:0x5904` type 14 (`0x157D1`): x 464, y 64, titled “Ship
+   Model” (MENU 47 item 14), one row per candidate with its instance name,
+   which for a computer fleet is the model's name.
+3. Cancelling the list asks “Is this OK?” (559) in the same window; Yes ends
+   capturing, No shows the message and list again (`0x158A7`).
+4. Choosing a ship shows its card and a yes/no. The routine saves the area
+   at (96, 128), 384 × 176, fills it with colour 8 and (104, 136), 368 × 160,
+   with colour 15 (`0x15803–0x1584F`), then calls the ship card
+   `1E5F:0xD289` (file `0x30E79`) in mode 3; see
+   [the ship card](#the-ship-card). No returns to the list. Yes captures it (`0x15361`) with the first free
+   captain, removes it from the candidates, lowers `K`, and loops.
+
+A captured ship (`0x15361`) takes the first player slot that is neither
+active nor pending and the first ship-instance record 0–39 whose type is
+`0xFF`. The slot keeps the enemy's durability, maximum durability, Tacking,
+Power, and guns, and the whole status byte, so the gun type; its crew is
+`min(floor(crew / 10), maximum crew)`, a tenth of what it had when the battle
+ended, so a ship captured with no crew joins with none. The maximum crew is
+the instance's crew bunks (`+0x14`, the “Used Crew” of
+[Ships](ships.md#24-byte-ship-identity-record)). Only the instance's type,
+`+0x12`, gun spaces, crew bunks, and capacity are copied, not its name. The
+supply record gets no water, food, lumber, shot, or goods, a 25% lookout and
+50% navigation share, `+0x1C` 60, and the captain, whose duty becomes 2
+(Captain); the figurehead byte is untouched. “Name the ship.” (557) then opens
+the name entry (`2DFF:0x2DEA`) for “Ship name?”, at most 8 characters, which
+repeats until a name is entered; it cannot be cancelled (`0x154AF–0x154CB`).
+
+The name entry draws its keyboard window at (0, 0), 29 columns × 160
+(`0x363F4`). The prompt window (`0x36530`) for a name of up to `n`
+characters starts at column `29 − n − 3`, y 256, max(n + 6, 17) columns × 80;
+the prompt (`DS:0xBAFA` “First name?”, `0xBB06` “Last name?”, `0xBB12` “Ship
+name?”, `0xBB1D` “Port name?”) is at column `29 − n`, y 272, and the entry at
+y 304 over `n` underscores 8 pixels lower (`DS:0xBB28`); the cursor's
+underscore uses `DS:0xBAEC`, the others `0xBAF4` (`0x362A0`).
+
+#### The ship card
+
+`1E5F:0xD289` (file `0x30E79`) draws `GRAPH.DAT` record 22 at (104, 136)
+(`FC4:0xB592`), the model's picture at (120, 160) (`0:0x7DE5`), the
+instance's name in colour 1 at (328, 148) (`DS:0xB7BA`), and from (256, 168),
+16 pixels a line, messages 1405, 1406, 1411, 1407, `DS:0xB7C3`, 1409, and
+1410 (`0x30FAB–0x3106F`). Its mode (`dx`) picks the values
+(`0x30EB8–0x30F93`):
+
+| Value | Mode 0 | Mode 1 | Mode 2 | Mode 3 |
+| --- | --- | --- | --- | --- |
+| Durability | ⌊9 × model `+1` / 10⌋ | that less a fifteenth | 0 | slot `+2` |
+| Maximum | ⌊9 × model `+1` / 10⌋ | that less a fifteenth | ⌊9 × model `+1` / 10⌋ | slot `+3` |
+| Tacking, Power | model `+2`, `+3` | model | model | model |
+| Capacity | model `+6` | model `+6` | model `+6` | model `+6` |
+| Cargo | instance `+0x16` | template `+0x16` | model `+6` | instance `+0x16` |
+| Guns | instance `+0x13` / model `+8` | template | 0 / model `+8` | instance `+0x13` / model `+8` |
+| Min/Max Crew | model `+5` / instance `+0x14` | template | model `+5` / 0 | model `+5` / instance `+0x14` |
+| Max Crew (Remodel) | model `+4` × 10 | same | same | same |
+
+Mode 0 takes a ship instance, modes 1 and 2 a model (its template instance
+`model + 0x28`), mode 3 a ship slot. Captures and the Shipyard's own-ship
+cards use mode 3 (`0x15859`, `0x2DF90`); New Ship uses mode 2
+(`0x31BAB`, `0x31CB8`) and mode 1 appears at `0x31E75`.
 
 ### Cargo
 
-If there is at least one candidate, the game then offers cargo in the
-goods-transfer screen. For each candidate ship, let `free` be its cargo
-capacity minus its remaining shots and its share of the goods below:
+The spoils (`0x15573–0x15715`) are a record of up to nine entries: Water,
+Food, Lumber, Shot, and one goods type. For each candidate, let `free` be its
+cargo capacity (instance `+0x16`) minus its remaining shots and its share of
+the goods below:
 
 ```text
-water  += floor(free × (30 + random(5)) / 100)
-food   += floor(free × (30 + random(5)) / 100)
-lumber += floor(free × (2 + random(2)) / 100)
+water  += floor((30 + random(5)) × free / 100)
+food   += floor((30 + random(5)) × free / 100)
+lumber += floor((2 + random(2)) × free / 100)
 shot   += the ship's remaining shots
 ```
 
-Goods depend on the defeated fleet's cargo record (`+0x21` type, `+0x22`
-amount):
+The multiplication is unsigned (`mul di`), so a ship whose shots and goods
+share exceed its capacity yields about 20,000 water and food. Water and food
+are counted in cargo units, a tenth of the supply value.
 
-- If the fleet carries goods, the amount is scaled by the share of its ships
-  that are candidates: `floor(amount × candidates / total ships)`, split
-  evenly among the candidates.
-- If it carries none, the first four fleets of each nation's block of ten
-  (fleet IDs ending in 1–4) have a 1-in-2 chance of carrying goods sized from
-  the candidates' total cargo capacity `C`. With chance 9 in 10 the goods are
-  Sugar, Cheese, Fish, Grain, Olive Oil, or Wine, `floor(C / 5)` of them;
-  otherwise Coral, Amber, Ivory, Pearl, Tortoise Shell, Gold, or Silver,
-  `floor(floor(C / 4) / 5)`.
+Goods depend on the defeated fleet's cargo record (`+0x21` type, `+0x22`
+amount), which is rewritten with the result:
+
+- If the fleet carries goods, the amount becomes
+  `floor(amount × candidates / T)`, split evenly among the candidates.
+- If it carries none, a fleet whose ID ends in 1–4 (pirate fleets 61–64
+  included) has a 1-in-2 chance of goods sized from the candidates' total
+  capacity `C`: with chance 9 in 10 type `10 + random(6)` (Sugar, Cheese,
+  Fish, Grain, Olive Oil, or Wine), `floor(C / 5)` of them; otherwise type
+  `26 + random(7)` (Coral, Amber, Ivory, Pearl, Tortoise Shell, Gold, or
+  Silver), `floor(floor(C / 4) / 5)`.
 - Other fleets yield no goods.
 
 The supplies and goods, but not the gold, therefore scale with how many
-enemy ships are on screen when the battle ends: each one adds its supplies and a share of the goods, whether or
-not it is captured.
+enemy ships are on screen when the battle ends: each one adds its supplies and
+a share of the goods, whether or not it is captured.
+
+When any entry is not 0, the crew list is drawn and the goods-transfer screen
+opens with the spoils in its unloading area (`1E5F:0x17C2`, mode 1). This is
+the Fleet tab's **Transfer Cargo** screen ([Fleet Info](fleet-info.md)),
+which starts with the area empty. Ending it with spoils still in the area
+asks “There are items left in the unloading area! Is it still okay to end the
+transfer process?” (1373), else “Is this OK?” (219); whatever is left is lost.
 
 ## Computer-controlled ships
 

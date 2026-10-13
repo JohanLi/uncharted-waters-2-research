@@ -162,19 +162,51 @@ occupy `MAIN.EXE 0x33354–0x3351A`.
 
 ### Lodge command dialogue
 
-The Lodge handler begins at `MAIN.EXE 0x2EB43` and opens **Check In**,
-**Gossip**, and **Port Info**.
+The Lodge handler begins at `MAIN.EXE 0x2EB43`. It shows the greeting (raw
+66) unless a story route took over the building (`DS:0xF6A` or `DS:0xEE0`
+nonzero), picks the face of the townsperson who may answer **Gossip**
+(`DS:0xC206 = random(0x3FFF) | 0xC000`, `0x2EB63–0x2EB6E`), and then loops on
+`MENU.DAT` entry 4, **Check In**, **Gossip**, and **Port Info**, at column 60,
+y 104 (`FC4:0xB4A4`, `0x2EBA7–0x2EBB3`). The dispatch table is at
+`DS:0xB65A`; **Check In** leaves the loop, the other two return to the menu
+(`0x2EBDB–0x2EBEA`).
 
-**Check In** is free and has no confirmation prompt. It starts the overnight
-rest transition and resumes play at 8:00 AM the next day. Internally, the
-command marks an overnight rest, moves the clock to the end of the current
-day, and schedules another 24 20-minute ticks, or eight hours.
+**Port Info is disabled at every nation's capital.** Before each showing of the
+menu (`0x2EB80–0x2EBA5`), the handler compares the current port (`DS:0xE32`)
+with the capital byte `+0x0A` of the six nation records Portugal to Holland
+([accessor `0:0x5938`](friendship.md#nation-to-nation-relations)) and, on a match,
+writes 4 to the menu's disabled-item mask `DS:0xA554` (bit 2, the third item).
+Lisbon, Seville, Istanbul, London, Genoa, and Amsterdam therefore show it in
+the disabled stencil. The Pirates' record (index 6, Algiers) is not tested, so
+Algiers keeps the command. **Check In** and **Gossip** are never masked.
 
-**Gossip** is the Lodge's sailor-interaction command. It builds a list of the
-sailors currently available there and lets the player choose one. When no
-useful navigator is present, raw index 67 says, “I don't see anyone who would
-be much help”; another empty-result branch uses raw index 68, “I heard that a
-good navigator was at the pub.”
+**Check In** (`0x2EA8B`) is free and has no confirmation prompt. It sets bit
+`0x80` of `DS:0xE34` and calls `0:0x98B1`, which fades the 48 palette entries
+to black a level per step (`0xEEB1` → `0xEE8D` → `0xEDD7`) while the vendor
+window is still on screen. The town loop fades back toward its palette every
+time it starts (`lcall 0:0x98A7` at `0x2049B`), so the town returns from black
+at 8:00 AM the next day. Internally, the command marks an overnight rest,
+moves the clock to the end of the current day, and schedules another 24
+20-minute ticks, or eight hours.
+
+**Gossip** (`0x2EA46`) is the Lodge's sailor-interaction command. It collects
+the Lodge's sailors (`0x2E846` → `FC4:0x314C`), and while there are any, shows
+them in list type 6 (`FC4:0x5904` with `0x86`): the list window at column 58,
+y 32, 18 text columns and 10 rows (`DS:0x122C`), titled “Mate” (`MENU.DAT`
+47, item 6). Bit `0x80` of the argument closes the list as soon as a row is
+chosen (`0x1AC0B–0x1AC1B`); the same type and flag serve the Pub's **Meet**
+(`0x2C6C1`). The chosen sailor's window opens (`0:0x7C27`), the exchange below
+runs once (`0x2E8AB`), the window closes (`0:0x7690`), and the list is
+collected and shown again until it is cancelled (`0x2EA4D–0x2EA83`).
+
+When the Lodge has nobody, the collector returns either 0 or, when the Pub
+has sailors, the Pub's count with the list's first entry set to `0xFF`
+(`0x183D5–0x183E1`). With 0, the First-Mate-first spokesman (`0:0x8F64`) says
+raw 67, “I don't see anyone who would be much help”; otherwise a townsperson
+says raw 68, “I heard that a good navigator was at the pub,” in the lower
+window (`0:0x7B56`: column 20, y 192), with the face built from the port's
+cached allegiance (display-record byte `+0x13`, low three bits) and the
+selector picked on entry (`0x2E852–0x2E895`).
 
 Both lists come from the collector at `0FC4:3061` (`MAIN.EXE 0x182A1`). It
 scans the 120 sailor records and keeps those with status bit `0x20`
@@ -197,22 +229,40 @@ For example, sailor 96, Alonzo Oreida, starts in Lisbon with personality
 `0xE1`, so he is found only at the Lodge. Because the Lodge makes no Loyalty
 check (below), his starting Loyalty of 0 does not prevent hiring him.
 
-Selecting one of the player's own mates produces one of three ordinary lines
-about returning to dry land, going to bed, or leaving port. Other sailors
-introduce themselves as a Commodore, ship's officer, or vagabond and offer
-the menu `Meet / Hire`, sharing the hiring core of the Pub's **Meet**
-command. `MENU.DAT` entry 3 reads `Meet / Hire / Duel`, but the menu is shown
-with an item count of 2 (`0x2EA0E–0x2EA16`), and its dispatch table at
-`DS:0xB62C` holds only two routines, so **Duel** never appears. **Meet**
-runs the Pub patron's **Gossip** (`0x2D52D` → `0x2C283`) and **Hire** the
-shared hiring core with the Lodge's flag (`0x2D53D` → `0x2C4EE`). Hostile fleet captains instead use one of two threats. Cancelling the
-sailor selection returns to the Lodge menu.
+The exchange (`0x2E8AB`) tests the sailor's fleet byte `+0x24`:
 
-**Port Info** (`0x2EA96`) draws a “Support” table: for each nation from
-Portugal to Holland, its name and its Support byte from the port's metadata
-record, as `%-14s %3d%%` (`0x2EAD1–0x2EB06`). It writes “Ally” beside the
-nation whose index equals the low three bits of the port's display-record
-byte `+0x13` (`0x2EB09–0x2EB2A`), the cached allegiance described in
+- the protagonist's fleet: one of raws 69–71, about returning to dry land,
+  going to bed, or leaving port, then back to the list (`0x2E8F1–0x2E91B`);
+- a fleet from 60 to 69, a pirate captain: one of the threats raw 859–860,
+  then back to the list with no menu (`0x2E91E–0x2E945`);
+- anyone else: raw 72, “What do you want with me?”, waits for a key; then
+  `0:0x7C8F` clears only the window's text, and the introduction is shown
+  without waiting (raw 75 for a vagabond, fleet `0xFF`; raw 73 for a
+  Commodore, duty 1; raw 74 for another officer) while the menu
+  `Meet / Hire` opens at the Lodge menu's place, column 60, y 104
+  (`0x2E948–0x2EA16`).
+
+`MENU.DAT` entry 3 reads `Meet / Hire / Duel`, but the menu is shown with an
+item count of 2 (`0x2EA0E–0x2EA16`), and its dispatch table at `DS:0xB62C`
+holds only two routines, so **Duel** never appears. **Meet** runs the Pub
+patron's **Gossip** (`0x2D52D` → `0x2C283`) and **Hire** the shared hiring
+core with the Lodge's flag (`0x2D53D` → `0x2C4EE`). Either command, or
+cancelling the menu, ends the exchange and returns to the list
+(`0x2EA1F–0x2EA3D`). In the hiring core the protagonist asks raw 48 in his
+own window at the top (`0:0x7BF9`: column 13, y 16, his face at column 15,
+y 32), drawn over the vendor's while the sailor's window stays below, and it
+closes before the sailor answers (`0x2C541–0x2C558`). Cancelling the list
+returns to the Lodge menu.
+
+**Port Info** (`0x2EA96`) draws the card used by the ship card, `GRAPH.DAT`
+record 22 at (104, 136) (`FC4:0xB592` = `0x207D2`), and on it “Support” in
+colour 1 at column 35, y 152 (`DS:0xB634`). For each nation from Portugal to
+Holland it prints the name and the Support byte from the port's metadata
+record, as `%-14s %3d%%` in colour 0 at column 21, y `(11 + nation) × 16`
+(`DS:0xB642`, `0x2EAD1–0x2EB06`). It writes “Ally” in colour 2 at column 46
+of the row whose nation index equals the low three bits of the port's
+display-record byte `+0x13` (`DS:0xB64E`, `0x2EB09–0x2EB2A`), and waits for a
+key (`FC4:0x4638`), the cached allegiance described in
 [Cached allegiance](sphere-of-influence.md#cached-allegiance), not a live
 75% Support test. Until the first midnight of a new game, Port Info therefore
 marks Portugal as Algiers' and Tunis' ally at 0% Support and marks no ally in
@@ -428,8 +478,8 @@ that position. Item IDs are zero-based.
 | ------------------------------- | --------: | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | No gold                         |       236 | “It seems you have no gold.” The command ends.                                                                                             |
 | All 20 inventory slots occupied |       237 | The command ends.                                                                                                                          |
-| First item selection            |       238 | “I'm sure you'll find something you like.”                                                                                                 |
-| Later item selections           |       242 | “Are you interested in anything else?”                                                                                                     |
+| Item selection before a purchase |       238 | “I'm sure you'll find something you like.” Shown again after a refusal or a refused purchase.                                             |
+| Item selection after a purchase  |       242 | “Are you interested in anything else?” The flag at `[bp − 0xC]` is cleared only by a completed purchase (`0x2F9D4`, `0x2FAE3`).          |
 | Duplicate restricted item       |       332 | “You already have one.” The executable applies this only to item types whose low type nibble is below 7.                                   |
 | Selected item                   |       240 | Supplies the item name and its price in gold, then asks for confirmation.                                                                  |
 | Insufficient gold               |       239 | The purchase is not performed.                                                                                                             |
@@ -440,17 +490,63 @@ that position. Item IDs are zero-based.
 | Condition or stage            | Raw index | Result                                                                                                                     |
 | ----------------------------- | --------: | -------------------------------------------------------------------------------------------------------------------------- |
 | No carried items              |       243 | “You don't have any items.” The command ends.                                                                              |
-| First item selection          |       244 | “What would you like to sell?”                                                                                             |
-| Later item selections         |       248 | “What else can you sell me?”                                                                                               |
+| Item selection before a sale  |       244 | “What would you like to sell?” Shown again after a refusal, an equipped item or an unaccepted item.                        |
+| Item selection after a sale   |       248 | “What else can you sell me?” The flag at `[bp − 8]` is cleared only by a completed sale (`0x2FB23`, `0x2FC72`).            |
 | Item is currently equipped    |       333 | It cannot be sold.                                                                                                         |
 | Item is not accepted by shops |       929 | “Sorry, but I can't buy this item.” Its stored byte `+0x14` is zero, or its initial offer (below) is zero.                 |
 | Initial offer                 |       245 | Supplies the item name and the base sale price. Accepting sells immediately.                                               |
-| Successful counteroffer       |       246 | Rejecting the initial offer performs a Luck-based roll. Success produces a higher offer; failure returns to the item list. |
+| Successful counteroffer       |       246 | Rejecting the initial offer performs a Luck-based roll. Success produces a higher offer; failure returns to the item list. Rejecting the higher offer also returns to the list. |
+
+Both commands check their exits at the start of every round, not only once:
+Buy tests for no gold (236) and a full inventory (237) through `0x2F99E`
+before each selection (`0x2FAF3`), so a purchase that spends the last gold or
+fills the last slot ends the command there; Sell counts the carried items
+(`FC4:0x335C`) before each selection.
+
+#### Item Shop presentation
+
+Every round of Buy and Sell starts by drawing the empty scroll, `GRAPH.DAT`
+record 22 at (104, 136), 368 × 152 (`FC4:0xB592`, called at `0x2FAED` and
+`0x2FB10`), so the previous item's information is wiped each time the list
+returns; the handler restores the screen after the command (`FC4:0xB5B6`,
+`0x2FD0F`). The item list is `FC4:0x5904` list type 13 (argument `0x8D`:
+flag `0x80` restores the screen after it, `0x40` returns the item ID through
+the table at `DS:0x073A`), titled with `MENU.DAT` 47 item 13, “Item”: the
+window at column 53, y 112, 19 columns by 10 rows (the list window is
+described under [List windows](ports.md#list-windows)). Each row is a
+red `*` (`DS:0xA5D2`) for an item whose equipped flag is set, otherwise a
+space (`DS:0xA5DA`), then the item's name (`0x19D37`). The Info menu's Item
+command uses the same list (`0x2F987`).
+
+The item's information (`0x2F1E4`) is written straight onto the scroll, with
+no window of its own: Buy draws it after the duplicate check and before
+message 240 (`0x2FA71`); Sell draws it as soon as the item is chosen, before
+the equipped (333) and accepted (929) checks (`0x2FB57`). The Info menu draws
+it in a window at column 12, y 128, 48 columns by 176 pixels
+(`0x2F347` → `0:0x721A`) with the in-use flag set (`0x2F92E`).
+
+| Element                          | Place                                   | Source                                                                                     |
+| -------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Name and type                    | column 16, y 144                        | `DS:0xB676`, `ESC C1 %s ESC C0 (%s)`: the name in colour 1, the type name from `DS:0x0AD2` |
+| In use                           | after the type                          | `DS:0xB684`, `ESC C5 In Use ESC C0`, only when the caller asks and flag `0x10` is set      |
+| Picture                          | (128, 192)                              | `0:0x7A6D` with picture byte `+0x11` + 0x63                                                |
+| Attack (types 0–3)               | column 16, y 168                        | message 1371, “Attack”, two spaces, and the grade in colour 2                               |
+| Defense (type 6)                 | column 16, y 168                        | message 1372, “Defense”, a space, and the grade in colour 2                                  |
+| Description                      | columns 26–56 from y 176, 16 pixels a line | the item's 172-byte text record (`0xB9A`, `FC4:0x5E4E`), line height `DS:0x87F6` = 16     |
+
+The text margins are columns 14–58 while the name is written (`0x2F234`) and
+26–56 for the description (`0x2F318–0x2F327`); the line height returns to 18
+afterwards (`0x2F33B`). The grade indexes `MENU.DAT` 34 (D, C, B, A, star):
+for swords, rating byte `+0x14` − 5 divided by 6, or the star from 35
+(`0x2F2B0–0x2F2C9`); for armour, rating − 10 divided by 10, or the star above
+40 (`0x2F2E4–0x2F2FD`). The division is signed and rounds toward zero, so
+ratings below 11 (swords) or 20 (armour) give D. Types 4 and 5 get no grade.
 
 Raw index 247 (“I'll take it for %ld gold pieces.”) is adjacent to the sale
 messages but is not referenced by this Item Shop sell routine. A confirmed
-sale adds the agreed price, subject to the on-hand-gold cap, removes the item,
-and repeats the selection loop.
+sale adds the agreed price, subject to the on-hand-gold cap of 600,000,000
+(`0x2FC1A–0x2FC40`), empties the first inventory slot that holds that item ID
+(`0x2FC46–0x2FC6D`), and repeats the selection loop.
 
 The 22-byte saved item definition supplies all of these values: its name is at
 `+0x00..+0x10`, the listed-price unit is a little-endian `u16` at `+0x12`,
@@ -459,13 +555,20 @@ The listed price is `100 × price unit`. The initial sale offer is
 `100 × floor(price unit / 2)`, so odd hundreds are rounded down rather than
 divided exactly in half.
 
-Rejecting that offer draws `random(100)`. The counteroffer succeeds when the
-protagonist's Luck is greater than or equal to the result, giving a success
-probability of `(min(Luck, 99) + 1) / 100`. Its price is:
+Rejecting that offer draws `random(100)` (`0x2FBC0`, values 0–99). The
+counteroffer succeeds when the protagonist's Luck, sailor byte `+0x1B` through
+the record pointer at `DS:0xC70E`, is greater than or equal to the result
+(`0x2FBC8–0x2FBD3`), giving a success probability of
+`(min(Luck, 99) + 1) / 100`. A new game rolls Luck from 0 to 100 (`0x1BA96`), so a
+high-Luck protagonist sees the counteroffer almost every time. Its price,
+with Charm at byte `+0x1A` (`0x2FBD5–0x2FBF9`), is:
 
 ```text
 initial offer + floor(initial offer × Charm / 200)
 ```
+
+The counteroffer is asked once. Accepting it sells at that price; rejecting it
+returns to the item list (`0x2FC0E–0x2FC17`) without a further offer.
 
 The general gameplay RNG state is not stored in the save, so the exact result
 of that roll cannot be predicted from a save alone.
