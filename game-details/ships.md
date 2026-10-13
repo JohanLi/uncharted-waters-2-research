@@ -368,6 +368,14 @@ ordinary prompts.
 |        6 | Saker         |                          1,000 |            5 |
 |        7 | Carronade     |                 Rare selection |          600 |
 
+The chosen position is stored one-based in the low three bits of the ship
+slot's status byte, 0 meaning no guns (`0x321F9`, `0x3232D–0x32336`); it is
+the type number of the battle's gun tables. Buying the type already aboard
+asks for at most the free gun spaces (“You can load %d more %s.”, message
+334, or 1020 when none are free) and adds the new guns to the old; another
+type asks “How many guns?” (271) for up to every gun space and replaces them
+(`0x32219–0x32257`, `0x32314–0x32327`).
+
 The save-aware Shipyard query follows ordinary type selection, cost or quantity
 prompts, affordability checks, and confirmation for both controls. The input
 paths are `remodel:figurehead:SHIP:TYPE:yes` and
