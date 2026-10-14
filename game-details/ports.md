@@ -571,6 +571,17 @@ Three routines call it:
   strip's last column is a whole column wide, so the shadow's bottom-right
   corner is 8 pixels wide.
 
+Taking a window off (`0:0x7690`, file `0xCC90`) puts back the screen saved
+under it, from the save stack at `DS:0x0738`. When the saved area is taller
+than 16 pixels and Graphics Delay is on (`DS:0x0E28` bit 0, `0xCCED–0xCCF7`),
+it does so as a wipe: each step copies back one 8-row strip at the top and
+one at the bottom, moving towards the middle, then waits one timer unit
+(`0xADBE`), for `h / 16 + 1` steps (`0xCCFC–0xCD8F`). The window's picture
+therefore shrinks from both edges and is gone after about `h / 16` units,
+about 80 ms for a 144-pixel scenario panel. Otherwise the whole area is
+copied back at once (`0xCD91`). The scenario's `C3`, `C4` and `D9` restore
+panels 1 and 2 this way (`0x37863`); panel 0's window stays up.
+
 The ordinary menus (`0x19431`) take a column, a top and an item count: the
 window is four columns wider than the longest item (`0x18CD3`) and (n + 1) ×
 24 pixels tall (`0x19464–0x1947A`). Each item's box starts a column in and is
