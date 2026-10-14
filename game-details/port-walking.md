@@ -56,6 +56,16 @@ The town loop at `0x20BDC` turns input into one of four directions (1 up,
   (`0x262AE`), at y 48, 136, 196, and 176 (`0x2639B`, `0x264B5`, `0x265D4`,
   `0x266F5`).
 
+  The Info menu (`MENU.DAT` entry 28) greys out items through `DS:0xA554`
+  (`0x2654D–0x265CF`): Item with no items (bit `0x04`, `FC4:0x335C`),
+  Discovery with no listed discovery (`0x08`;
+  [Discovery flags](at-sea.md#discovery-flags)), Journal while it is empty
+  (`0x10`; [Journal entry](naval-battle.md#journal-entry)), Chart while no
+  cell is charted (`0x20`, `DS:0x1192`), and Port Map at sea (`0x40`,
+  `DS:0x0E32` = `0xFF`). After a command the menu opens again, except after
+  the Port Map (case 6, `0x26650` → `0x265FC`), which sets `di` and so
+  closes it (`0x2654A`).
+
   | Entries | Rectangle (x1, y1, x2, y2)                        | Keys                     |
   | ------- | ------------------------------------------------- | ------------------------ |
   | 0, 4    | (528, 304, 576, 344), the compass's up arrow      | `8`, scan code `0x1E`    |
@@ -143,7 +153,11 @@ calls the building dispatcher (`0x20930`), which looks up the entrance at the
 player's position. The player therefore walks onto the door tile.
 
 - A closed building shows message 765, “It's closed...” (`0x20803`), and the
-  player stays on the door tile.
+  player stays on the door tile. The message goes in a fixed style-0 window
+  with a shadow at column 28, y 48, 20 columns by 48 (`0:0x756C` with
+  ax 0x1C, dx 0x30, bx 0x14), its text from column 30 to 45 at y 64; the
+  message wait (`0x19878`) puts the caret at column 37, y 88, and the window
+  is closed again (`0:0x7690`).
 - An open building moves the player one row down before the visit begins
   (`0x20A13`: `inc word [0x0E3E]`), so after the visit the player stands one
   tile below the door.

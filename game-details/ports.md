@@ -315,6 +315,62 @@ labels and switch back with `ESC F1`, such as `ESC C6 ESC F4 Navigation:%3d
 ESC C0 ESC F1` in `MESSAGE2.DAT`. A speaker label is part of the message
 text, so it wraps with the line like any other word.
 
+A scenario message is printed with paging on (`2DFF:0x7920`): `DS:0x880E`
+is set, and the text's top and bottom (`DS:0x880A`, `0x880C`) come from the
+speaking window's record at `DS:0xBC18 + 24n` (+0x12 and +0x12 + +0x16). The
+vendor window and both portrait panels have text 112 pixels tall. At each
+line break (`0x9C4D`), when the next line would end past the bottom
+(cursor y + 18 + 16 > bottom, `0x9C63–0x9C71`), the cursor moves down a line
+and the message wait runs (`0x9C7A`). The text area is then cleared to
+colour 7, from the left margin to two columns past the right one (`0x5F06`),
+and the cursor returns to the top (`0x9CA5`). A page therefore holds six
+lines, and the caret of a page break sits on the line below the sixth,
+since the cursor is at the start of a line. Paging is turned off again after
+the message (`0x37944`).
+
+Words wrap against the right margin `DS:0x87FA`, which is inclusive: before
+each character the text routine measures the next word (`0x9D11`) and breaks
+the line when the cursor plus its length passes the margin (`0x97E8–0x97F7`),
+so a line holds `right − left + 1` characters. The vendor's window
+(`0:0x8D95`, `0xE39F–0xE3CF`: a frame at column 30, y 8, 30 columns by 128)
+sets margins 32 and 56, 25 characters; the crew's portrait panels at `0xD0CD`
+set column + 11 to column + 36, 26 characters.
+
+#### Scenario windows
+
+A scenario's windows are records at `DS:0xBC18 + 24n`: the frame's column,
+y, width in columns and height, then the portrait's place, then the text's
+column (+0x10), y (+0x12), width (+0x14) and height (+0x16). Record 0 is the
+vendor's window (column 30, y 8, 30 × 128, text at column 32, y 16), record 1
+the upper panel (column 13, y 16, 39 columns × 144, text at column 24, y 32),
+record 2 the lower (column 20, y 176, text at column 31, y 192) and record 3
+the event-art frame (column 13, y 16, 26 columns × 160). Setting a record's
+margins (`2DFF:0x4178`) puts the left at +0x10 and the right at +0x10 + +0x14
+− 2, so the text runs 32–56, 24–48 and 31–55: 25 characters, with the caret's
+column at 44, 36 and 43. Position 0 is record 0 in every context, at sea and
+in battle as well as in a building.
+
+`C0 n` (file `0x38CBC` → `2DFF:0x4204`, `0x377F4`) first clears the current
+window's text area (`0x3775B`) unless the current record is the event frame
+(`0xBC60`). A position already on the open-window stack (`DS:0xBC7C`, two
+entries, counted by `DS:0xBC7B`) just becomes current with its margins set
+and its text cleared (`0x37778`). Otherwise, while fewer than two are open,
+it is pushed and opened (`0x377A1`): positions other than 0 save the
+background (`0:0x4E98`), the frame is drawn in style 0 without clearing the
+screen (`0:0x707B`), and the margins are set unless it is position 3. The
+event frame therefore covers the vendor's picture, while the rest of an open
+vendor window, x 312–480, stays in view beside it; `CB` draws the picture in
+it (`0x3799A` → `0:0x58B7`).
+
+`C7` only waits (file `0x38CE4`, `FC4:0x4638`), so a line stays up until the
+next `C0` or a closing. `C3` (file `0x38CCC` → `0x37850`) takes the top entry
+off the stack: positions 1–3 restore the background (`0:0x7690`), position 0
+only has its text cleared. `C4` (file `0x38CD3` → `0x378AD`) does the same
+for every entry, as does the interpreter's exit (`0x38FA1`); the vendor's
+window therefore stays up with its text cleared. `C9` (file `0x38D00` →
+`2DFF:0x4361`, `0x37951`) opens the ordinary menu (`FC4:0x41F1`) at column
+60, y 80, not cancellable, with the previous line still shown.
+
 A message that waits for a key (`FC4:0x4638`) shows a caret: the 16 × 16
 stencil at `DATA1.014` offset `0x20B0`, a hollow downward triangle, drawn in
 colour 2 (red, blit mode `0x402`, `0x198D6`). Its left edge is at the text
@@ -416,8 +472,14 @@ routine (`0x18E00`) sets one hit box per item a column in from either side
 (`0x18DBF–0x18DEA`) and, after them, the whole window as the drag strip
 (`0x18D35–0x18D57`, copied to the next entry at `0x18E80`), so a press held
 anywhere in the popup but not on an item, disabled or not, drags it. When
-the popup can be cancelled (`DS:0xA55A` = 1), a press outside the window
-answers Esc instead (`0x191A3–0x191E0`). Both records are refilled every
+the menu can be cancelled (`DS:0xA55A` = 1), a press outside the window
+answers Esc on the first pass (`0x191A3–0x191E0`), for the ordinary menus as
+well. The loop at `0x1921F` then checks the button (`0:0x4E52`), and while
+it is still held it calls `0x1919A` again with `SI` = 1, which returns 0
+(`0x1919F`) and replaces the Esc. Only a release before that check, almost
+at once, keeps it, so a click outside a menu or popup does nothing. List
+windows are different: their press check (`0x1A6C4`) answers Esc for a
+press outside them (`0x1A6FF`, `0x1A8CC`), and that answer is kept. Both records are refilled every
 time their window opens, so a dragged popup or YES/NO window does not keep
 its place.
 
@@ -465,6 +527,75 @@ a value.
   holding the button on the bar sets the entry to
   `(pointer x − x − 21) × max / 100` (`0xAA08–0xAA74`).
 
+### Window frames
+
+Every ordinary window is drawn by `0xC67B` (column `ax`, top `dx`, width in
+columns `bx`, then the height in pixels and a style on the stack) from 8 × 8
+tiles in `DATA1.014`, which the game keeps in the segment at `DS:0x0E0A`:
+
+| Tile | `DATA1.014` | Drawn |
+| ---- | ----------- | ----- |
+| Top-left, top-right, bottom-left, bottom-right corners | `0x2C20`, `0x2C40`, `0x2C60`, `0x2C80` | Once each (`0x59D2`) |
+| Top, left, right and bottom edges | `0x2CA0 + 0x80 × style`, then `+ 0x20`, `+ 0x40`, `+ 0x60` | Repeated along each side between the corners (`0x5EA6`) |
+
+The inside, a column in from either side and 8 pixels in from the top and
+bottom, is filled with colour 7 (`0x5F06`). The corners are the same brass
+ornament, mirrored. Style 0 is a striped edge: from the outside in, colours 0,
+2, 6, 0, 2, 4, 2 and then 7, which matches the inside. Style 1 adds an orange
+and cream checker to the outer stripe and alternates its inner stripes; style
+2 has blue in its pattern. The style tiles after style 2 (`0x2E20–0x2E9F`)
+are not a frame.
+
+Three routines call it:
+
+- `0xC67B` itself draws the window at once.
+- `0:0x721A` (`0xC81A`) draws it at its full height growing sideways from
+  its middle column, a column on each side per step with a wait of one unit
+  (`0xADBE`: INT 66h AX=F101h, then until F100h returns 0). A unit is about
+  1/60.3 second ([Tick pacing](at-sea.md#tick-pacing)), but the count starts
+  between two of its decrements, so a step lasts half a unit on average, when bit 0 of `DS:0x0E28` (Graphics Delay, on by default) is
+  set; otherwise it calls `0xC67B`. Step s spans columns trunc((w − 1) / 2) +
+  x − 1 − s to trunc((1 − w) / 2) + w + x + s, for trunc((w − 1) / 2) steps:
+  each draws the corner tiles and side edges at those two columns and the
+  edge tiles and colour 7 in the columns just inside them, so the window so
+  far is always whole. The routine returns after the last step, so whatever
+  goes inside is drawn once the window is open.
+- `0xCB6C` saves the screen under the window, a column wider and 4 pixels
+  taller, and calls `0xCA9C`, which draws the window with `0xC67B` and adds a
+  shadow. The shadow is ANDed into the screen (`0x58A7` mode 2, the VGA AND
+  function), so every other pixel turns colour 0 in a checkerboard. It is a
+  strip 4 pixels wide down the right side, from 4 pixels below the window's
+  top to 4 pixels below its bottom (`DS:0x8F4C`, two rows at a time), and
+  4 rows under the window from 4 pixels in from its left edge (`DS:0x8F3C`
+  for the first column, `DS:0x8F44` for each further column). The second
+  strip's last column is a whole column wide, so the shadow's bottom-right
+  corner is 8 pixels wide.
+
+The ordinary menus (`0x19431`) take a column, a top and an item count: the
+window is four columns wider than the longest item (`0x18CD3`) and (n + 1) ×
+24 pixels tall (`0x19464–0x1947A`). Each item's box starts a column in and is
+two columns wider than the longest item, 16 pixels tall, from 16 pixels down
+and 24 pixels apart; its text is centred by whole columns, starting two
+columns in plus half the difference in length, rounded down
+(`0x18D63–0x18DEA`). The building menus open at column 60, y 104 (every call
+of `0x206E4` but one, at column 30), and the side-tab menus at column 74 less
+the longest item (`0x262C8–0x262D2`), so they end at column 78.
+
+Menus (the shared picker, `0x1947A`), the townsperson's window (`0xB834`),
+and most fixed message windows open through `0xCB6C`. The vendor's text window
+(`0xE3AF`), the scenario panels (`0xD0F9`, `0xD197`) and the ship cards
+(`0x21514`, `0x219B2`, `0x21BF8`) are drawn directly, without a shadow.
+
+Style 1 is used by the crew list (`0x23C3B`), Change Job Duty (`0x2407E`,
+`0x24371`), the crew messages at (128, 160) (`0x23E83`, `0x249E7`,
+`0x26672`), the question at (240, 288) (`0x2439A`), Assign Crew's panels
+(`0x245CE`, `0x25E8C`), the cargo windows (`0x24B9E`), View at sea
+(`0x25692`), Settings (`0x26C93`), the item card (`0x2F35C`), the name-entry
+keyboard (`0x363F4`), a cartographer's Report (`0x33C42`), and all but one of
+the windows between `0x1B292` and `0x1C94B` (`0x1C196` is style 0). Style 2 is used only by the gambling tables
+(`0x34C08`, `0x34C2D`, `0x34ED3`, `0x34F01`, `0x34F2C`). Every other window
+is style 0.
+
 ### List windows
 
 `FC4:0x5904` shows a list of `DS:0xC172` rows of list type `ax & 0x3F`
@@ -486,6 +617,32 @@ the first row shown.
 |    7 |     49 | 112 |      27 |   10 |   17 |     62 | 128 |      14 |   10 |
 |    8 |     63 | 208 |      12 |    8 |   18 |     50 | 112 |      26 |   10 |
 |    9 |     45 | 176 |      31 |   10 |   19 |     71 | 112 |       5 |   10 |
+
+The callers and their types: the title is `MENU.DAT` entry 47's item for
+the type.
+
+| Type | Title           | Callers                                                                                                         |
+| ---: | --------------- | --------------------------------------------------------------------------------------------------------------- |
+|    0 | Ship            | Ship Info (`0x22994`), Rearrange (`0x25D7D`), Moor's Store and Exchange, the Shipyard's lists, battle Info's ships (`0x102AD`) |
+|    1 | Goods           | Log of Goods (`0x222F8`)                                                                                        |
+|    2 | Ship            | Sell Goods (`0x2A8E0`)                                                                                          |
+|    3 | Enemy Fleet     | the sea's Battle command (`0x16267`)                                                                            |
+|    4 | Remaining Space | Buy Goods' ship choice (`0x29F87`)                                                                              |
+|    5 | Port            | Auto Sail (`0x36E24`)                                                                                           |
+|    6 | Mate            | Mate Info (`0x229B6`), the Pub and Lodge sailors, battle Info's mates and the other fleets' commanders (`0x10213`, `0x102C5`, `0x1032C`) |
+|    7 | Ship            | the fleet-wide crew assignment (`0x2B57B`)                                                                      |
+|    8 | Type of Goods   | `0x2AFC2`                                                                                                       |
+|    9 | Mate            | Change Captain and Change Job Duty (`0x24049`, `0x24212`), Wages (`0x26289`), Celestial Navigation (`0x2F71A`), `0x334C9` |
+|   10 | Ship            | repairs ashore (`0x39CB2`)                                                                                      |
+|   11 | Water           | loading water ashore (`0x3A17D`)                                                                                |
+|   12 | Commodore       | View and Gossip (`0x255E1`, `0x26224`)                                                                          |
+|   13 | Item            | Item (`0x2F98C`), the Item Shop (`0x2F9FB`, `0x2FB3B`), the Pub's gift (`0x2C8B7`), Locate (`0x33DF5`)          |
+|   14 | Ship Model      | New and Used Ship (`0x31B8B`, `0x31E56`), keeping captured ships (`0x157C9`)                                    |
+|   15 | Material        | the hull (`0x31ADC`)                                                                                            |
+|   16 | Figurehead      | `0x32101`                                                                                                       |
+|   17 | Guns            | `0x321DF`                                                                                                       |
+|   18 | Discovery Item  | Discovery (`0x22451`), the Pub's (`0x2C7AF`) and the Residence's (`0x336D1`) discovery lists                    |
+|   20 | Region          | the Item Shop (`0x2FD75`)                                                                                       |
 
 The window (`0x19F6C`) is (columns + 4) × 8 pixels wide and rows × 16 + 40
 tall for the record's full row count, however few rows there are. It is

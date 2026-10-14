@@ -107,7 +107,11 @@ fortune teller asks for 50 gold pieces with raw index 299. Refusing
 returns to the main menu. If the player cannot pay, raw index 300 says, “You
 don't seem to have enough,” and the visit ends. Otherwise the game deducts 50
 gold, displays raw index 301, “Very well. Take a seat,” and performs the
-selected reading before returning to the main menu.
+selected reading before returning to the main menu. The payment comes
+straight after the menu, before any command's own dialogue (`0x3357B–0x335C7`).
+The menu greys out **Mates** when there is no mate (`FC4:0x2FC1` returns 0,
+mask bit 8) and **Love** when the second protagonist (`DS:0x1439` = 1) is
+playing (mask bit 4, `0x33549–0x33561`).
 
 **Life** reads the protagonist's Luck and selects `raw index = 302 +
 floor(Luck / 25)`:
@@ -134,8 +138,11 @@ the royal-mission eligibility formula's 40,500 boundary.
 exact eligibility test and favor ranges are documented in
 [waitresses.md](waitresses.md#house-of-fortune-love-reading).
 
-**Mates** first asks whose fortune to tell and lets the player select an
-employed mate. It gives two readings. The first uses the mate's Luck:
+**Mates** (`0x334A8`), already paid for, first asks “Whose fortune shall I
+tell?” (raw 792) and waits, then lets the player select an employed mate in
+list type 9 (`FC4:0x5904` with `0x89`: column 45, y 176, 31 columns, titled
+`MENU.DAT` 47 “Mate”). Cancelling the list ends the command with the fee
+spent. It gives two readings. The first uses the mate's Luck:
 
 |  Luck | Reading                                                                |
 | ----: | ---------------------------------------------------------------------- |
@@ -355,9 +362,23 @@ success to the town loop (see
 
 #### Supply
 
-Supply presents a fleet-wide grid with one row per active ship and columns for
-Water, Food, Lumber, and Shot. A control at the end of the grid switches
-between loading and dumping. Cancelling the grid returns to the Harbor menu.
+Supply (`0x2DC3F`) opens nothing without a ship. Otherwise it draws a
+window at column 13, y 32, 46 columns wide and `(ships + 2) × 24` tall, style
+0 with no shadow (`0:0x707B`, `0x2DC5E–0x2DC73`). The toggle `"Load  "`
+(`DS:0xB5D0`) is printed in colour 4 at column 16, y 48, and raw index 1394,
+`Water Food Lumber Shot`, at column 32, y 48. Each ship's row (`0x2DB08`) is
+raw index 1393, `"%-16s %4d %4d %4d %4d"` with the name, water / 10, food / 10,
+lumber and shot, at column 16, y `72 + 24i`, redrawn black on cream after
+every operation. Every ship row has four hit cells, x `264 + 40j` to
+`296 + 40j`, y `72 + 24i` to `88 + 24i`, one per resource, and four more
+cells, all x 128–192, y 48–64, cover the toggle (`0x2DBD5–0x2DC07`). The grid
+picker (`FC4:0x43B1`, four columns, cancellable) starts on the first cell
+each time. A ship cell `n` loads or unloads resource `n & 3` of ship `n / 4`
+directly (`0x2D81D` to load, `0x2DA06` to unload, then `0:0x8745`), with no
+resource menu. Any of the last four cells (`n ≥ count − 4`, `0x2DCBF–0x2DCC7`)
+flips the toggle, reprinted in colour 4 at column 16, y 48 as `"Load  "` or
+`"Unload"` (`DS:0xB5D7`). Cancelling calls `0:0x8D4E(3)`, shows raw index 56
+from the vendor and returns to the Harbor menu (`0x2DD52–0x2DD5E`).
 
 For one ship, occupied cargo space is:
 
@@ -376,12 +397,23 @@ lumber price = floor( 90 × (port byte +0x19 + 50) / 100)
 shot price   = floor(120 × (port byte +0x12 + 50) / 100)
 ```
 
-The corresponding prompts are raw indices 62–65. If not even
-one unit is affordable, raw index 28 says, “Commodore, we have no gold!” A
-positive purchase immediately adds the selected resource and deducts its
-price; water and food quantities are multiplied by ten when stored. Dumping
-uses `MESSAGE2.DAT` raw index 392 (combined index 1,392), asks for a quantity
-from zero through the amount aboard, and removes it without payment.
+Loading (`0x2D81D`) opens its own window: the area at column 17, y 292,
+39 columns by 100 is saved (`0:0x4E98`), and `0x2D550` draws a style-0 frame
+without a shadow there, 92 tall (`0:0x707B`), with the text margins at
+columns 18–54 and the cursor at column 18, y 300 (`0x2D878–0x2D898`). The
+corresponding prompts, raw indices 62–65, are printed in it. For a priced
+resource, if not even one unit is affordable, raw index 28, “Commodore, we
+have no gold!”, is printed there instead, followed by the caret wait
+(`0x2D914`, `0x2D9F6`). Otherwise the number pad opens with the prompt still
+up. `0:0x7690` then restores the area (`0x2D9FB`). A positive purchase
+immediately adds the selected resource and deducts its price; water and food
+quantities are multiplied by ten when stored. Dumping (`0x2DA06`) uses its
+own window in the same way, at column 21, y 328, 30 columns by 56 (64 saved),
+with margins at columns 22–49 (`0x2DA33–0x2DA53`). It prints `MESSAGE2.DAT`
+raw index 392 (combined index 1,392), with `"planks"` for lumber and
+`"barrels"` otherwise (`DS:0xB5BA`, `0xB5C1`), and asks for a quantity from
+zero through the amount aboard. The amount is removed without payment. Neither
+window touches the vendor's text.
 
 Supply ports have no 37-byte regular-port metadata record. Town setup refreshes
 the executable's metadata pointer only when the current port ID is below 100,
@@ -419,6 +451,11 @@ so a port normally holds up to five ships, but its displayed capacity can be
 lower when ships stored elsewhere consume those records. Only ships whose
 stored location matches the current port appear in this Moor screen.
 
+On entry, Moor counts the fleet's active ships (`FC4:0x2E8A`, kept at
+`DS:0xB5F8`). With none, as before João's first ship, Store and Exchange
+return at once without a message (`0x2DF11`, `0x2E192`), and the Moor
+screen is drawn again.
+
 **Store** (`0x2DF09`) excludes the protagonist's flagship. If no secondary
 ship can be selected, raw index 279 says that only the flagship remains. A
 full local dock uses raw index 288. Otherwise the player selects a ship and,
@@ -436,7 +473,8 @@ roster order as captain. The ship returns with its stored provisions and
 cargo but no crew. Raw index 286 confirms completion.
 
 **Exchange** (`0x2E18A`) replaces a selected non-flagship active ship with a
-selected ship stored at this port. The active captain and crew transfer to the
+selected ship stored at this port. With no ship stored here it refuses with
+raw index 283 (`0x2E19C`). The active captain and crew transfer to the
 commissioned ship. If that crew exceeds the commissioned ship's configured
 maximum, raw index 281 asks permission to dismiss the excess; otherwise the
 generic ship confirmation at raw index 201 is used. The outgoing hull becomes
@@ -726,15 +764,34 @@ The Market main handler begins at `MAIN.EXE 0x2AFD1`. **Buy Goods** begins at
 work to the larger routine at `0x2A336`. Cancelling a command returns to the
 four-command Market menu; leaving that menu returns outside without a farewell.
 
-**Buy Goods** constructs its selection list from the current port's stock.
-The first screen uses raw index 3, “What are you looking for today?”,
-and raw index 406 as the goods/rate heading. Selecting a commodity
-then follows this dialogue:
+**Buy Goods** (`0x2A6DB`) runs the pre-check below, then the vendor says
+raw index 762 with a Tax Free Permit for the port's nation (`0x29EB7`) or 763
+without, and waits (`0x2A6E3–0x2A6F9`). The routine at `0x2A336` builds the
+list once per command: the listed slots whose Economy requirement is met, up
+to the first empty slot (`0x2A38A–0x2A3BF`), then the specialty as slot 9
+while its rate is below 90 (`0x2A3C1`). Each round then opens with a vendor
+line, without a wait (`0x2A3D2–0x2A44D`):
+
+| Specialty                                | Raw index | Line                                                                                        |
+| ---------------------------------------- | --------: | ------------------------------------------------------------------------------------------- |
+| None, or its Economy requirement not met |         3 | “What are you looking for today?”                                                           |
+| On sale (rate below 90)                  |         5 | “%s %s the local specialty.”, with “are” for Glass Beads and Arms (`DS:0xB478`), else “is”. |
+| Sold out (rate 90 or more)               |         4 | “Sorry, we don't have any %s in stock.” with its name.                                      |
+
+The goods go on the parchment (`GRAPH.DAT` record 22 at (104, 136),
+`FC4:0xB592`, `0x2A44E`), two to a row: entry `i` as `"%-14s %5d"` (name and
+asking price, `DS:0xB463`, `0xB46D` for the specialty) at column
+`16 + 22 × (i & 1)`, y `12 × ((i & ~1) + 14)`, so y 168, 192, … Raw index 406,
+`Goods / Rate`, is printed at y 144 over each of the first two listed goods,
+at columns 16 and 37 (`0x2A45A–0x2A479`); the specialty's row adds none.
+Each entry's hit box is x `128 + 176 × (i & 1)` to 160 pixels further,
+16 tall, and the grid picker (`FC4:0x43B1`, two columns, cancellable,
+`0x2A5C5`) chooses one. The whole parchment, x 104–472, y 136–296, is the
+box after them. The parchment and list are drawn again at the start of
+every round. Choosing one follows this dialogue:
 
 | Stage or condition               | Raw index | Continuation                                                                              |
 | -------------------------------- | --------: | ----------------------------------------------------------------------------------------- |
-| Commodity is unavailable         |         4 | Supplies the goods name and returns to the list.                                          |
-| Commodity is the local specialty |         5 | “%s %s the local specialty.” with the name and “are” for Glass Beads and Arms, else “is”. |
 | Gold below half the price        |        22 | Spoken by the crew spokesman; the purchase is not performed.                              |
 | Mate's price assessment          |     23–25 | Classifies the price as a bargain, expensive, or acceptable.                              |
 | Ordinary price confirmation      |       150 | Supplies the goods name and per-lot price, as a yes/no.                                   |
@@ -746,9 +803,12 @@ then follows this dialogue:
 | Offer of at least `T`            |        10 | Sells at the offered price.                                                               |
 | Quantity prompt                  |         9 | Supplies the goods name; the input is limited by cargo room and gold at the agreed price. |
 
-Before the list opens, a pre-check at `0x29E0F` refuses the command: raw
-index 26 or 27 from the First-Mate-first spokesman when the fleet has no
-room, and raw index 28 (“Commodore, we have no gold!”) from the
+Before the list opens, and again after every round that reaches the price
+question (`0x2A6CA`), a pre-check at `0x29E0F` can end the command. With no
+ship it ends silently. Otherwise it sets flag 1 when some ship has free cargo
+space and flag 2 when some ship has an empty goods slot (`0x29DB8`); unless
+both are set, the First-Mate-first spokesman says raw index 27 (flag 1 alone)
+or 26. Then raw index 28 (“Commodore, we have no gold!”) from the
 Bookkeeper-first spokesman when no gold is carried. Raw index 22 appears only
 when the carried gold is below half the per-lot price (`0x2A5E9`). With at
 least half the price but less than the full price, the quantity input opens
@@ -870,13 +930,24 @@ fixed before its adjustment, one large sale can deliberately lower the
 market's rates, and with them the purchase prices that follow, at no cost to
 the proceeds of that sale.
 
-**Sell Goods** first compacts the fleet's cargo list and displays raw indices
-407 and 408 as its `Goods / Load / Rate` table and row
-format. If no saleable goods remain, raw index 21 ends the command.
-Otherwise, the selected quantity is removed, its proceeds are added to
-on-hand gold, the selected category rate and the smaller market-wide adjustment
-are lowered, and the revised list is shown again. Cancelling the cargo list
-returns to the Market menu.
+**Sell Goods** (`0x2A8C4`) ends at once without a ship. It lists the ships
+carrying goods, those with any goods byte set (`0x2A703`, `0x2A770`), in the
+“Ship” list window (`FC4:0x5904` type 2, `0x2A8DB`). The chosen ship's cargo
+is a table on the parchment (`0x2A7EC`): raw index 407, `Goods / Load /
+Rate`, at column 20, y 144, and each goods slot below `0x2E` as raw index 408
+(name, quantity and what the Market pays) at column 20, y `160 + 24k`, its
+hit box x 160–408, 16 tall, picked with the grid picker (one column,
+cancellable). The number input (`0:0x5742`, 0 to the quantity carried) opens
+with no message (`0x2A90F–0x2A92F`). The quantity is removed, its proceeds
+are added to on-hand gold, the selected category rate and the smaller
+market-wide adjustment are lowered, an emptied slot is cleared, and the
+ship's table is shown again while it carries goods. Once it carries none, the
+Bookkeeper-first spokesman (`0:0x8F3F`) says raw index 21 and waits
+(`0x2AA5C`), and the ship list returns, or the command ends when no ship
+carries goods any more, without saying it twice (`SI` = 0). Cancelling the
+table returns to the ship list. When no ship carries goods on entering, the
+same spokesman says raw index 21 (`0x2AA86`) and the command ends.
+Cancelling the ship list returns to the Market menu.
 
 **Invest** adds to an accumulated-investment word in the port's saved 37-byte
 metadata record: metadata `+0x04` for the Market and `+0x08` for the Shipyard.
@@ -925,11 +996,23 @@ categories toward 50 (`0x1CBA2–0x1CBD2`). For every category it draws
 rises by `r`. A rate moved by trading therefore recovers by only 1–5 points
 (3 on average) per month change unless further trading moves it back.
 
-**Market Rate** builds a ten-goods working list, then displays the present
-port's commodity information in successive tables. Raw index 151
-supplies a commodity category and its price index; raw index 379
-is the repeated `Goods / Sells at / Buys at` heading. Acknowledging the last
-table returns to the Market menu.
+**Market Rate** (`0x2AFA5`) fills the working list with the ten categories
+and opens the “Type of Goods” list window (`FC4:0x5904` type 8, `0x2AFBD`),
+again after each table until it is cancelled. A category (`0x2AD01`) brings
+raw index 151 from the vendor with the category name (`DS:0x990`) and its
+rate + 50, without a wait, and draws the parchment. Every goods of the
+category is listed, sold here or not: raw index 379, `Goods / Sells at /
+Buys at`, at column 20, y 144, and each row at column 20, y `168 + 24i`. A
+row is the name as `"%-14s"`, then two columns on what this Market asks, then
+seven columns on `" %5d"` with what it pays (`0x2A78A`). The asking price is
+that of the first listed slot holding the goods, whatever its Economy
+requirement (`0x2ACD7`); failing that, for the port's specialty, `0x29EE3`
+called with the goods number as its slot; otherwise `"---- "`
+(`DS:0xB485`). A category of six goods or more takes two pages: the first
+five rows, a wait (`0x2AED4`), the parchment drawn again, and the rest from
+y 168, whose dash is `" ----"` (`DS:0xB4B7`), one column further right. A
+shorter category, or the second page, gets no wait: the list returns with
+the table still on the parchment.
 
 ### Pub command dialogue
 
@@ -938,6 +1021,30 @@ The Pub main handler begins at `MAIN.EXE 0x2D410`. Its six commands are
 **Gamble**. The executable initializes the available patrons and waitress
 before displaying the menu, so several commands operate on a port-dependent
 character list rather than on fixed text alone.
+
+When a hostess works there, she greets instead of the bartender: a named
+panel (`0:0x7BCD`) with portrait `0x61` and the name of attendant record 0,
+raw 17 (`0:0x7D57`), the message wait with its caret (`FC4:0x4638`), and the
+panel taken off again (`0:0x7690`), all before the menu (`0x2D44A–0x2D47F`).
+Otherwise raw 18 stays up in the vendor's window. A protagonist whose
+sailor status (`+0x29`) has bit `0x10` never meets the hostess (`0x2D332`
+returns 0) and is served by a waitress only when the waitress's flag byte
+`+0x0F` has bit 0 (`0x2D3A6–0x2D3B8`); with one, after the greeting the
+waitress herself speaks from a named panel (portrait `0x61` + her record
+index, her name): raw 307 when her Investigation is waiting (`+0x0D` not
+`0xFF` and `+0x0E` 0), else raw 308, with the message wait, and the panel
+is taken off (`0x2D3BF`). Both greetings are skipped when a story route
+suppressed the greeting (`DS:0xF6A`, `DS:0xEE0`). The menu, `MENU.DAT` 15 at
+column 60, y 104, has a disabled-item mask (`DS:0xA554`, `0x2D4BA–0x2D4DB`):
+**Recruit Crew** (bit 1) once `DAY_FLAGS` (`DS:0xE34`, save `+0x0C`) bit 0 is
+set, **Waitress** (bit `0x10`) with no waitress, and both **Recruit Crew** and
+**Dismiss Crew** (bits 3) when the fleet has no ship (`FC4:0x2E8A` returns
+0). A completed recruitment sets `DAY_FLAGS` bit 0 (`0x2B72E`, skipped when
+nobody is hired), and the day change clears the whole byte (`0x1E974`), so
+Recruit Crew can be used once a day. Every Pub submenu — Meet's
+Treat/Gossip/Hire, Waitress, Ask, and Investigation's nation and class —
+opens at the same place, column 60, y 104 (`FC4:0xB4A4` with `ax = 0x3C`,
+`dx = 0x68`: `0x2C631`, `0x2C9EB`, `0x2CA31`, `0x2D0C8`, `0x2D1CC`).
 
 **Recruit Crew** begins at `0x2B68A` and delegates its checks and prompts to
 `0x2B16D–0x2B3C5`. It refuses when the fleet already has enough
@@ -1158,9 +1265,19 @@ answer **Treat**, **Gossip**, or **Hire** normally (`0x2C116`, `0x2C283`,
 waitress record at this port with flag `0x08` set and `0x40` clear; without one
 the Waitress command is grayed out (`0x2D4C6`), so Cairo's Hadi and Lisbon's
 Carlotta never serve it. Raw index 146 names the port's
-waitress and requests a 10-gold tip; raw index 147, spoken by the Bookkeeper,
+waitress and requests a 10-gold tip, in the vendor's window with the message
+wait (`0x2D17E–0x2D18D`) before the gold check and the menu; raw index 147, spoken by the Bookkeeper,
 refuses the interaction if the protagonist cannot pay. Once paid, it opens `Tell Stories / Give Gift /
-Investigation / Ask Info`:
+Investigation / Ask Info` at column 60, y 104 (`0x2D1C8–0x2D1D5`). For a
+protagonist with status bit `0x10` the menu holds only Investigation and Ask
+Info (`0x2D11D–0x2D17B`). Before each command but Give Gift her named panel
+is opened (`0:0x7BCD`, portrait `0x61` + record index) and afterwards it is
+taken off (`0:0x7690`, `0x2D1E5–0x2D239`). **Ask Info** (`0x2D090`) prints
+raw 398 in that panel and then loops on `MENU.DAT` 13 at column 60, y 104
+until it is cancelled; its first item is masked (`DS:0xA554 = 1`) unless the
+shared scenario's section and subsection (`DS:0xEE2`, `DS:0xEE3`) are both
+set (`0x2D0B0–0x2D0BE`). Its handlers are `0x2CD38` (scenario hints) and
+`0x2D06C` (Port Info: raw 642 + port with more than 80 favor, else 403):
 
 - **Tell Stories** selects a discovery and uses raw indices 312–320 for the
   waitress's subject-dependent reaction.
@@ -1288,6 +1405,64 @@ returns a stale stack word: the hand-label pointer `0xBA54` pushed at
 `0x35B62`. As a signed value this is negative, so it settles like code 3.
 Either way the player loses instead of getting the stake back.
 
+##### Screens
+
+Gambling draws `GRAPH.DAT` record 27 full-screen (`0:0x58B7` with 27,
+`0x2D2C4`) between a fade out and in (`0:0x98B1`, `0:0x98A7`). The fade-in
+targets the palette already set (`DS:0x9052`), the town's time-of-day
+palette, so the picture's colours 3 and 6 are `D361A2` and `F3A261`. The
+picture uses only entries 0–7, which are the same in every time slot. The
+whole of `DATA1.009` (0x15C0 bytes) is read into a buffer kept at
+`DS:0xC786` (`0x2D281–0x2D2B9`): five 32 × 48 cards of 0x300 bytes, then six
+24 × 24 dice faces of 0x120 bytes from 0xF00. All are four planes
+interleaved per 8 pixels and drawn without a mask (`0:0x3CA`). The menu
+(**Black Jack**, **Dice**) opens at column 60, y 104 (`0x2D2D9`).
+
+**Black Jack** (`0x34BC0`): two style-2 windows at column 21, 38 columns by
+168, at y 8 and 224 (`0:0x707B`, `0x34C08`, `0x34C2D`). The dealer's
+generated face is at (184, 20) and the protagonist's portrait at (184, 236).
+The dealer's lines start at (256, 16) between columns 32 and 56
+(`0x34C41`–`0x34C57`). Each round clears the tables to colour 4: column 22,
+36 columns by 64, at y 104 and 320 (`0x343CD`). A card (`0x34426`) is the
+picture for card / 13, picture 4 being the back (card ID 52 for the dealer's
+hidden card). Its rank (`DS:0xB9C4`) is printed black on cream from the
+card's corner (`DS:0xB9DF`). Cards go at column 23 + 5n, at y 112 for the
+dealer and 328 for the player (`0x34513`–`0x3452C`, `0x34A0C`, `0x34AC3`).
+“Gold Pieces” and “Gold Ingots” (959, 960) are printed at (256, 256) and
+(256, 276), and 995 at (256, 300) (`0x3452F`–`0x345A8`). The total (978,
+the number in colour 2) is printed at column 49, y 300 for the player and
+y 80 for the dealer (`0x34A3B`, `0x34B13`). HIT and STAND open at column 65,
+y 48 and cannot be cancelled (`0x34A79`).
+
+**Dice** (`0x35FF9`, windows `0x34EC5`): three style-2 windows: (16, 0) and
+(320, 128), 38 columns by 128, and (16, 256), 58 columns by 144. The faces
+are at (32, 16), (544, 144) and (32, 288). Each round clears the text areas
+and draws a black strip 25 columns by 36 behind each hand, at (104, 60),
+(336, 188) and (104, 332), then prints 1–5 at x 120 + 40n, y 312
+(`0x34D81`). The opponents' lines start at column 14, y 12 (margins 14–39)
+and column 43, y 140 (margins 43–68) (`0x34E0C`, `0x34E21`, `0x34E43`). The
+hand names print in colour 1 at the same places, and the player's at
+column 14, y 268 (`0x35B3A`, `0x35DCC`). A throw (`0x3576D`) gives each
+unheld die `random(6)` and draws it (`0x34F4A`), waiting 20 units after each
+die (`0:0x57BE`). From the second throw on, every unheld die is first blacked
+out (colour 0, 3 columns by 32) and the game waits 20 units before the first
+die (`0x35793–0x357CF`). It then sorts the hand, waits 10 units, and draws all five
+with “hold” 32 pixels under each held die (`DS:0xBA35`). The dice are at
+column 14 or 43 + 5n, at y 64, 192 and 336. Stakes (995) is printed at
+(320, 304) and the gold lines at (320, 336) and (320, 356)
+(`0x35B83`–`0x35BFC`). After each of the player's throws but the last, 984
+“Is this throw final?” is printed at column 16, y 288, then YES/NO
+(`0x358A6`). No blanks it (`DS:0xBA3F`) and runs the grid picker
+(`FC4:0x43B1`, flags 0x81) over the dice, with hit boxes 112 + 40n to
+136 + 40n, y 336–360. Flag 1 lets Esc, 0 or the right button end it, and
+flag 0x80 (`DS:0xA56A`) gives it a box cursor instead of the XOR one: four
+rectangles in colour 4, 2 to 5 pixels outside the chosen box
+(`0x1877D–0x187EF`). With flag 2 clear the cursor starts on the first die
+(`0x19606`). The picker is called again after every choice
+(`0x35913–0x35932`), so the cursor goes back to die 1 each time. Each choice
+toggles that die between free and held (`0x34F78`) until Esc. Held dice then become fixed for the rest of the turn (state 2,
+`0x35934`).
+
 ##### Odds
 
 Monte Carlo runs of the routines above give Dice, played like the opponents,
@@ -1339,7 +1514,18 @@ eligible ordering path. Its construction sequence is:
 | Construction time              |       262 | Supplies the required number of days.                           |
 
 The normal hull menu starts with Teak, Cedar, and Beech. Oak appears when the
-port's Industry reaches 700, and Copper at 900. A Tekkousen uses Steel alone.
+port's Industry reaches 700, and Copper at 900. A Tekkousen gets six rows,
+Teak to Steel, whatever the Industry (`0x31A81–0x31A87`); other models get
+(Industry − min(500, Industry)) / 200 + 3 rows with no cap (`0x31A8C–0x31AAC`).
+Each row is the name at its index in the table at `DS:0xAA0` (Teak, Cedar,
+Beech, Oak, Copper, Steel; `FC4:0x19D65`), which runs straight into the
+figurehead table at `DS:0xAAC` (an empty name, then Sea Horse onwards), and
+the chosen row's index is stored as the material (`0x31AEA`).
+The hull is chosen after raw 254 in list type 15 (`FC4:0x5904` with `0x8F`:
+column 69, y 128, 7 columns by 6 rows, titled `MENU.DAT` 47 “Material”),
+which cannot be cancelled: a cancel reopens it at once (`0x31AD6–0x31AE6`).
+A NO to raw 255's design returns to raw 254 and the material list, not to
+the model list (`0x31B1C–0x31B23`).
 The material choice changes durability. The quoted price is handled before the
 crew-bunk and gun-space inputs, so those inputs do not determine that quote.
 Confirming the quote or an accepted negotiated offer pays for and creates the
@@ -1469,7 +1655,7 @@ material and the current Shipyard Price Index; it does not depend on current
 durability or crew.
 
 **Remodel** begins at `0x3263D` and opens `Figurehead / Guns / Load Capacity /
-Rename`. Figurehead and Guns begin at `0x32344` and `0x32410`; Load Capacity
+Rename`. The menu (`MENU.DAT` 23) is at column 60, y 104 (`0x32657–0x32668`). Figurehead and Guns begin at `0x32344` and `0x32410`; Load Capacity
 and Rename begin at `0x324C9` and `0x3259B`.
 
 | Subcommand       | Principal messages | Behavior                                                                                                          |
@@ -1573,7 +1759,8 @@ failure effects are documented in
 [the shared-scenario overview](scenarios/scenario-0-common-quests-and-royal-missions.md).
 
 **Country Info** begins at `0x331DE`. It asks which country to inspect with
-raw index 162 and offers Portugal, Spain, Turkey, England, Italy, and Holland;
+raw index 162 and offers Portugal, Spain, Turkey, England, Italy, and Holland
+(the names at `DS:0xA2C`) in a menu at column 60, y 104 (`0x331EE–0x331FA`);
 Piracy is not selectable. After a country is selected, raw index 86 asks for
 100 gold. Refusing produces raw index 87, “Huh, you'll regret it later.” If
 the player has fewer than 100 gold, raw index 163 says, “Sorry, no gold, no
@@ -1587,6 +1774,24 @@ The status screen rendered by `0x32F9D–0x331DB` contains:
 - that nation's directed Relations with the other five selectable nations,
   each stored value minus 30; and
 - alliance and blockade markers from the corresponding status bytes.
+
+It is written on the parchment (`FC4:0xB592`: `GRAPH.DAT` record 22 at
+(104, 136), drawn without saving what is under it), all of it in colour 0
+on an opaque background of colour 7: `0x32FAE` prints `ESC C0 ESC B7`
+(`DS:0xB8C0`) first, and nothing later changes the background. At column 18, y 144,
+combined raw 1368 puts “Profit” and “Friendship” in colour 1 on one line,
+Profit as `%5d` between them, and the Friendship follows seven columns wide:
+a negative value is printed in colour 2 with its minus sign (`DS:0xB8C7`–
+`0xB8F6`). Raw 1369, “Relations”, is at column 27 and raw 1370,
+“Alliance/Blockade”, at column 38, both y 176 in colour 1. The other five
+nations follow from column 18, y 192, 16 pixels a row: `%-8s  ` (`DS:0xB8FD`)
+with the name, the Relation five columns wide, negative ones in colour 2
+(`DS:0xB904`–`0xB92F`), then a plain “A” at column 42 for status bit `0x20`
+(alliance) and a “B” at column 51 for bit `0x10` (blockade); both can
+appear. There is no wait of its own: the vendor's two comments follow at
+once, each with the message wait, while the parchment stays up
+(`0x33260–0x332DA`), and the Guild's loop restores the screen afterwards
+(`FC4:0xB5B6`, `0x33345`).
 
 After the screen, the Guild describes the nation's cached target:
 
@@ -1619,30 +1824,58 @@ lines keep the Palace image rather than the ruler portrait.
 
 **Meet Ruler** begins at `0x3044A`. It first gives shared and protagonist story
 routes an opportunity to handle the audience. If neither route consumes the
-interaction, the ruler opens a second menu:
+interaction, a second menu opens, `MENU.DAT` 55 at column 30, y 104
+(`0x304DE–0x304E6`, the only building menu at that column), with no ruler on
+screen yet. **Letter of Marque** is greyed out at a foreign Palace (mask
+`DS:0xA554` = 2 when the capital's cached nation differs from the
+protagonist's, `0x304BA–0x304D4`). The screen is restored before the menu and
+after each command (`FC4:0xB5B6`, `0x304A6`, `0x3050E`).
+
+The ruler speaks from a wide panel at the bottom (`0:0x7B81` → `0xD181`): a
+frame at column 12, y 288, 47 columns by 104 (`0xC67B`, drawn without saving
+what is under it), the portrait from the named record's word `+0x14` at
+column 14, y 300 (`0xCFFE`), and `|%s|` with the ruler's name at column 23,
+y 296. Every ruler line between `0x2FD00` and `0x30900` goes through
+`0:0x7CC9` (`0xD2C9`), which clears columns 22–57 from y 320 for 64 rows and
+prints between columns 23 and 56, y 320 to 384; the text stays after its
+wait. Vendor lines (`0:0x8D95`) and crew lines (`0:0x8F3F`) keep their own
+windows.
 
 - **Sphere of Influence** (`0x3013C`) opens with combined raw 1073, “Welcome,
   %s %s.” (title and last name). If exactly one port shares the current
   port's controller it ends with combined raw 1048 (“We're not allied with any
   ports in the world, just our capital city.”); otherwise raw 453 is followed
   by raw 883 with the allied-port count and a region chooser that repeats
-  until canceled, and raw 454 closes the report. For the chosen region it
+  until canceled, and raw 454 closes the report. The chooser is list type 20
+  (`FC4:0x5904` with `0x94`, eight rows: column 61, y 112, 15 columns by 8,
+  titled `MENU.DAT` 47 “Region”, `0x2FD5E–0x2FD75`). The port table is
+  written on the parchment (`FC4:0xB592`, `GRAPH.DAT` record 22 at (104,
+  136)): raw 475 at column 32, y 144, and rows `%-16s   %3d%%     %4d    %4d`
+  (`DS:0xB6B2`) at column 15 from y 160, 16 pixels apart. After seven rows,
+  unless the seventh is port 99, the message wait runs and the next row
+  starts a fresh parchment; the last page stays up through the verdict. For the chosen region it
   lists every regular port whose cached controlling nation matches the
   Palace's own, seven per page under the header raw 475, “Support Industry
   Economy”: the port's name, its Support for that cached nation, its
   Industry, and its Economy (`0x2FD8D`). With no such port it names the
-  region in raw 455 instead. It then shows the region's economic-power
-  rating, or “No one has sailed to %s recently” when the region's supply line
-  is inactive (`0x2FEE8`). Because the list follows the cached index rather
+  region in raw 455 instead, over an empty parchment. It then shows the
+  region's economic-power rating, raw 457, the region and ` is %u.`
+  (`DS:0xB6D3`), or, when the region's supply line is inactive, raw 1416
+  (“No one has sailed to the”, for the New World, the Middle East and the Far
+  East) or raw 456, the region and raw 1415, “recently.” (`0x2FEE8`,
+  `0x300B6–0x300E4`). Because the list follows the cached index rather
   than Support, a port can appear with less than 75% Support until the next
   midnight refreshes it ([Cached allegiance](sphere-of-influence.md#cached-allegiance)). A capital
   is included in the nation's worldwide count even when no overseas allied
   port exists. The underlying economic-power calculation is documented in
   [sphere-of-influence.md](sphere-of-influence.md).
-- **Letter of Marque** is refused if the protagonist already carries that
-  nation's letter. Otherwise it requires at least 1,000 Piracy Fame and Piracy
-  Fame no lower than either Trade or Adventure Fame. Accepting the request
-  grants the nation-specific letter-of-marque item.
+- **Letter of Marque** (`0x301A7`) is refused if the protagonist already
+  carries that nation's letter. Otherwise it requires at least 1,000 Piracy
+  Fame and Piracy Fame no lower than either Trade or Adventure Fame. Raw 866,
+  “Would you like a letter of marque?”, is only acknowledged: there is no
+  YES/NO (`0x3022C–0x30236`). Raw 867 or 868 then refuses, each its own
+  line; otherwise raw 869 and the ruler's raw 870 and 871 grant the
+  nation-specific letter-of-marque item.
 - **Tax Free Permit** (`0x302B3`) is for the nation of the capital's cached
   allegiance: the permit item is `0x23` plus the low three bits of the
   capital's display-record byte `+0x13` (`0x302C7–0x302D8`). It is refused
@@ -1679,7 +1912,9 @@ The two document requests scan the twenty item slots first. An existing
 nation-specific item takes precedence over an empty slot; with neither an
 existing item nor an empty slot, the request cannot proceed.
 
-**Defect** begins at `0x3051D`. It asks for confirmation, changes affiliation,
+**Defect** begins at `0x3051D`. In the ruler's panel raw 458 waits for a
+key before the YES/NO (`0x30543–0x30548`); NO gives raw 459, YES raw 460
+before the changes. It asks for confirmation, changes affiliation,
 updates personal Friendship, and clears the old national fleet state used by
 the protagonist. Its menu predicate and exact Friendship changes are covered
 under [Defection](friendship.md#defection).
@@ -1732,7 +1967,11 @@ pending. It refuses when no ship aid is pending or when the fleet
 and ship-instance lists cannot accept another vessel, and also requires an
 eligible mate to captain it. On success it creates the specified ship, lets the
 player name it, assigns it to the fleet, decrements the cached aid count, and
-directs the player to the Shipyard. Repeating the command can therefore collect
+directs the player to the Shipyard. The naming (file `0x307BF`) prints message
+555, “Name your ship.”, in the vendor's window (`0:0x8D95`), then opens the
+name entry with its fixed “Ship name?” prompt (`2DFF:0x2F40` with dx 8,
+`DS:0xBB12`) and keyboard (`2DFF:0x2DEA`), and afterwards prints message 552
+in the vendor's window and waits. Repeating the command can therefore collect
 only as many ships as the nation record contains.
 
 Gold and Ship are disabled at a foreign Palace. They are benefits of the
@@ -1951,7 +2190,10 @@ the protagonist.
 ### Vendor portraits and dialogue panels
 
 Ordinary building greetings use a fixed 136×112 vendor image from
-`GRAPH.DAT`. Zero-based records 6–17 correspond directly to building IDs
+`GRAPH.DAT`. It is shown in the town's time-of-day palette
+([Time-of-day palettes](ports.md#time-of-day-palettes)): entries 0–7 are the
+same in every slot, and the few pixels in entries 8–15 (records 6, 8, 9 and
+15 use them) change with the clock. Zero-based records 6–17 correspond directly to building IDs
 0–11: the portrait record is normally `building ID + 6`. The
 religious-building routine substitutes record 20 for a Mosque.
 

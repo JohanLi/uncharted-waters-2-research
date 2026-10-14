@@ -1355,6 +1355,21 @@ in every story interception, and type 10 follows, as in Ezequiel's escort
 ([Objective values](../../game-details/npc/fleet-objectives.md#objective-values)).
 `D1` writes no VM state.
 
+### Panels: `C0`, `C3`, `C5`, `C7`
+
+The interpreter keeps up to two open panels (`DS:0xBC7B` counts them,
+`DS:0xBC7C`/`0xBC7D` hold their positions) and a current panel record
+(`DS:0xBC78`, `DS:0xBC18 + 24 × position`). `C0 <n>` (`0x377F4`) first clears
+the current panel's text unless it is the event frame (`0x3780B`), then makes
+`n` current: an open panel only has its text cleared and its margins reset
+(`0x37778`); otherwise, while fewer than two are open, it opens. `C5 <n>`
+(`0x38CDA` → `0x378F5`) makes `n` current again only if it is open, with its
+text cleared and margins reset, and leaves the previous panel's text alone.
+`C3` (`0x37850`) takes the latest panel off and makes the remaining one
+current. `C7` waits for a key (`FC4:0x4638`) without changing the current
+panel, so lines printed after it go to the same panel until one of these
+opcodes changes it.
+
 `D9` calls a static stub that indexes nine formatters at `DS:0xB438`. Each
 formatter prints a `MESSAGE.DAT` line through `2DFF:5D46` with values taken
 from shared variables 9, 12, 18, 19, and 20, the goods-name table, item and
@@ -1371,6 +1386,12 @@ discovery names, and the protagonist's title and surname:
 |        6 | 948 / 949 | Pirate job partly done: days and pirates remaining |
 |        7 | 950       | Discovery mission complete, with a title           |
 |        8 | 955       | Partial discovery credit                           |
+
+Every formatter goes through `0x299FE`, which opens a panel first (jump
+table at `0x29A13`): selector 0 opens panel 0 with the label `|Head Trader|`
+(`DS:0xB3FA`); 5 and 6 open panel 0 with `|Old Guild Worker|` (`DS:0xB409`,
+`0x29A43`); 1–4, 7 and 8 open panel 1 with the portrait in shared variable 50
+(`0x29A32`, through the `CC` handler `2DFF:0x43FA`).
 
 Selector 4 reads the rank after the script has incremented it, so it names the
 new title. Discovery names use “the ” except for the nineteen discoveries

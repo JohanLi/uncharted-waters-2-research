@@ -100,7 +100,9 @@ first one holding a port's top-left tile (`0x74`, or `0x78` for a supply
 port) in the sea view. Unknown ports are drawn as land there, so only known
 ports can be entered. The port is found by its exact position (`0x20DC2`),
 and message 365, “Commodore, we're going to stop in %s. Is this OK?”, asks
-for confirmation. With no port beside the fleet nothing happens. On
+for confirmation: the First-Mate-first spokesman says it in the named
+portrait panel (`0:0x8F64`, `2DFF:0x5D46`) with YES/NO under it
+(`0x19769`), and the panel closes after the answer (`0x211C1–0x211E5`). With no port beside the fleet nothing happens. On
 confirmation the fleet anchors, the arrival is journalled (type 0),
 `0x20F8B` marks the port known and visited (`0x50`), clears rats, scurvy and
 any weather anomaly (`DS:0x0E37 &= 0xC0`), awards the voyage experience
@@ -325,8 +327,18 @@ A found port gets flag `0x10` and becomes known (`0x36C41`), and is
 journalled (type 9). The announcement (`0x3663A`) reads “Commodore, we found
 the port of %s!” or “Commodore, we found a village!” (`DS:0xBB2A`,
 `DS:0xBB4F`), followed by message 476 when Adventure Fame is awarded: 25 ×
-the region of a regular port, nothing for a supply port, and 50 for a
-village ([Adventure Fame](fame/adventure-fame.md#discovering-ports)). Either outcome
+the region of a regular port, and 50 for a supply port or a village. The
+award starts at 50 (`0x36644`) and only a port numbered below 100 replaces it
+with 25 × its region (`0x3669B–0x366B0`); any award is added, capped at
+50000, and announced (`0x366BD–0x366E2`). The announcement window is the
+lookout's own (`0x36624`): column 16, y 160, 36 columns by 128, style 0
+(`0:0x756C`), waited on with the caret (`FC4:0x4638`). Both sighting lines
+end with a line break, so with no award the cursor is at the start of the
+next line and the caret sits on that line, at the column halfway between
+the margins (columns 18 and 49, so x 264); after message 476 it is 24 pixels
+below the last line (`0x1987E–0x198B4`). “Aaaah! Commodore, look at the
+sea!” (`DS:0xBB6F`) also ends with a break. The same window holds
+each line of a sea event ([Adventure Fame](fame/adventure-fame.md#discovering-ports)). Either outcome
 ends the tick's scan, so the game makes **at most one roll per tick**, always
 for the lowest-numbered candidate. A second port in range waits until the
 first is found or leaves range. A failed roll on a lower-numbered port also
@@ -390,7 +402,13 @@ or to the side after the view has lagged, never ahead.
 The sea menu (`0x266AC`) takes its labels from `MENU.DAT` entry `0x2E`, which
 offers Sail, when bit `0x20` of `DS:0x1189` is set (the fleet is at anchor),
 and otherwise from entry `0x1D`, which offers Anchor (`0x266B4–0x266C2`),
-and dispatches through a jump table at `0x2670F`:
+and dispatches through a jump table at `0x2670F`. The menu repeats while `SI`
+stays 0 and no end state is set (`0x26762–0x26769`): View leaves it 0, so the
+menu comes back after View; Gossip sets it only when `0x2620F` returns 0,
+and that routine returns 1 when its list is cancelled or no fleet is near
+(`0x2626A`), so the menu also comes back then; Options passes on its result,
+0 when it is left and 1 after a load (`0x26E01`, `0x26DEE`). Every other
+command, and cancelling the menu, sets 1 and returns to the sea:
 
 | Entry | Command     | Handler                                                                        |
 | ----: | ----------- | ------------------------------------------------------------------------------ |
@@ -414,9 +432,11 @@ toggled at `0x26B69` and `0x26B7E`), then Mouse Delay, Scroll Range, and Sail De
 sliders between arrows at x 312 and 400, the labels at x 208 on rows 32
 pixels apart from y 48; the picker moves over the eight value and arrow cells.
 Graphics Delay paces the town loop ([Walking in port](port-walking.md#input)).
-The bit is also tested at `0xC848`, `0xCCF2`, `0xE874`, `0xE9D1`, `0xEAC9`,
-`0x11B86`, `0x2D5A3`, `0x2D746`, and `0x2D786`, which are not traced here; at
-`0x2D746`, for one, the palette fade `0:0x98A7` runs only when it is off.
+The bit is also tested at `0xC848`, where it makes `0:0x721A` windows open
+growing sideways ([Window frames](ports.md#window-frames)), and at `0xCCF2`,
+`0xE874`, `0xE9D1`, `0xEAC9`, `0x11B86`, `0x2D5A3`, `0x2D746`, and `0x2D786`,
+which are not traced here; at `0x2D746`, for one, the palette fade
+`0:0x98A7` runs only when it is off.
 
 ### Steering
 
@@ -448,11 +468,29 @@ tabs respond.
 **Destination mode** (key 5, the hub, or the view's centre cell, `0x36CAB`)
 anchors the fleet and, unless a destination is already set, shows “Set your
 destination.” (`DS:0xBBBC`) in a window at column 21, y 200, 30 columns by
-32 pixels (`0xCC48`). A tile picker over the view (`0x1AEEB`) then moves a
-2 × 2-tile box, drawn in colour 7, over columns and rows 0–22: the arrow keys
-or 8, 2, 4, 6 move it one tile, wrapping at the edges; Enter confirms and Esc
-or 0 cancels. Pressing the button in the view makes the box follow the
-pointer until release, which confirms, and a click outside the view cancels.
+32 pixels (`0:0x7648` → `0xCC48`). That window is not framed: `0xCB9B` ANDs
+the shadow's checker (`DS:0x8F44`, mode 2) over it two rows at a time, then
+draws its top and left edges in colour 7 and its bottom and right edges in
+colour 0. The string is `ESC C7 ESC B0`, and with `DS:0x87FC` = 0x300 ORed
+into the blit mode for a background of 0 (`0x9B98`), its text goes on at
+column 23, 8 pixels down (`0xCC61`). The pointer becomes the ship's wheel,
+the 24 × 24 cursor at `DATA1.014` 0x2840 (`0x36CBC`). A cursor is
+0x90 bytes, its picture then its mask, 72 bytes each (`0x84E9`). For this
+one the pointer's reported position is the driver's plus 16 on both axes
+(`DS:0x8E6E`, `0xA438`, read by `0:0x4CCE`).
+
+The tile picker (`0x1AEEB`, also used by View at `0x25470`) takes 24 × 24
+cells of 16 pixels from (96, 8) and moves a 2 × 2-tile box over columns and
+rows 0–22, starting on the fleet. The box is the 32 × 32 stencil at
+`DATA1.014` 0x3820, corner brackets and a centre cross, in colour 7 (blit
+mode 0x407, `0x1AD30–0x1AD6D`). The arrow keys or 8, 2, 4, 6 move it one
+tile, wrapping at the edges. Enter confirms; Esc, 0 or the right button
+cancel. The pointer is confined to the view (`1E5F:0x3218`, `0x1AF69`).
+While the button is held the box follows it, with its top-left cell at
+(pointer − origin − 16) / 16, truncated, on each axis (`0x1AD87`). The
+pointer is therefore in the box's lower-right cell, and with the wheel's
+offset, the box's corner is the cell under the wheel picture's top-left
+corner. Release confirms (`0x1AE4D`).
 Cancelling leaves the fleet anchored. The chosen tile becomes fleet `+4/+6`.
 If a port's top-left tile is chosen (`0x20DC2`), the target moves to the
 first of 12 tiles around the port (offsets (0, −2), (0, 2), (2, 0), (−2, 0),
@@ -478,7 +516,9 @@ afterwards, destination mode starts again. Otherwise the effective heading
 is 8 while anchored (bit `0x20`) and fleet `+0x1A` the rest of the time.
 **Anchor** and
 **Sail** (`0x26661`) only toggle bit `0x20` (“We will drop the anchor here.”,
-“We will lift the anchor.”); dropping it also clears bit `0x80`. In port the
+“We will lift the anchor.”, `DS:0xAF24`, `DS:0xAF0B`); dropping it also
+clears bit `0x80`. The line is printed in a window at column 16, y 160,
+36 columns by 72, style 1 (`0:0x756C`), and waited on with the caret. In port the
 sea menu offers only Options, and while ashore Auto Sail, Sail/Anchor and
 Port Call are disabled (`0x266DD–0x266F0`).
 
@@ -511,12 +551,25 @@ the view (`0x25470`, as in destination mode); Esc ends it. A known port whose
 top-left tile is chosen is described in a plain window: message 380 for a
 supply port, 961 for a capital, 956 with its cached controller, or 930 when
 neutral. Otherwise the fleets other than the player's whose top-left tile is
-the chosen one are listed (`0x1849A`); with none, message 215. The window
+the chosen one are listed (`0x1849A`); with none, message 215. The port
+descriptions and message 215 use a style-0 window at column 20, y 128,
+30 columns by 96 (`0:0x756C` at `0x254F6` and `0x255B2`), the window the
+Battle command and Gossip's message 225 (`0x26241`) use too. The fleet window
 shows the commodore's name, the nation adjective (`DS:0x0A3A`) and the fleet
 type from `MENU.DAT` entry 39 (“Fleet” for position 0, “Merchant Fleet” for
 1–4, “Battle Fleet” for 5–9), the speed in knots (`trunc(speed / 2)`,
 messages 1401 and 1402, or 1403 “%s's fleet is at anchor.” for 0), the
 heading (`MENU.DAT` entry 40), and the ships' names in two columns. The
+window is style 1 at (104, 32), 38 columns by 216, opened through `0xCB6C`
+with its shadow (`0x25681–0x25692`), its text between columns 15 and 51
+(`DS:0x87F8`, `0x87FA`). From y 48, 18 pixels a line (`DS:0x87F6`), it prints
+the commodore's first and last names in colour 1 and the nation and type in
+colour 0 (`DS:0xAE90`, `0xAE9A`); 18 pixels further down (`0x25703`) the speed
+message and “Direction” and the heading (`DS:0xAEA4`). From y 152 the line
+height is 16 (`0x2577B`) and each ship's name is printed as `%-16s`
+(`DS:0xAEB9`) at column 15 or 33 in turn, with a line break after each second
+name. The message wait's caret follows (`FC4:0x4638`) and the screen is
+restored (`0:0x7690`); the window has no portrait. The
 speed comes from the computer-fleet speed routine `0x1FF3A`, but View passes
 it the wind's speed and direction swapped, and the current's too
 (`0x256D9–0x256FC`), so it rarely matches the speed the fleet sails at. The
@@ -649,7 +702,20 @@ The mode argument selects the source:
 | ---: | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 |    0 | Chart (`0x22E10`)        | `0x284F9`, as at sea; a block not yet charted is left blank                                                                           |
 |    1 | Treasure map (`0x2308C`) | `0x286A6`, below                                                                                                                      |
-|    2 | Port Map (`0x232CF`)     | no loader: the tiles already in the view buffer. The command is offered only in port (disabled when `DS:0x0E32` is `0xFF`, `0x265C8`) |
+|    2 | Port Map (`0x232CF`, below) | no loader: the tiles already in the view buffer. The command is offered only in port (disabled when `DS:0x0E32` is `0xFF`, `0x265C8`) |
+
+The Port Map shows 48 × 48 of the town's 96 × 96 tiles: four 24-tile blocks,
+drawn at columns 12 and 36 and at y 8 and 200 (`0x23331–0x2338E`). The left
+block is the one holding the player's x (`DS:0x0E38 + 0x0E3C`), one less when
+the player is in its left half and it is not block 0, and never block 3. The
+top block follows the same rule from the player's y (`0x232E8–0x23330`). Each
+building but 7 is labelled with its `MENU.DAT` entry 58 name, from the
+entrances at `DS:0x0A60` (`ZA_DAT.DAT`). The label starts at column
+x − len / 2 − 24 × block + 13 (+10 for the Market, building 0) and at
+y = (y − 24 × block − 1) × 8. It is skipped when it would start left of
+column 12, end at column 60 or later, or start above y 8 or at y 376 or
+below (`0x233CC–0x2347A`). Labels print as `ESC C7 ESC B0` (`DS:0xAC98`), in
+two boxes of colour 4, one and two pixels out (`0x23483–0x234F3`).
 
 `0x286A6` runs the same place and coast passes, then its own fixed-tile pass
 (`0x28729–0x287A6`). It differs from `0x284F9` in three ways:
@@ -837,11 +903,47 @@ nothing new, since the clamped window stays put.
 The one other writer is a cartographer's **Report** (`0x33BFA`): with at least
 3,300 cells charted, it sets every bit, 4,050 cells (`0x33C2A–0x33C98`).
 
-The Chart's overview (`0x22D09`) lays the 90 × 45 cells out at 6 × 6 pixels
-and draws a colour-13 box over each uncharted one (`0x22D5C–0x22D84`). It
-opens the detail of a 2 × 2-cell area only when at least one of those cells is
-charted (`0x22EAD–0x22EF3`), and the detail leaves each uncharted cell blank
-(`0x22AC4`).
+The Chart's overview (`0x22D09`) draws `GRAPH.DAT` record 25 and lays the
+90 × 45 cells out at 6 × 6 pixels from (50, 50), the first column being the
+bitmap's column 90 − `DS:0x08D7` (30), and draws a colour-13 box over each
+uncharted one (`0x22D26–0x22DA0`). The fleet is a colour-11 box of 6 × 6 at
+x = ((24 × 30 + X) mod 2160 − 12) / 4 + 50, y = (Y − 12) / 4 + 50, divided
+toward zero (`0x22DA2–0x22DFF`). The screen fades out first (`0:0x98B1`) and
+in to the sepia palette `DS:0xAB3E` after (`0:0x988D`, `0x22E01`).
+
+The Chart command (`FC4:0xDBD0`, file `0x22E10`) then runs the tile picker
+(`0x1AEEB`) over the grid: 90 columns and 45 rows of 6 pixels from (50, 50),
+starting on the fleet's cell, `(Y / 24) × 90 + ((24 × 30 + X) mod 2160) / 24`
+(`0x22E45–0x22E73`, `0x22FC6–0x22FDF`). The cell width is passed as −6,
+which marks a one-cell step (`DS:0xBF42`, `0x1AEF3–0x1AF0A`): left and right
+(4 and 6) wrap within a row over all 90 columns, but up and down (8 and 2)
+use a fixed two-row margin, so up from row 0 goes to row 43, and down from
+row 43 or 44 subtracts 43 rows (`0x1AFC4–0x1B036`). The cursor is a
+one-pixel outline in colour 7 XORed over the 2 × 2 cells from the chosen
+one, and again 540 pixels to the left, which shows at the left edge for the
+last columns (`0x1AC72–0x1ACF0`, `1E5F:0x3924`). The pointer is kept inside
+the grid (`1E5F:0x3218`); while the button is held the cursor takes the cell
+(pointer − 50 − 6) / 6, truncated, on each axis, column −1 becoming 89
+(`0x1AD87`), and the release takes it (`0x1AE4D`). A cell outside columns
+0–89 and rows 0–43 is not taken: row −1, the grid's top pixel row (y 50),
+leaves the cursor where it was and clears `DS:0xA558`, and a release with
+it clear is ignored (`0x1ADFC–0x1AE2A`, `0x1AEA3`). Enter takes the cell; Esc,
+0 or the right button end the command (`0x22FE5`).
+
+For a chosen cell the bitmap column is (cell mod 90 − 30) mod 90 and the
+row cell / 90 (`0x22E79–0x22E9A`). The close-up opens only when that cell,
+the one right of it, the one below or the one below and right is charted
+(`0x22EAD–0x22EF3`; the column is not wrapped there and row 45 reads past the
+bitmap). Otherwise the picker starts again on the cell it last started on.
+The close-up fades out, draws the normal screen (`GRAPH.DAT` record 3 and
+the port panels in port, record 2 and the sea panels at sea,
+`0x22F06–0x22F3E`), then the four cells' blocks with `0x22A7E` mode 0, the
+chosen cell's at column 12, y 8, the one right of it at column 36, and the
+two below at y 200 (`0x22F43–0x22FA3`). It fades in to the sepia palette,
+waits for a key (`0x18685`), and the overview is drawn again with the picker
+starting on that cell (`0x22FB4–0x22FC1`). A block whose cell is not charted
+is a colour-9 box, 24 columns by 192 (`0x22A98–0x22AE0`). Leaving fades out,
+redraws the screen and fades in to the normal palette (`0x22FEB–0x2307C`).
 
 ### Ports on the map
 
@@ -1044,7 +1146,8 @@ When no active ship has any of a resource, each ship's health falls by up to 16
 for that resource, and the crew-loss rule above applies (`0x1E330`). Messages
 1146, 1147, and 1148 report that food, water, or both have run out on the day it
 happens. If every active ship has lost its crew, or no active ship remains,
-`0x1E6D6` shows message 442 or 577 and ends the game with end state `0x19`
+`0x1E6D6` shows message 442 or 577, in a style-0 window at column 18, y 128,
+34 columns by 96 (`0x1E719–0x1E747`), and ends the game with end state `0x19`
 (see [Game over at sea](#game-over-at-sea)).
 
 ### Leaving port
@@ -1092,26 +1195,49 @@ these routines advances the clock or the days-at-sea counter.
 The eight candidate tiles are offered clockwise from the one above the
 fleet's top-left tile, (0, −1), (1, −1), (2, 0), (2, 1), (1, 2), (0, 2),
 (−1, 1), (−1, 0) (`DS:0xBD6E`, `DS:0xBD7E`), leaving out any pair that would
-fall outside the 24 × 24 view (`0x3ABF2–0x3AC29`). They are picked with the
-shared rectangle selector (`0x18AFD`); Enter selects, Esc or 0 cancels. While
+fall outside the 24 × 24 view (`0x3ABF2–0x3AC29`). Each gets a 16 × 16 hit
+box at x = (view x + dx + 6) × 16, y = (view y + dy) × 16 + 8 (`0x3AB89`,
+`0x3AB6A`). They are picked with the shared rectangle selector (`0x18AFD`),
+which marks only the chosen tile: its cursor XORs colour 7 over that hit
+box (`0x18704`, blit mode 0x107). The choice starts at the index the last
+picker left in `DS:0xA568` when that is still below the count, else at 0
+(`0x18B08`). From the sea menu that is 3, its Go Ashore row, so the first
+tile marked is (2, 1), right of the fleet's lower tile, when it is offered.
+Left and right (4 and 6) step to the previous and next tile, wrapping; up
+and down do nothing (`0x18AA5–0x18ADD`). Enter selects; Esc, 0 or the right
+button cancel. A left press on a tile moves the cursor there, and it follows
+the pointer over the tiles while the button is held. Releasing over a tile
+selects it; releasing anywhere else does nothing (`0x18A8D–0x18A9B`). While
 a party is already ashore the choice and the question are skipped
 (`0x3ABCB`). The questions and reports ashore are spoken by the
 First-Mate-first spokesman (`0x8F64`).
 
 The open-land menu is `MENU.DAT` entry 36, “Sail / Repair / Search / Wait”
-(`0x3AB07`), and the village menu entry 35, “Search / Entertain / Plunder /
-Sail / Wait” (`0x3A9CD`); neither can be cancelled. **Sail** asks “Shall we
+(`0x3AB07`), at column 64, y 272 (`0x3AB0E–0x3AB16`), and the village menu
+entry 35, “Search / Entertain / Plunder / Sail / Wait” (`0x3A9CD`), at
+column 64, y 240 (`0x3AA00–0x3AA08`); neither can be cancelled. **Sail** asks “Shall we
 cast off?” (message 417) and on Yes lifts the anchor (`0x39C84`). **Wait**
 sets `DS:0x1189` bits `0x28` on plain land, `0x30` on desert and `0x38` in a
 village (`0x3AB40`, `0x3AA3B`).
 
-**Repair** (`0x3A10C`) picks a ship, shows its durability, Tacking and Power
-against their maximums (`0x39D9D`; the model's values for Tacking and Power,
-captions 1380–1382), and repairs the chosen one (`0x39F76`): with no lumber in
+**Repair** (`0x3A10C`) picks a ship (list type 10). A ship whose durability,
+Tacking and Power all equal their maximums gets 418 from the spokesman
+(`0x39CC2–0x39D11`). Otherwise a style-0 window opens at column 20, y 96,
+24 columns by 128 (`0:0x756C`), with captions 1380–1382 at column 24,
+y 112, 144 and 176, and a long bar frame (`0:0x8F89`) under each at column 26,
+y 132, 164 and 196 (`0x39D14–0x39D93`). `0x39D9D` then prints each value as
+`"%3d/%3d"` against its maximum at column 35 on the caption's row (the model's
+values for Tacking and Power), fills each bar with `100 × value / maximum`
+(`0:0x906A`), and sets three hit boxes over the captions, from x 192 to
+x 192 + 8 × (10, 7, 5), 16 tall. The grid picker (`FC4:0x43B1`, three boxes in
+one column, flags 1) chooses one, its cursor back on the first each time
+(`0x3A142–0x3A149`); cancelling it closes the window and returns to the ship
+list (`0x3A155`). The chosen stat is repaired (`0x39F76`): with no lumber in
 the fleet, message 419; with nothing missing, 420; otherwise message 421
 offers up to `min(lumber, floor((missing + 4) / 5))` planks, taken from the
-ships in slot order, and the value rises by 5 per plank, capped. A ship with
-nothing to repair gives 418.
+ships in slot order, and the value rises by 5 per plank, capped. The
+spokesman's lines open over the panel, and after each repair the values and
+bars are redrawn and the picker runs again (`0x3A13C`).
 
 ### Where a party can land
 
@@ -1163,6 +1289,11 @@ So only those 50 villages can be sighted or searched, which is why
 The other 48 still show village tiles on the map, but landing there opens
 the open-land menu.
 
+The Info menu's Discovery list (`0x223FD–0x2243A`) and its menu check
+(`0x26564–0x26599`) take a record only when `0x80` is clear and both `0x40`
+and `0x20` are set. A treasure record that got `0x20` from its map being
+bought keeps `0x80`, so it is never listed.
+
 The same routine then hides the ten treasures in ten of the unselected
 records. For each treasure `k` from 0 to 9 it picks a random record that still
 has `0x80` and ordinary content (`+4` below 90), sets its content to item
@@ -1205,7 +1336,10 @@ itself: before drawing, the routine repaints the four village-icon tiles
 `0x7C–0x7F` as a diagonal cross on sea texture (`0x230BD–0x231A8`, masks at
 `DS:0xAC78`). **Every** discovery site inside the view therefore shows an X,
 whatever its flags, including sites already found or unrelated to the map.
-The tiles are shrunk to 8 × 8 pixels and limited to colors 8–15, and the view
+The tiles are shrunk to 8 × 8 pixels and limited to colors 8–15: of each
+plane's sixteen rows only the even ones are kept, of each four pixels the
+first and last (the nibble table at `DS:0xAC68`), and the fourth plane is set
+(`0x22C1A` with 0x80). The view
 fades in to the same sepia palette (`DS:0xAB3E`) as the world-map overview at
 sea, with the X in orange-red (`0x22C1A`, `0x2325F`).
 
@@ -1243,11 +1377,16 @@ patron, is found by Search on its tile instead of water.
 ### Loading water
 
 After a spring is found, a ship picker (`0x3A183`) repeats until cancelled.
+It is list type 11, titled “Water” (`0x3A173`), whose rows are the ship's
+name padded to 17 columns and `"%4d/%4d"` (`DS:0xA5CA`): the barrels aboard
+and that number plus the free room (`0x19C96`). Repairs use list type 10
+(`0x39CB2`), names only.
 Water is free, and any ship can be filled any number of times. Each load is
 limited to the ship's free cargo space, calculated as in the Harbor's Supply
 screen. A full ship gets “You can't load any more - our cargo bay is full.”
 (message 422). Otherwise the prompt is “How many barrels of water (0-%d)?”
-(423), and the ship's water becomes `(floor(water / 10) + n) × 10` tenths.
+(423), shown in the spokesman's panel (`0x3A1E6`) beside the number pad, as
+the Repair prompt 421 is (`0x3A068`); the ship's water becomes `(floor(water / 10) + n) × 10` tenths.
 Any confirmed load, even of 0 barrels, therefore drops the ship's odd tenths.
 
 ### Villages
@@ -1340,7 +1479,16 @@ before the crew loss. A find is followed by the discovery's card
 (`0x3A37D`): its `COLONY.DAT` picture (record byte `+0x19`), name, type
 (message 1383; type names at `DS:0x0AC2`) and grade, `MENU.DAT` entry 34's
 letter for `difficulty / 25` (message 1384), and its description, with
-message 1418 added for picture `0x1C`. The crew-loss lines are 427 or 584,
+message 1418 added for picture `0x1C`. The card is a style-0 window at
+(120, 32), 38 columns by 272, opened sideways (`0:0x721A`, `0x3A3C3`). The
+picture is at (136, 48) (`0:0x7A6D`). From column 24 it prints the name in
+colour 1 at y 48 (`DS:0xBD18`), the type at y 72 and the grade at y 88, the
+letter in colour 2. The description starts at (136, 112), 16 pixels a line
+between columns 17 and 50 (`0x3A447–0x3A459`). The text routine moves a word
+to the next line when it would end past the right margin (`0x97F3`), so a
+line holds at most 34 characters. The description ends with a space, and
+message 1418 is printed straight after it. The message wait's caret follows
+(`FC4:0x4638`). The crew-loss lines are 427 or 584,
 and 1136 for crew staying behind (“man” or “men”, “wants” or “want”, “he's”
 or “they're”). Entering the village menu also refreshes the Auto Sail node
 marks ([Auto Sail](#auto-sail)).
@@ -1365,7 +1513,10 @@ items (9) at `0x2F6C2`, and maps (`0x0C`) at `0x2F8BC`
 used here (`0x2F4E4`). An emergency item (Rat Poison, Balm, Lime Juice) is
 used up whether or not it had anything to do (`0x2F6EF`).
 
-Every Use line appears in a plain window. Items that cannot be used answer
+Every Use line, and Equip's messages 148, 339 and 378, appears in a window
+at column 18, y 48, 28 columns by 96, style 0, opened with its shadow
+(`0x2F36F` → `0:0x756C`). The text keeps the message's own line breaks.
+Items that cannot be used answer
 message 1385 (arms), 1386 (shields), 1387 (armour) or 1388 (`0x2F4E4`). The
 Telescope and the unused items `0x1B` and `0x1C` say “We can see far!” (368),
 the Cat “Meow!” (369). Rat Poison answers 370 or 371, Lime Juice 375 or 376,
@@ -1425,13 +1576,16 @@ of `DS:0x0E37`.
 **Rats** (`0x1E508`) can appear after day 30 when no Cat (item `0x19`) is in
 the inventory. The check succeeds when `random(floor(NavLevel / 5) + 2)` is 0
 and `random(105)` exceeds the protagonist's Luck, where NavLevel is the
-protagonist's Navigation Level. Message 473 announces them. From that day
+protagonist's Navigation Level. Message 473 announces them, spoken by the
+spokesman over graphics record `0x39`, drawn at (160, 16) first
+(`0x1E551–0x1E578`). From that day
 each active ship loses one barrel of food per day (`0x1E58A`). Rat poison
 (item `0x29`) removes them.
 
 **Scurvy** (`0x1E5EC`) can appear after day 60 when `random(105)` exceeds the
 protagonist's Luck; rations and health do not matter. Message 474 announces
-it. Each day, each active ship loses
+it, over graphics record `0x3B` at (160, 16) in the same way
+(`0x1E617–0x1E63E`). Each day, each active ship loses
 `min(crew, floor((100 − Knowledge) / 5) + random(2))` crew, where Knowledge
 (sailor byte `+0x16`) belongs to the ship's captain (`0x1E64F`). Lime Juice
 (item `0x2B`) cures it. The day counter is one byte, so after day 255 it
@@ -1532,8 +1686,10 @@ wind byte (`0x1F29F–0x1F2A7`), and the end tests read bit 7 to see whether
 the fleet has left the region. The warning is spoken with the warning mate's
 portrait (`0x1EC1E`); a new Storm also plays effect `0x30`. The announcement
 (`0x1F1B9`) comes from the First-Mate-first spokesman, plus 1 for a
-rough-spoken one, and a Storm's announcement first shows graphics record
-`0x3A`. The endings are 360/361, 362/363 and 364. In a Storm each ship's
+rough-spoken one, and a Storm's announcement first draws graphics record
+`0x3A` at (160, 16) (`0x1F1D8–0x1F1E6`). The picture stays behind the line
+and goes with it: after the one wait (`0x19878`) the window closes and the
+sea view is redrawn (`0x1F22A–0x1F241`). The endings are 360/361, 362/363 and 364. In a Storm each ship's
 damage is subtracted from durability, half of it (rounded toward zero) from
 Tacking and from Power, and the maximum durability falls by 1 but not below a
 quarter of the model's (`0x1EE5A–0x1EF12`). A wrecked ship is reported with
@@ -1609,11 +1765,14 @@ the protagonist. The Vanishing ship clears the ship's active status bit
 sets the captain's duty to 6, an unassigned mate (`0x367A9–0x367BB`).
 
 The active entry is cleared and refilled from `MONSTER.DAT` whether or not
-the event applied (`0x36B36–0x36BAC`; queue position byte `DS:0x11C8`). An
+the event applied (`0x36B36–0x36BAC`; queue position byte `DS:0x11C8`), and
+the tick then skips the lookout scan (`0x36BB0`), so a tick on an event tile
+makes no sighting even when the event did not apply. An
 event that applies plays effect `0x30` twice, shows “Aaaah! Commodore, look
 at the sea!” (`DS:0xBB6F`) in a window without a portrait, and then its two
-lines, each in its own window (`0x369A3`, `0x36624`). A tick with an event
-makes no sighting. Sighting announcements use the same portrait-less window.
+lines, each in its own window (`0x369A3`, `0x36624`: column 16, y 160,
+36 columns by 128, style 0). Sighting announcements use the same
+portrait-less window.
 
 ### Event tiles
 

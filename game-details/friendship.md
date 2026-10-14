@@ -374,6 +374,17 @@ from `DS:0x9052`. The delay routine multiplies its argument by six, producing
 approximately 120 refresh intervals, or two seconds at 60 Hz, between the fade
 out and fade in before "Whew, that was a narrow escape!"
 
+The lines come from different windows (`0x309F9–0x30A18`, `0x3080F`). The
+greeting, raw 443, is in the vendor's window (`0:0x8D95`). On a successful
+escape the protagonist says raw 446 (`0:0x7C27`), the panel is taken off
+(`0:0x7690`), the blackout runs, and the first mate (`0:0x8F64`) says raw
+448. On a failed one the protagonist says only raw 445, “Darn it!”; the panel
+is taken off, the screen fades out, is restored (`FC4:0xB5B6`), waits 15
+units and fades back, and the ruler then speaks from his bottom panel
+(`0:0x7B81`, [Palace](buildings.md#palace-command-dialogue)) with raw 449,
+450, 451, combined 1417 (“You're lucky I am so forgiving.”) and 452, each
+waiting, before the seizure.
+
 The hostile-reception roll occurs on Palace entry before the ordinary menu.
 Because royal-mission dialogue is invoked later through `Meet Ruler`, the
 hostile entry path prevents that audience from being selected when it triggers.
@@ -498,8 +509,10 @@ stored Friendship 41..70 (displayed -59..-30), while ranked
 ```
 
 Exile retains the post-deduction Friendship value, subject to the normal stored-zero floor; it does not assign `-100`.
-The messages for these branches are "You have been exiled from your mother country" and "Your name has been shamed, and
-your title has been stripped away," respectively.
+The messages for these branches are "You have been exiled from your mother country" (568) and "Your name has been shamed, and
+your title has been stripped away," (569) respectively. Each is shown in a fixed window at (160, 128), 30 columns by 96
+(`0:0x756C`, style 0), with margins 22–47, then the message wait and the window closed (`0x15F9F–0x15FBF`,
+`0x16002–0x16022`).
 
 Both punishments also cancel the shared Scenario 0 state, including an active
 royal mission or Guild assignment, without using the voluntary refusal/give-up

@@ -57,6 +57,9 @@ Portugal's Tax Free Permit removes the Market markup there
 
 A region contributes only when the required allied-port Industry totals reach 300. The Palace routine builds Economy and Industry totals for each nation and
 region by iterating over all 100 regular ports (`MAIN.EXE` 0x2FF24–0x2FF78).
+The Palace's Economy total counts a port twice when bit 3 of its display byte
+`+0x13` is set (`0x2FF48–0x2FF53`: `× 2` for the bit, `× 1` otherwise); both
+totals are 16-bit words.
 It then applies these supply-line checks:
 
 | Requested region | Required allied-port Industry totals                                |

@@ -101,13 +101,15 @@ material multiplier:
 | Beech    |       100% |
 | Oak      |       110% |
 | Copper   |       120% |
-| Steel    |       140% |
+| Steel    |       130% |
 
-Steel is automatically selected for a newly built Tekkousen and is unavailable
-for other ship types. Other models initially offer Teak, Cedar, and Beech. The
-port's Industry unlocks Oak at 700 and Copper at 900. The selector at
-`MAIN.EXE 0x31A8C..0x31AC7` populates the material menu from
-`3 + floor(max(Industry - 500, 0) / 200)` entries, up to all five materials.
+A Tekkousen is offered six rows, Teak through Steel (`MAIN.EXE 0x31A81`), and
+the chosen row's index is its material, so Steel is index 5. Other models
+initially offer Teak, Cedar, and Beech. The port's Industry unlocks Oak at 700
+and Copper at 900. The selector at `MAIN.EXE 0x31A8C..0x31AC7` populates the
+material menu from `3 + floor(max(Industry - 500, 0) / 200)` entries with no
+cap; the rows name entries of `DS:0xAA0`, so Steel is never offered to other
+models while Industry stays below 1,100.
 
 ### Durability calculation and cap
 
@@ -120,14 +122,14 @@ adjusted         = base_durability * material_factor / 10
 durability       = min(adjusted, 100)
 ```
 
-For the five normally selectable materials, indices `0..4` yield factors
-`8..12`, corresponding to 80% through 120%. Steel uses factor 14 (140%).
+Indices `0..5` (Teak to Steel) yield factors `8..13`, corresponding to 80%
+through 130% (`MAIN.EXE 0x31AF1–0x31B09`).
 
 Examples:
 
 ```text
 Full-rigged Ship with Copper = min(90 * 12 / 10, 100) = 100
-Tekkousen with Steel         = min(90 * 14 / 10, 100) = 100
+Tekkousen with Steel         = min(90 * 13 / 10, 100) = 100
 ```
 
 ### Construction time
@@ -170,7 +172,7 @@ catalog base price for the chosen material. The shared price and negotiation
 routine at `0x317FD..0x31A6F` then applies the port's Shipyard Price Index.
 Let `B` be the catalog base price in gold, `b = B / 10` its stored integer
 value, and `m` the material index (Teak 0, Cedar 1, Beech 2, Oak 3, Copper 4,
-Steel 6). All divisions below truncate toward zero:
+Steel 5). All divisions below truncate toward zero:
 
 ```text
 new_price_tens = floor(4 × b / 5) + floor(m × b / 10)
@@ -181,7 +183,7 @@ minimum_offer = floor(quoted_price × (500 - protagonist Charm) / 500)
 ```
 
 The index normally spans 50%–150%. The New Ship material component spans
-80%–140% (Copper is 120%); the two separately truncated terms mean that
+80%–130% (Copper is 120%, Steel 130%); the two separately truncated terms mean that
 `new_price_tens` can differ slightly from multiplying the catalog price by a
 single material percentage. The final quote is rounded down to a multiple of
 10 gold. Used Ship passes the selected model's unmodified base price to the
