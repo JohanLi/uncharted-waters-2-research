@@ -421,10 +421,49 @@ answers Esc instead (`0x191A3–0x191E0`). Both records are refilled every
 time their window opens, so a dragged popup or YES/NO window does not keep
 its place.
 
-Message windows that only wait for a key, the number pad and the other
-screens have no drag. Only two routines draw the drag outline
-(`1E5F:0x3924`): the picker's (`0x18F7B`) and the list window's
-(`0x1A47A`).
+Message windows that only wait for a key and the other screens have no
+drag. Only two routines draw the drag outline (`1E5F:0x3924`): the picker's
+(`0x18F7B`) and the list window's (`0x1A47A`). The number pad moves without
+an outline (below).
+
+### The number pad
+
+The number pad (`0:0x5742`, file `0xAD42`) takes a minimum in `dx:ax` and a
+maximum on the stack; `DS:0x8E9C` = 1 makes it cancellable and `DS:0x8E9E`
+reports a cancel. It saves 17 columns × 152 rows at `DS:0x8E78/0x8E7A`,
+(504, 248) at start-up, draws `GRAPH.DAT` record 1 there (`0xA5AB`) and
+restores the area on exit (`0xAD9A`). It always starts at 0; no caller passes
+a value.
+
+- **Hit boxes** (`0xA5BB–0xA648`): 19 keys of 24 × 24 from (x + 8, y + 48),
+  5 to a row, Enter 48 wide; the compass at (x + 18, y + 24), 24 × 16; the bar
+  at (x + 21, y + 8), 100 × 8. The keys' codes (`DS:0x8E7C`) are
+  `7 8 9 * ?`, `4 5 6 / >`, `1 2 3 - ,`, `0 = + Enter`: `?` is MAX, `>` AC and
+  `,` ±.
+- **Display** (`0xA8B4`): the shown value with “%9ld” (`DS:0x8E96`) in colour
+  0 on 7 (`DS:0x8E8F`) from column x / 8 + 6, y + 24. The bar is a gauge
+  (`0xA911–0xA939`): black, then colour 2 from x + 21 for
+  `floor(value × 100 / max)` pixels, at most 100, none for a negative value,
+  full when the maximum is 0.
+- **Keys** (`0xA979`): a digit makes the entry `E × 10 ± d`, held at
+  ±99,999,999, and after `=` starts a new number. MAX (also Up, Home) sets the
+  entry to the maximum; AC (also Down, End) clears everything; ± negates the
+  entry while nothing is pending. `*` and `/` fold the entry into a product
+  and show it; `+`, `-` and `=` fold the product into a total, held at
+  ±99,999,999, and show it, `=` also making the total the entry; two
+  operators in a row replace the pending one (`0xACAF`, `0xAD0E`). Arithmetic
+  is signed, division truncates, and dividing by 0 gives 0 (`0xA847`). A typed
+  `.` is `=`; Left and Right do nothing.
+- **Enter** (`0xA9D4`) returns the total when it is not 0, else the entry, so
+  a pending operation is dropped (“5 + 3 Enter” gives 5). Out of range, the
+  pad starts again from 0 (`0xAD5E–0xAD92`). Esc or the right button cancels
+  only a cancellable pad.
+- **Mouse**: a press on a key XORs colour 7 over it while held and the key
+  acts on release (`0xA6DF–0xA729`); a press on the compass erases the pad and
+  redraws it on release at the pointer less the press offset, x on a column,
+  no further than (504, 248), and later pads open there (`0xA73A–0xA7D4`);
+  holding the button on the bar sets the entry to
+  `(pointer x − x − 21) × max / 100` (`0xAA08–0xAA74`).
 
 ### List windows
 

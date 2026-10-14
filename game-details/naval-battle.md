@@ -1138,6 +1138,24 @@ name?”, `0xBB1D` “Port name?”) is at column `29 − n`, y 272, and the ent
 y 304 over `n` underscores 8 pixels lower (`DS:0xBB28`); the cursor's
 underscore uses `DS:0xBAEC`, the others `0xBAF4` (`0x362A0`).
 
+The keyboard has 66 items in the shared picker's table (`0x361D5`): Esc,
+Enter, Del and Space, 40 × 16 at x 16 + 48i, y 16 (MENU.DAT 31 is printed
+from column 2 in colour 2, so “Del” starts 8 pixels into its box), then
+`0-9 A-Z a-z` (MENU.DAT 32, colour 0) in 12 columns of 8 × 16 keys, 16
+pixels apart from (16, 48). The buffer starts empty (`DS:0xBAF9`) and the
+highlight on Esc (`0x36412–0x36417`), drawn before any input as the picker's
+colour-7 XOR over the item (`0x18704`). Input comes through `0x1889E`
+(`0x36432–0x364C2`): a typed `0-9`, `A-Z` or `a-z` (case kept), Space,
+Backspace, Enter or Esc moves the highlight to its item and acts on it, so
+typing T highlights T and adds it; every other key, the arrows and Del
+included, does nothing. A left press highlights the item under the pointer
+while held, and the release on an item acts on it (nothing over a gap); the
+right button is Esc. The actions (`0x3635D`): Esc returns 2, Enter 1, Del
+removes the last character, Space and the keys add theirs while under the
+limit. An empty name returns 3 (`0x364FF`); a name is kept untrimmed. The
+capture's caller asks again until the result is 1 (`0x154C9`), so Esc or an
+empty Enter starts a fresh, empty entry.
+
 #### The ship card
 
 `1E5F:0xD289` (file `0x30E79`) draws `GRAPH.DAT` record 22 at (104, 136)
@@ -1204,6 +1222,39 @@ the Fleet tab's **Transfer Cargo** screen ([Fleet Info](fleet-info.md)),
 which starts with the area empty. Ending it with spoils still in the area
 asks “There are items left in the unloading area! Is it still okay to end the
 transfer process?” (1373), else “Is this OK?” (219); whatever is left is lost.
+
+#### What stays on screen
+
+Two kinds of window are drawn without saving what lies under them, so
+nothing erases them until the screen fades to black for the return to sea:
+
+- **The vendor panel** (panel 0). Panels open through `2DFF:0x4204` (file
+  `0x377F4`), and only panels other than 0 save first (`0x377A8`). Closing
+  the panels (`2DFF:0x42BD`, `0x378AD`) restores the others but only fills
+  panel 0's text area (256, 16, 208 × 112) with colour 7 (`0x3775B`), so its
+  frame at (240, 8), 240 × 128, stays, empty. “Name the ship.” (557) is
+  printed into it (`0x1549C–0x154A7`) and stays through the name entry, whose
+  own windows are restored; the next announcement clears and reprints the
+  panel, and the close at `0x158BD` leaves the empty frame.
+- **The crew list** (`0x158C8` → `1E5F:6`, `0x23BF6`), drawn with `0:0x707B`
+  at (104, 32), 344 × (n + 2) × 24, captured ships included.
+
+The victory picture (`0x15A56` → `0:0x58B7`) is never removed either. In the
+transfer, Remaining Cargo opens with a save at (440, 64), 176 × 208
+(`0x24B9E(55, 64)`), over the crew list's right edge. A ship's window opens
+with a save at (176, 64), 176 × 208 (`0x25229`) and is restored when left
+(`0x252F1`); then the whole crew list is drawn again (`0x2545B`), so from the
+first ship on it covers Remaining Cargo's frame, of which only the inside
+(456, 112, 144 × 144) and title are redrawn (`0x24BB9`). The ship's picker
+(`0x25244–0x252BA`) holds its rows and one empty row below them, left out
+when the ship has nine; the area's entries are not in it. Choosing the empty
+row (`0x24FE0`) does nothing when the area is empty, and otherwise starts a
+second picker on the area (rows x 456–600, y 112 + 16i), on its first entry;
+cancelling it goes back to the ship. The closing question opens with a save at
+(240, 288), 224 × 104 (`0x24389`); No restores only it, Yes it and Remaining
+Cargo (`0x25460`, `0x25465`). The defeated captain's parting line then opens
+panel 1 at (104, 16), 312 × 144 (`0x15A8E`), over the picture, the empty
+vendor panel and the crew list, and closing it restores only its own area.
 
 ## Computer-controlled ships
 
