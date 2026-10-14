@@ -252,7 +252,7 @@ item + 1 (`0x19484–0x1948D`) and leaves them there.
 
 ### Fleet Info
 
-`0x22461` fades out and draws, in the Info palette (`DS:0xAB6E`), the
+`0x22461` fades out (`0x22485`) and draws, in the Info palette (`DS:0xAB6E`), the
 16 × 16 sea tile at `DATA1.014 0x2BA0` over the whole screen (40 × 20 tiles),
 then each active ship's type picture at the formation places of
 `DS:0xAC54`: (256, 160), (384, 64), (128, 64), (256, 16), (128, 208),
@@ -267,12 +267,19 @@ Crew, Power and Guns, Durability and Battles, with the
 [values above](#where-the-displayed-values-come-from), 924 at column 34,
 y 368. The message wait follows (`0x2296C` → `FC4:0x4638`); no window has set
 the margins, so they are the Fleet menu's (columns 62 to 75), and the caret
-goes at column 68, 24 pixels below y 368 but held at y 384 (`0x198AE`). With
-no ship it shows only “You have no ship.” (918).
+goes at column 68, 24 pixels below y 368 but held at y 384 (`0x198AE`). The
+picture is drawn while black and the Info palette fades in just before the
+wait (`0x2295C–0x22965`). Every caller then redraws its own screen behind a
+fade out and in: the port (`0:0x8B01`, fades at `0xE1DE` and `0xE232`), the
+sea (`0:0x8276`, `0xD959` and `0xD9D4`) and the battle (`0x101E1`, then
+`0x111BE`). With no ship it shows only “You have no ship.” (918).
 
 ### Ship Info
 
-`0x229F6` fades to the Info palette over the building backdrop; each ship
+`0x229F6` fades to the Info palette over the building backdrop, from the
+palette on screen without passing through black (`0x22A00–0x22A0D`); after
+the command the Fleet tab fades out, redraws the screen and fades back in
+(`0x263F1`, `0x2641A`); each ship
 picked in the ship list (type 0 with the restore flag `0x80`, `0x22975`)
 draws its card, `0x21415`, a window at column 15 (column 6 in battle), y 32,
 43 columns by 336. The card has no wait, so the list opens again at once

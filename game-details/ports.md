@@ -731,6 +731,42 @@ wait per step) before the street is shown. The gradual fade used at sea
 ([Fading between palettes](at-sea.md#fading-between-palettes)) never shows in
 town.
 
+Entering a town (`0xE101`) fades the palette to black first (`0xE112`, the
+near entry of `0:0x98B1`), loads and draws the town, and fades in (`0xE232`).
+The title (`0x1B6AE`) fades to black, draws its picture and sets its palette
+at once (`0:0x988D`); once Load Game or New Game is chosen the screen fades to
+black, is cleared (`0:0x7F7`) and the palette fades back on the empty screen
+(`0x1B78B–0x1B795`) before the game starts.
+
+### Picture palettes
+
+`GRAPH.DAT` pictures carry palette indices and take whatever palette is up.
+In a town or at sea that is the time-of-day palette above; entries 0–7 are the
+same in all five slots, and 8–15 follow the clock (fog at sea). The Info
+palette (`DS:0xAB6E`) differs from them at entries 3 and 6 (`F341C3`,
+`F3A200` against `D361A2`, `F3A261`) and at 8–15. The battle palette
+(`DS:0xA0F0`) has the Info palette's entries 0–7.
+
+The Shipyard (`0x329B0`) and an ordinary port's Harbor (`0x2E2E6`) start by
+setting the Info palette and fading to it (`0x329B8`, `0x2E2ED`: `0:0x97BC`,
+`0:0x98A7`); the supply ports' Harbor (`0x2E4E8`) does not. So do the ship
+card at `0x2B3C6` (parchment and ship picture, `0x2B3FA`) and the Info tab's
+ship and fleet cards (`0x2295C`, `0x229FC`). The town loop sets its own palette again on return
+(`0x2049B`).
+
+| Records          | Shown                                                        | Palette                                               |
+| ---------------- | ------------------------------------------------------------ | ----------------------------------------------------- |
+| 0, 1, 22         | YES/NO, the number pad, the parchment (`FC4:0xB592`)          | whichever is up: town or sea, Info, battle            |
+| 2, 3             | the side panels at sea and in port                           | town or sea; Info inside the Harbor and Shipyard      |
+| 6–17, 20         | building vendors                                             | town time-of-day; Info in the Harbor and Shipyard     |
+| 23, 24           | the duel                                                     | battle (entries 0–7 only)                             |
+| 26, 53–56        | the battle panel and its ending pictures                     | battle                                                |
+| 27               | gambling                                                     | town (entries 0–7 only)                               |
+| 28–52            | ships: `0:0x7DE5` → `0:0x58B7` at record 28 + type            | Info in the Harbor, Shipyard and Fleet/Ship Info      |
+| 57, 59           | rats and scurvy at sea                                       | sea time-of-day (use entries 10 and 8)                |
+| 58, 61           | the Storm (`0x1F1D8`) and the game over (`0x1C936`)           | sea (entries 0–7 only)                                |
+| 64               | a discovery ashore (`0x3A6C3`)                                | sea time-of-day (uses 10, 11 and 15)                  |
+
 ### Port music
 
 `0x2062A` picks the port's track from a 13-byte table built on the stack at

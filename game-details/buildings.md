@@ -1499,7 +1499,14 @@ selection at `0x31A70`. The preliminary path may refuse because this port
 builds no new ships (raw index 251) or reserve storage is full
 (raw 377, “Other than the ships sailing with you now, you can only have 30
 ships.”); see the ship-exchange rules below. Raw index 252 opens the
-eligible ordering path. Its construction sequence is:
+eligible ordering path. New and Used Ship share the purchase routine
+`0x317FD` (called at `0x31C33` and `0x31EB2`): price and negotiation, payment,
+then `0x30C2A`, which writes the bought ship's record and names it. Raw 199
+is shown and the name entry (`2DFF:0x2DEA`) repeats until a name is given
+(`0x30D9F–0x30DC8`). Only when a ship was traded in (`DS:0xB78C` not
+`0xFF`, `0x31A2B`) is the crew shared out again (`0x253B2`) and the Shipyard
+redrawn behind a fade (`0x31A49–0x31A64` → `0:0x8D4E`). New Ship then goes
+on with raw 257 (`0x31C3D`). Its construction sequence is:
 
 | Stage                          | Raw index | Continuation                                                    |
 | ------------------------------ | --------: | --------------------------------------------------------------- |
@@ -2186,6 +2193,30 @@ roster selects no mate portrait.
 
 Duty 3 is the First Mate, 4 the Bookkeeper, and 5 the Chief Navigator. Raw 33 and 48 are spoken by
 the protagonist.
+
+### Fades
+
+`0:0x8D4E` (file `0xE34E`) draws a building's screen behind a fade: it fades
+the palette to black (`0xEEB1`, the near entry of `0:0x98B1`), draws the
+background (`0xE28F`) and the vendor picture at (104, 16) (`0:0xAEB7`,
+`GRAPH.DAT` record building + 6, 20 for a Mosque), and fades back in
+(`0xEEA7`). Entering a building calls it before the building's music and the
+story routes (`0x209F7`, `0x20A08`, `0x20A21`). It is called again on the way
+back from screens that replace the view: leaving Supply (`0x2DD55`) and Moor
+(`0x2E3AE`), a declined or failed departure (`0x2D814`), and naming a
+purchased ship (`0x31798`, `0x31A64`, after the naming screen `0x253B2`); and
+after a scenario duel (`0x37ED2`). Leaving a building has no fade: the town is
+drawn again (`0x20418`) and the town loop's fade-in (`0x2049B`) goes to the
+palette already showing. Gambling fades out and in around its own picture
+(`0x2D2BC`, `0x2D2CC`) and around the return to the Pub (`0x2D30F`–`0x2D327`).
+Scenario opcodes do not fade: `C4` only closes the panels (`0x378AD`), and
+the interpreter's only palette call besides `E8`'s redraw is `F4`'s ending
+(`0x38ED2`).
+
+The Harbor's, Market's and other handlers' calls to `0:0x98A7` right after
+`0:0x97BC` (`0x2B403`, `0x2D524`, `0x2E2F6`, `0x329C1`, `0x32A9E`) are
+palette changes, not fades from black: `0:0x97BC` sets a new target palette
+and `0:0x98A7` steps toward it.
 
 ### Vendor portraits and dialogue panels
 
