@@ -76,6 +76,12 @@ and `DS:0x0E34`, increments the days at sea, and at sea runs `0x1E764`:
 The port-controller refresh, the waitress and Balm countdowns, and the side
 panel redraw follow.
 
+The at-sea setup (`0xD876`, reached from Harbor Sail at `0x2D7E1`, a game
+loaded at sea at `0x1C32C`, a battle's end at `0x16480` and Fleet Info at
+`0x263E4`) fades to black once its data is loaded (`0xD959`), starts the
+protagonist's theme, draws the screen and fades in (`0xD9D4`). With an end
+state set it only fades out (`0xD887`).
+
 ## Leaving port and Port Call
 
 Accepting Harbor **Sail** (`0x2D79B–0x2D7EE`) writes the journal entry, sets
@@ -704,7 +710,11 @@ The mode argument selects the source:
 |    1 | Treasure map (`0x2308C`) | `0x286A6`, below                                                                                                                      |
 |    2 | Port Map (`0x232CF`, below) | no loader: the tiles already in the view buffer. The command is offered only in port (disabled when `DS:0x0E32` is `0xFF`, `0x265C8`) |
 
-The Port Map shows 48 × 48 of the town's 96 × 96 tiles: four 24-tile blocks,
+The Port Map fades out first (`0x232D8`), draws while black, and fades in to
+the day palette (`0x2350A`: `0:0x988D` with `DS:0xA8F2`); after the key it
+fades out, redraws the town and fades in (`0x23527`, `0x23550`). The treasure
+map does the same, into sepia (`0x230AD`, `0x23263`; leaving `0x23296`,
+`0x232BF`). The Port Map shows 48 × 48 of the town's 96 × 96 tiles: four 24-tile blocks,
 drawn at columns 12 and 36 and at y 8 and 200 (`0x23331–0x2338E`). The left
 block is the one holding the player's x (`DS:0x0E38 + 0x0E3C`), one less when
 the player is in its left half and it is not block 0, and never block 3. The
@@ -1152,8 +1162,25 @@ happens. If every active ship has lost its crew, or no active ship remains,
 
 ### Leaving port
 
-Harbor **Sail** (`0x2D593`) totals water, food, and crew over the active ships
-as 16-bit words and projects:
+Harbor **Sail** (`0x2D593`) first shows the fleet. With Graphics Delay on
+(`DS:0x0E28` bit 0) the view is wiped to black by `0:0x2230`: sixteen passes
+over x 96–479, y 8–391, each clearing one more pixel of every 16-pixel group,
+from the right on even rows (mask `0xFFFE`, shifted left) and from the left on
+odd ones (`0x7FFF`, shifted right). With it off the palette fades to black and
+the view is filled with colour 0 (`0x2D5B1–0x2D5C9`). A style-0 window at
+column 13, y 32, 46 columns by (ships + 2) × 24 (`0x2D550`) holds message 1390
+at column 25, y 48 and, for each ship at column 15, y 24 × (i + 3), message
+1391: its name, navigation and lookout crew (crew × supply byte `+0x09` or
+`+0x08` / 100), the rest as combat crew, the load as a percentage of the
+cargo capacity, and water and food in whole barrels (`0x2D60F–0x2D6F1`). The
+First-Mate-first spokesman (`0:0x8F64`) then speaks, and with Graphics Delay
+off the palette fades back in first (`0x2D74D`, `0x2D78D`). A ship with no
+navigation crew gives message 57 and a wait; otherwise the projection below
+decides. Declining or failing closes the window and redraws the Harbor behind
+a fade (`0x2D814` → `0:0x8D4E`).
+
+The projection totals water, food, and crew over the active ships
+as 16-bit words:
 
 ```text
 days = min(water tenths, food tenths) / max(crew, 1)
@@ -1846,6 +1873,19 @@ same `DS:0x05EC` byte also takes `0x88` when the player confirms “Is it okay
 to end this game?” (message 881) in the in-game menu (`0x26D2E–0x26D4B`).
 
 Each epilogue begins with the in-game date and the protagonist's name.
+
+The screen: the routine silences the effect channel (`0x1C750`), fades the
+palette to black (`0:0x98B1`) and clears the screen (`0:0x7F7`). For 1013,
+1014 and 1015 it draws `GRAPH.DAT` record 61, a ship sinking among rocks, at
+(184, 32) (`0:0x58B7`, `0x1C92D`), then opens a style-1 window at column 18,
+y 216, 44 columns by 168 (`0:0x721A`, `0x1C93B–0x1C94B`), all while the
+palette is black. The message takes the month (`DS:0x8ECE` names), day,
+year, first and last name and pronouns: “her” or “him” for 1013
+(`DS:0xA7A7`/`0xA7AB`), and “her” or “his” twice for the others
+(`DS:0xA7AF`–`0xA7BB`), by protagonist 1. The palette then fades in
+(`0:0x98A7`), the message wait shows its caret (`FC4:0x4638`), and the
+palette fades out (`0x1C9EF–0x1C9F9`). 1016, for the year 1553, has no
+picture and a window at column 18, y 80, 44 columns by 216 (`0x1C8B7`).
 
 ### Month lengths
 
