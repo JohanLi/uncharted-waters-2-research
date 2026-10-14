@@ -122,7 +122,14 @@ under the battle palette, so its index-10 and index-13 pixels show
   `floor((15d − floor(d / 3)) / 10)` at (440, 230), which maps directions 0–5
   to the dial's 0, 1, 3, 4, 5, 7;
 - the message box, black at (424, 328), 192 × 64, text from (432, 336)
-  (`0x117A8`).
+  (`0x117A8`, which sets the margins `DS:0x87F8`/`0x87FA` to columns 54 and
+  75 and the cursor to (54, 336)). Wrapped lines are the default 18 pixels
+  apart: within the battle code the line advance `DS:0x87F6` is changed only
+  inside the Order List (`0x105B7`, back to 18 at `0x10605`). A message that
+  waits (771 at `0x100D3`, 99 at `0x18017`) uses the message wait
+  `FC4:0x4638`, whose caret goes at the centre column of the margins, x 512,
+  and, the cursor being mid-line, 24 pixels under the last line
+  (`0x1987E–0x198B4`, held to column 78 and y 384).
 
 The flagship panel (`0x117E1`) always shows the player's flagship, colour 0 on
 colour 7, and is redrawn after every ship's turn (`0x151C9`):
@@ -241,7 +248,10 @@ the menu (`0x10019`). The turned ship is redrawn and the game waits 8 units
 (`0x1002B` → `0x119F6`). The confirmation (768) keeps the last plotting view
 on screen: `0xFEC8` calls `0xFB7A` again, which redraws the marks still in
 the marker array from the last `0x12FE1` pass, the step arrows, and the
-targets from the course's end. The attack prompt follows, and after a move
+targets from the course's end. When the course finished because nothing was
+left in reach, that pass ran from the course's end, so no reachable or
+next-step marks remain; after a tenth step no pass runs (`0xFEB5` jumps
+straight to `0xFEC8`), so the marks are still those from before that step. The attack prompt follows, and after a move
 or turn the turn ends whether or not a target is chosen.
 
 The battle's questions (768, 770, 775, 776) clear the message box and print
@@ -267,21 +277,41 @@ after the flagship has them (`DS:0xA554` bits `0x20` and `0x40`).
 | Entry       | Routine   | Shows                                                                                                                              |
 | ----------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Own Fleet   | `0x1020B` | the port's Fleet Info screen `FC4:0xD221` for the player's fleet, with a fade out and back in (`0x101A9`)                           |
-| Own Mates   | `0x10213` | the mate list, then the Mate Info card `FC4:0xC8D5` at column 6 (x 48; in port column 15)                                         |
-| Own Ships   | `0x10248` | a list of the player's ships still in the battle, then Ship Info `FC4:0xC1D5` at column 6, with the Info palette `DS:0xAB6E`       |
-| Other Fleet | `0x102C5` | the Fleet Info screen of a commander of any other side, allies included; with one, at once, else after a list                      |
-| Other Mates | `0x1032C` | the same commanders, then their Mate Info card                                                                                     |
+| Own Mates   | `0x10213` | the mate list (type 6), then the Mate Info card `FC4:0xC8D5` (mode 1) at column 6 (x 48; in port column 15); the card never waits, and the list opens again over it at once until it is cancelled (`0x1021E–0x10243`) |
+| Own Ships   | `0x10248` | a list (type 0) of the player's ships whose left bit `+0x0C & 0x40` is clear, crewless ones included (`0x10252–0x1026F`, no crew or durability test), then Ship Info `FC4:0xC1D5` at column 6, with the Info palette `DS:0xAB6E` and the message wait; the list opens again after each card until it is cancelled (`0x102C0` → `0x10271`) |
+| Other Fleet | `0x102C5` | the Fleet Info screen of a commander of any other side, allies included; with one, at once (`0x102F8`), else after a list (type 6) that opens again after each screen until it is cancelled (`0x10307–0x10327`) |
+| Other Mates | `0x1032C` | the same commanders' Mate Info card (mode 0): with one, the card and the message wait (`0x10364–0x10371`); else the list (type 6) and cards that do not wait, the list reopening over each until it is cancelled (`0x10379–0x1039F`) |
 | Other Ships | `0x103A4` | every ship of the other sides in view, not left, marked with kind 2 (`0xFAE6`, which tests only the left bit `+0x0C & 0x40` and the view, so sunk and crewless ships' hexes are marked too; none, and nothing happens); one picked on the map (`0x110FB`, unmarked hexes ignored, and a sunk ship's hex too, its fleet slot being empty), then its card `FC4:0xC6D2` under the Info palette; repeated until the pick is cancelled |
 | Order List  | `0x1052E` | a window over the map (`0xC67B`: x 0, y 32, 52 columns, `24n + 32` tall) with, per ship of the player's side still in the battle, its slot number and name in blue (message 1378) at x 8, then “Flagship” (1379) at x 144, or from x 128 its Tactic, Method, and Target strings |
 
 Own Ships and Other Ships change the whole screen's palette around their
 cards (`0x10271–0x102AA`, `0x103FB–0x10460`): the shimmer is unhooked
 (`0x16D13`), the palette fades from the battle palette to the Info palette
-(`0xEDBC` loads it, `0xEEA7` fades), the card waits for a key, then the map is
+(`0xEDBC` loads it, `0xEEA7` fades), the card waits for a key (Own Ships:
+the message wait `FC4:0x4638` at `0x10299`), then the map is
 redrawn without it (`0x119ED`) and the palette fades back to `DS:0xA0F0` with
 the shimmer hooked again (`0x111BE`). Each fade step (`0xEDD7`) moves every
 4-bit component of the 16 entries one level toward the target, sets the
 palette and waits 1 unit, until no component moves (`0xEE8D`).
+
+The message wait's caret follows the text margins of the moment. A list
+window sets them to its column + 1 and column + width + 4 (`0x19FB2–0x19FBF`)
+and does not restore them; list type 0 is at column 59, 17 wide, and type 6
+at column 58, 18 wide (`DS:0x122C`), so both leave the right margin at 80.
+Neither the Info popup nor the command popup (`0x19659`) writes the margins,
+and the Info loop's redraw (`0x106F5` → `0x119ED`) does not clear the box, so
+a list's margins carry over to the next Info view, and to a later Info
+command, until the box is next cleared (`0x117A8`). Fleet Info saves and
+restores the margins around its screen (`0x101AF`, `0x101F8`).
+The Ship Info card sets the left margin to its column + 2, column 8
+(`0x2169F`), and ends mid-line on y 320, so the Own Ships caret is at
+(352, 344). The Mate Info card restores the margins it found (`0x21ED1`) and
+ends at the start of the line under its last skill; that is not the left
+margin, so the single-commander Other Mates caret is 24 pixels lower, at
+y 358. The Order List's window (`0:0x707B`) sets the margins to columns 1
+and 50 (`0xC7ED–0xC7F8`); its lines end mid-line, so its wait (`0x1060B`) puts
+the caret at x 200, 24 pixels under the last line, before the box is
+cleared (`0x10612`).
 
 The other ship's card (`FC4:0xC6D2`) is a window at column 6, y 32, 43
 columns × 336, with the model's picture at (64, 48), a colour-2 strip at
@@ -332,7 +362,9 @@ cancelling the ship pick returns to the menu (`0x10BAA–0x10BBB`):
   `0x02` and sets bit `0x01` to match;
 - Method at y 352: Fire or Rush (bit `0x10`);
 - Target at y 368: Delegate without bit `0x80`; with it, Support or Enemy
-  followed by “Flagship” or “No. n” (unit `+0x06`). Support is shown when
+  followed by the target's fleet slot label, `DS:0xA8C[(+0x0D) & 0x0F]`
+  (“Flagship”, “No. 1”…; `0x10A06`, and the Order List's `0x10502`) of the
+  unit at `+0x06`. Support is shown when
   the target's unit byte `+0x0D` has bit `0x20` (sides 2 and 3, the assisting
   fleets), Enemy otherwise (`0x109EE`; the Order List's `0x104EA` likewise). Choosing Target without
   one marks the enemies and asks “Select your target.” (774); with one it is
@@ -1041,6 +1073,37 @@ victory or a fleeing enemy, 1 for nightfall, 2 for fleeing or surrender
 
 The display also handles types 13–18 (`0x23815`, `0x238FA–0x23A37`);
 types 3–8, 10 and 11 print nothing.
+
+The journal window (Info, `FC4:0xE43A`) is a style-0 window with its shadow
+at column 15, y 32, 42 columns by 320 (`0:0x756C`, `0x23683–0x23693`). The
+text's left margin becomes column 28 (`DS:0x87F8`) and its right margin one
+column further in than the window's, column 53 (`DS:0x87FA`, `0x2369E`), at
+16 pixels a line (`DS:0x87F6`, `0x236E8`). The entries count up to the first
+empty record (`0x236B4–0x236C5`), and the window opens on the last page of
+four, `(count − sign(count)) / 4` (`0x236C7–0x236E5`). Entry `i` of a page
+starts at column 17, y 40 + 64i, with its date as `%2d/%2d/%4d ` (month, day,
+year; `DS:0xACA6`, `0x2371D–0x23761`), so the text begins at column 28 and
+its lines wrap back there. A record whose date is `0xFFFF` ends the page
+(`0x23715`); a type above 18 prints its date alone (`0x2377B`).
+
+At y 328 come “Previous Page” (`DS:0xAD20`) unless on the first page and
+“Next Page” (`DS:0xAD2E`) unless on the last (`0x23B2A–0x23B65`). With
+neither, the window waits for a key (`0x18685`) and closes. Otherwise they
+are offered through `FC4:0x39AE` (file `0x18BEE`): boxes 13 columns by 16,
+2 columns apart, from column 17, or from column 32 when Next Page is the only
+one (`0x23B89–0x23B9E`, `0x18908`). The highlight is colour 7 XORed over the
+box (`0x18704`). It starts on the index the last picker left in
+`DS:0xA568` when that is below the count, else on the first (`0x18B5E`).
+Left and right (4 and 6) step between the two, wrapping; up and down do
+nothing (`0x18967`). Enter takes the box; Esc, 0 or the right button close
+the window (`0x23BA9`). Previous Page (index 0 when it is offered) turns back
+a page, anything else forward (`0x23BAF–0x23BC0`). The entries are cleared,
+a box of colour 7 at column 16, y 40, 40 columns by 304, and redrawn
+(`0x23BC3–0x23BDC`). On leaving, the line height goes back to 18
+(`0x23BE4`).
+
+The Info menu greys out Journal while the first record's date is `0xFFFF`,
+as in a new game (`DS:0xA554` bit `0x10`, `0x2659E–0x265B7`).
 
 ## Spoils of victory
 

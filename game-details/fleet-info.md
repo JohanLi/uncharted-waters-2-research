@@ -185,13 +185,25 @@ Seamanship (`min(40, floor(f × Sea / 75))`). There is no Tacking term and no
 oared minimum. A ship whose captain byte (supply `+0x1B`) has bit `0x80`
 shows “Scrapped” in red instead (`DS:0xAD75`) and can still be picked.
 
+**The bar** (`0:0x90DF`, with column `c` and y) starts at x = 8c + 4 and is
+62 pixels wide and 8 tall. It fills columns c + 1 to c + 7 with colour 5
+(`0:0x15F06`). It then draws an outer box from x to x + 61 and an inner box
+from x + 5 to x + 56, rows y + 1 to y + 6, both in colour 0 (`1E5F:0x38D4`).
+Lines in colour 7 (`1E5F:0x370A`) then cover the outer box's top and left
+edges and the inner box's bottom and right edges, so the outer box looks
+raised and the track sunken, with light-blue ends 4 pixels wide between
+them. `0:0x91C0` draws the value 0–100 in the track, rows y + 2 to y + 5,
+from x + 6: value / 2 pixels of `DS:0xBF3A` (red), then the rest of the 50
+pixels in `DS:0xBF3C` (blue). The Ship Info card's long bar (`0:0x8F89`,
+`0:0x906A`) is the same shape, 112 pixels wide, with a 100-pixel track at a
+pixel per percent.
+
 The rows are picked with the grid picker (`FC4:0x43B1`; hit boxes x 120–424,
 16 tall). Choosing one opens the crew panel (`0x24897`) at x 408–632,
 y 224–352, while the list stays on screen, redrawn after the panel closes.
 Row `r` (Navigation, Lookout, Combat) has its label at (416, 240 + 32r),
 arrows at x 504 and 592 (`DATA1.014` pictures `0x390` and `0x410`), a bar at
-column 65, y `244 + 32r` (`0:0x90DF`: light-blue ends, the value 0–100 as
-half a pixel per point of red over blue), and `"%4d :%3d%%"` (`DS:0xAE0C`)
+column 65, y `244 + 32r` (`0:0x90DF`, below), and `"%4d :%3d%%"` (`DS:0xAE0C`)
 at (512, 256 + 32r): the crew count and percentage as in the list. The six
 arrow cells (21 × 16) are picked with the same picker; a press
 (`0x24864`) on a row's arrow changes that row's share `a`, with `b` the next
@@ -213,7 +225,30 @@ Captain, Transfer Crew, Assign Crew, and Rations with no ships, and Change Job
 Duty and Wages with no mates (`FC4:0x2FC1`). Ships are picked either in the
 ship list (`FC4:0x5904` type 0: x 480, y 64) or in the crew list of
 [Assign Crew](#assign-crew); mates in list type 9 (x 368, y 208, 31 columns,
-10 rows), which shows their duties.
+10 rows), which shows their duties. Its row drawer (`FC4:0x491C`, from the
+table at `DS:0xA5E0`) looks for the sailor among the 10 supply records'
+captains (`+0x1B`); it prints the first name, pads it with blanks
+(`DS:0xA5B8`) to 9 columns (`0x19BC9–0x19BD6`), then, for a captain, the
+protagonist included, the name of the ship they command (slot `+0x32`) with
+the whole row in colour 6 (`DS:0xA5B0`), and for anyone else the duty's name
+(`DS:0xA1E`) in colour 0 (`DS:0xA5B4`).
+
+The Crew tab draws the crew list (`0x23BF6`, in a static frame `0:0x707B`
+that saves nothing under it) before Change Captain, Change Job Duty,
+Transfer Crew and Assign Crew (`0x264E1–0x2650B`) and loops back to its menu
+without redrawing (`0x26520` → `0x26499`); the menu saves and restores only
+its own rectangle (`0x19431`), so the list stays behind it, and behind
+Wages and Rations, until the menu is left and the view is redrawn
+(`0x26524` → `0x262E2`). The Fleet tab likewise draws the list before Scrap
+and again after it (`0x26429–0x26453`) and before Transfer Cargo
+(`0x26466`); Ship Info redraws the view when it ends (`0x263F1–0x2641A`),
+and so does Fleet Info when it has shown the fleet (`0x229CC` returns 1 after
+`0x22461`; the dispatcher then redraws the view with `0:0x8B01`, or
+`0:0x8276` when `DS:0xE32` is 0xFF, `0x263CE–0x263E4`), which also removes
+the list.
+
+A menu sets the text margins to its column + 2 and its column + longest
+item + 1 (`0x19484–0x1948D`) and leaves them there.
 
 ### Fleet Info
 
@@ -229,14 +264,22 @@ the commodore's portrait in a black 64 × 80 box at (8, 312). The text is
 name at (168, 330), 920 and 921 (Navigation and Battle Level) at (88, 356)
 and (88, 378), and from (272, 320), 24 pixels apart, 922–924: Tacking and
 Crew, Power and Guns, Durability and Battles, with the
-[values above](#where-the-displayed-values-come-from). A key returns. With
+[values above](#where-the-displayed-values-come-from), 924 at column 34,
+y 368. The message wait follows (`0x2296C` → `FC4:0x4638`); no window has set
+the margins, so they are the Fleet menu's (columns 62 to 75), and the caret
+goes at column 68, 24 pixels below y 368 but held at y 384 (`0x198AE`). With
 no ship it shows only “You have no ship.” (918).
 
 ### Ship Info
 
 `0x229F6` fades to the Info palette over the building backdrop; each ship
-picked in the ship list opens its card, `0x21415`, a window at column 15
-(column 6 in battle), y 32, 43 columns by 336:
+picked in the ship list (type 0 with the restore flag `0x80`, `0x22975`)
+draws its card, `0x21415`, a window at column 15 (column 6 in battle), y 32,
+43 columns by 336. The card has no wait, so the list opens again at once
+beside it (`0x22A14–0x22A27`) and the card stays until the next is drawn;
+Esc on the list ends the command. The port's Mate Info (`0x22A2D`) works the
+same way with list type 6 and the Mate Info card (`0x22A35–0x22A4B`). The
+card holds:
 
 - the ship's type picture at (136, 48) and, when it has one, its figurehead
   at (272, 48): 48 × 48, four planes, in `TRANSIT.DAT` at
@@ -291,26 +334,53 @@ mode 0 (`0x1627A`).
     from `DS:0xA48`: colour 0 when the sailor has the skill (`+0x28` bit
     `0x10 >> i`), else 6 (908, 909; `0x21E39–0x21E87`).
 
+### Hero Info
+
+Hero Info (`FC4:0xD811` → `0x21EE3`) draws a window at column 15, y 32,
+39 columns by 168, style 0 (`0:0x707B`). From column 17 it prints message
+910 at y 48 (“Gold” and “Friendship” in colour 1), 911 and 912 (coins as
+gold mod 10,000 and ingots as gold / 10,000) at y 72 and 88, 913 (“Fame”) at
+y 112, and the three fame lines (914, names from `MENU.DAT` entry 42) at
+y 136, 152 and 168. From column 36 and y 72, 16 pixels apart, it prints the
+six nations (915, names at `DS:0xA2C`), with no Piracy line. A friendship
+byte below 100 is printed in colour 2 (916) as its distance below 100 with
+a minus sign: `"  -%d"` under 10, `"-%3d"` at 100, `" -%2d"` otherwise. One
+of 100 or more is printed as `" %3d"` of its excess (`DS:0xAC34–0xAC45`,
+`0x22002–0x22095`). The message wait (`FC4:0x4638`) follows, its caret 24
+pixels under the last nation's line.
+
 ### Rearrange, Scrap, Cargo Info, Log of Goods
 
 **Rearrange** (`0x25CF5`) with one ship says “We only have one ship.” (217) in
-a window at (160, 128), 240 × 96. Otherwise, for each position in turn, “Which
-ship will be the ship #%d?” (218) at (160, 64), 240 × 72, over the ship list
-of the ships not yet placed; Esc takes back the last choice, or with none
-made ends the choosing. Then “Is this OK?” (219), or “Is it OK to cancel
-rearranging?” (1414) when nothing was placed; No starts again and Yes applies
-the order (`0x25C87`).
+a window at (160, 128), 240 × 96. Otherwise it first opens the new-order
+panel (`0x25A12`): a window at column 22, y 144, 24 columns by
+`(n + 2) × 16`, style 0, numbered “%2d:” (`DS:0xAEC1`) from 0 at column 24,
+y `160 + 16i`. For each position in turn `0x25A63` fills the panel: with
+`ESC C0 ESC B7` (`DS:0xAEC6`), at column 28, each ship chosen so far as
+“%-10s” (`DS:0xAECD`), the rest blank (`DS:0xAED3`). Then “Which ship will be
+the ship #%d?” (218, numbered from 0) opens at (160, 64), 240 × 72, style 0,
+its text from y 88 (`0:0x44C6(0x58)`, `0x25D60`), over the ship list of the
+ships not yet placed (`0x25D7D`); the question is restored after each pick.
+Esc takes back the last choice, or with none made ends the choosing. The
+panel is filled once more (`0x25DCF`) and “Is this OK?” (219), or “Is it OK
+to cancel rearranging?” (1414) when nothing was placed, opens in the same
+window; both windows are restored after the answer (`0x25E21`, `0x25E26`).
+No starts again and Yes applies the order (`0x25C87`).
 
 **Scrap** (`0x24B12`) picks ships in the crew list; a ship already scrapped
 cannot be picked (`0x24A0D`). The flagship is refused with 233; another is
 confirmed with 234 and loses its captain (`0:0x5B3F`), staying in the list
-as “Scrapped”. Leaving removes every active ship without a captain. With one
-ship it says 217 at (128, 160).
+as “Scrapped”. The questions open in `0x249D6`'s window, (128, 160),
+36 columns by 128, style 1, and after each the list is drawn again
+(`0x24B4C`). Leaving removes every active ship without a captain. With one
+ship it says 217 in the same window.
 
 **Cargo Info** (`0x22A56`, `0x220B4`) shows, for each ship picked, its goods
 only, in a window at (120, 32), 25 columns by 144: the name in blue at
 (192, 40) and “%-14s %5d” (917) from (136, 80); a ship without goods shows
-nothing. **Log of Goods** (`0x2224E`) lists the goods carried (list type 1,
+nothing. The window (`0:0x721A`) sets the margins to columns 17 and 37, so
+the message wait's caret (`0x22183` → `FC4:0x4638`) is at column 27, 24
+pixels below the last goods line. **Log of Goods** (`0x2224E`) lists the goods carried (list type 1,
 x 440, y 64) and names the best known port in the named panel.
 
 ### Transfer Cargo
@@ -361,7 +431,8 @@ more answers “You don't have to worry about my wages. I like working for
 you!” (220). Otherwise the crew spokesman asks the new wage (222, or 221 when
 it is the spokesman's own) from the current wage to 2,000; the mate thanks
 (223), Loyalty rises by a fifth of the raise, up to 100, and the wage byte
-becomes the amount ÷ 10. Cancelling ends the command.
+becomes the amount ÷ 10. Cancelling the number pad (`DS:0x8E9E`, `0x26166`)
+restores the window (`0x261FF`) and the mate list opens again (`0x2629F`).
 
 **Rations** (`0x26045`) opens a window at (456, 224), 176 × 96, with Water and
 Food at x 472, y 240 and 272, the slider arrows at x 512 and 600, the short

@@ -154,6 +154,50 @@ frame (frame index 3, `0x17726`): voice `DS:0x0D5A` when the hit does damage,
 | ----------- | ------ | -------------------------------------------------------- |
 | `DS:0x0D5A` | `0x30` | `0x1773B` (or `DS:0x0D44`, chosen just before), [duels](#duels) |
 | `DS:0x0D9C` | `0x3C` | `0x3A6CC`, `0x3A6F2`: discoveries ([At sea](at-sea.md))   |
-| `DS:0x0DB2` | `0x3C` | `0x20F51`                                                |
-| `DS:0x0DC8` | `0x30` | `0x369DE`, `0x36A03`                                     |
-| `DS:0x0DDE` | `0x30` | `0xD9C2`, `0x1BDD2`, `0x1EC83`, `0x26B97` (Options)      |
+| `DS:0x0DB2` | `0x3C` | `0x20F51`: a Navigation level-up                         |
+| `DS:0x0DC8` | `0x30` | `0x369DE`, `0x36A03`: “Aaaah!” before a sea event        |
+| `DS:0x0DDE` | `0x30` | `0xD9C2`, `0x1BDD2`, `0x1EC83`, `0x26B97`: the Storm     |
+
+- **Discovery** (`0x0D9C`): a village search that finds something other than
+  a trap plays it before the First Mate's line. For type 0 (a treasure), it
+  plays after the treasure picture (`GRAPH.DAT` record 64) is drawn
+  (`0x3A6B5–0x3A6D8`); for the other types it plays at once (`0x3A6EE`).
+  Nothing silences it. The carrier's decay rate 1 and release rate 15 let it
+  fade by itself; the modulator uses LFO waveform 1.
+- **Level-up** (`0x0DB2`): after the port-arrival line “… navigation level
+  … increased.” is printed (`0x20F28–0x20F47`), the note sounds for 20 timer
+  units (`0:0x57BE`), is silenced (`0xED46`), and the message wait follows
+  (`0x20F6C`). Its LFO uses waveform 4 (below).
+- **“Aaaah!”** (`0x0DC8`): when a sea event applies (`0x369CB`), the note
+  sounds for 30 units, is silenced, 20 units pass, and it sounds for 30 more
+  and is silenced again (`0x369D2–0x36A17`). Then the event's lines follow.
+  The carrier's attack rate 15 and decay rate 0 hold the note until it is
+  silenced.
+- **The Storm** (`0x0DDE`) plays whenever the weather byte `DS:0x0E37` has
+  low bits 1. It starts:
+  - when a Storm begins, after its optional warning (`0x1EC75–0x1EC8A`);
+  - when the sea screen is set up during a Storm (`0xD9B4–0xD9CA`). That
+    covers Harbor Sail, a game loaded at sea, the return from a battle
+    (`0x16480` → `0xD876`) and leaving Fleet Info at sea: the Fleet tab's
+    first item (`0x263C9`) calls `FC4:0xD78C`, and when that showed a fleet
+    (non-zero) away from port it sets the sea screen up again (`0x263E4` →
+    `0:0x8276`), so a Storm's note starts over;
+  - after loading a game during a Storm (`0x1BDC5–0x1BDD9`);
+  - from the Options screen (`0x26B93`).
+
+  Its decay rate is 0, so it sounds until the channel is silenced. That
+  happens when a Storm ends, before message 360 (`0x1F09A`); when the No
+  Wind or Fog check ends an anomaly (`0x1F119`, `0x1F182`); in port
+  (`0x1F331`); on Port Call (`0x20FAB`); when the Balm ends a Storm, just
+  after its line is printed (`0x2F66D`); when a game is loaded
+  (`0x1BDC0`); and at `0x1C750`. Any other effect also replaces it, as the
+  effects share channel 0. Its triangle LFO (speed 70) repeats every 938
+  LFO ticks, about 15.3 seconds.
+
+**Waveform 4** (`0xFE2`): every `(0x7FFF / speed) | 1` counts of the
+channel's LFO counter, the driver's shared seed (`0x5D0`, 0x37D when the
+driver is loaded) becomes `seed × 0x383 mod 0x7FFF` (signed `imul`, then
+`idiv`). The waveform's value is the seed, so the pitch only rises.
+
+The remake renders these with `tools/fm-sfx.ts`, the Storm as a loop of one
+LFO period after the attack.

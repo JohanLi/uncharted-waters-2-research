@@ -101,7 +101,11 @@ Per frame, therefore, a walker keeps its direction with probability
 in long straight lines.
 
 The fixed actors never move. The same routine draws a `random(2)` animation
-frame for each of them while it is inside the 23 × 23 tile view.
+frame for each of them while it is inside the 23 × 23 tile view
+(`0x0B5DF–0x0B647`: frame `(random(2) + (type + 12) × 2) × 0x280`, the view
+test at `0x0B57E`), so the frame is picked again on every town pass and the
+animation flickers irregularly. Slots 4–7 are drawn before the walker loop
+begins (`0x0B64D`), so their `random(2)` draws come before the walkers'.
 
 ### Night
 
