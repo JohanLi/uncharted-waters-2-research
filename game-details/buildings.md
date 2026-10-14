@@ -1060,8 +1060,11 @@ attract recruits (raw 31), ask whether to recruit (raw 32), and call for sailors
 Raw 33 is spoken by the protagonist; raws 29–32 and 121–123 by the First Mate
 (see [Crew spokesmen](#crew-spokesmen)). The amount and cost prompt is
 `MESSAGE2.DAT` raw 374 (combined 1374), “It'll cost you %d gold per sailor. How
-many will you hire (0-%d)?”, spoken from the Pub portrait (`0x2B308–0x2B371`);
-raw indices 124 and 125 have no direct caller. Let
+many will you hire (0-%d)?”, written in the First Mate's window after raw
+121/122's wait: `0:0x7C8F` clears that window's text (columns 31–56 from
+y 208) and the prompt is printed there beside the number pad; the pad's end
+takes the window off (`0:0x7690`, `0x2B308–0x2B38F`). Raw indices 124 and 125
+have no direct caller. Let
 `E` be the visit's current Pub enthusiasm, initialized on entry to
 `floor(protagonist Charm / 3)` (`0x2D417–0x2D424`); `P` the port's Economy
 (metadata `+0x02`); and `R` the protagonist's rank number. The available pool
@@ -1076,17 +1079,79 @@ maximum purchase = min(available, fleet free-crew capacity,
 
 Buying Treat during the same visit can raise `E` before Recruit Crew is
 selected. The three response strings distinguish a pool of at least 20,
-1–19, or zero; they are not a random success/failure roll. After the amount is
-chosen, crew is distributed through the fleet-wide assignment screen.
+1–19, or zero; they are not a random success/failure roll. The hired sailors
+are paid for at once (`0x2B39B`, `0x2B1FD`) and placed on the ships with the
+crew assignment screen below (`0x2B50E` with their number). Before the
+question `0x2B10D` notes each active ship's free bunks (bunks − crew); after
+the screen, every active ship that ends with more men than it had averages
+its health (supply record `+0x1C`) with the newcomers' 60, weighted by crew
+(`0x2B6B1–0x2B71B`):
 
-**Dismiss Crew** begins at `0x2B739` and delegates assignment to `0x2B50E`. It
-enumerates the fleet's ships and captains, using `MESSAGE2.DAT` raw indices
-396–400 (combined indices 1396–1400) for the captain, Navigation, Lookout,
-Combat, and minimum-crew display. Raw index 857 asks how many
-sailors to assign to each ship. If this leaves sailors unassigned, raw index
-858 asks whether to discharge them; raw index 231 is
-the direct dismissal confirmation. Rejecting a confirmation resumes assignment
-rather than leaving the Pub.
+```text
+health = floor((old crew × health + (new crew − old crew) × 60) / new crew)
+```
+
+A ship that ends with fewer or the same number keeps its health. Then
+`DAY_FLAGS` bit 0 is set (`0x2B72E`).
+
+**Dismiss Crew** begins at `0x2B739` and calls the same screen with 0.
+
+#### Crew assignment
+
+`0x2B50E` takes the number of sailors to place (0 for Dismiss Crew) and
+lists the active ships (`FC4:0x2E8A`) in list type 7, “Ship”, with flag
+`0x80` (`0x2B575–0x2B57B`). Each row is the ship's name padded with spaces to
+17 columns and its crew and bunks as `"%4d/%4d"` (`DS:0xA5C0`, the type's row
+routine `FC4:0x49F1`), for example `Hermes II          22/  30`. The list
+repeats until it is left; rows always show the crews as they are now.
+
+With Dismiss Crew, picking a ship has the First Mate (`0:0x8F64`) ask raw 857,
+“How many men will you assign for %s (0-%d)?”, with the ship's name and crew,
+and the number pad (`0:0x5742`, cancellable through `DS:0x8E9C` = 1) goes from
+0 to the crew, or the bunks if fewer (`0:0x4B54`, `0x2B5BB–0x2B5EC`).
+Cancelling, or entering the current crew, takes the window off (`0:0x7690`)
+and goes back to the list. A smaller number clears the window's text
+(`0:0x7C8F`) and asks raw 858, “%d %s will be discharged. Is this OK?”, with
+the difference and “man” or “men” (`DS:0xB4FC`, `DS:0xB500`), with YES/NO
+(`FC4:0x4529`). No goes back to the list with the crew unchanged; Yes sets the
+crew (`0x2B612–0x2B64F`). Leaving the list ends the command at once
+(`0x2B537–0x2B541`).
+
+With Recruit Crew, picking a ship asks nothing: the ship's crew card
+(`0x2B3C6`, below) is drawn and the pad goes from 0 to the sailors still to
+place plus the ship's crew, or the bunks if fewer. Cancelling restores the
+count and goes back to the list. An amount becomes the ship's crew at once;
+the ship's previous crew minus that amount joins the sailors still to place,
+so a crew can also be lowered here. The card is drawn again with the new crew
+and the message wait follows (`FC4:0x4638`, `0x2B64F–0x2B66C`). Leaving the
+list with nobody left to place ends it; otherwise the First Mate asks raw 231,
+“We will dismiss %d %s. Is this OK?”, with the count and “man” or “men”
+(`DS:0xB4F4`, `DS:0xB4F8`), with YES/NO. No takes the window off and goes back
+to the list. Yes takes it off and refunds min(hired, left) × the price per
+sailor, floor(Economy / 20) + 5 (`0x2B66E–0x2B681`), through `0x2B223`, which
+adds to the gold, caps it at 600,000,000 and redraws it (`0:0x8745`). Sailors
+taken off a ship's old crew and then dismissed are not refunded beyond the
+number hired.
+
+The crew card (`0x2B3C6`) sets the Info palette (`0:0x97BC` with
+`DS:0xAB6E`) and fades to it (`0:0x98A7`); the Pub stays in it until it is
+left (`0x2D51F–0x2D524` go back to the town's). It draws the parchment,
+`GRAPH.DAT` record 22 at (104, 136) (`FC4:0xB592`), without saving the screen
+under it, so the windows that follow open over it and it stays behind the list
+until the Pub redraws its backdrop after the command (`FC4:0xB5B6`). On it:
+
+| Item                                   | Place              | Source                                                  |
+| -------------------------------------- | ------------------ | ------------------------------------------------------- |
+| The ship's picture                     | column 16, y 160   | `0:0x7DE5` with the ship type                           |
+| The ship's name, in colour 1           | column 42, y 144   | `DS:0xB4EA`, `ESC C1 %s ESC C0`                         |
+| “Captain    %s” (raw 1396)             | column 34, y 162   | the captain's record (`0:0x5952`), so the first name only |
+| “Navigation  %3d” (raw 1397)           | column 34, y 178   | floor(supply `+0x09` × crew / 100)                      |
+| “Lookout     %3d” (raw 1398)           | column 34, y 194   | floor(supply `+0x08` × crew / 100)                      |
+| “Combat      %3d” (raw 1399)           | column 34, y 210   | crew − Navigation − Lookout                             |
+| “Min Crew    %3d” (raw 1400)           | column 34, y 226   | the model's minimum crew (model `+0x05`)                |
+
+The text margins are columns 34 and 53 (`DS:0x87F8` = 0x22, `DS:0x87FA` =
+0x35), so the message wait's caret after the card is at column 43, y 250.
 
 **Treat** begins at `0x2BC8D`; its Fame and invitation logic occupies
 `0x2BAFA–0x2BC8C`. The patrons' reply depends on the highest of the three
@@ -1103,22 +1168,81 @@ In raw 132 the first `%s` is `Merchant`, `Pirate`, or `Adventurer`
 (`MENU.DAT` entry 10) for that highest Fame, followed by the first and last
 names; raw 133 takes the names only.
 
-After the reply, all three branches converge at `0x2BBA4`. With shared
-section 0 idle, the invitation test at `0x2BBBB–0x2BBCD` prints raw
-`410 + nation` (“Did you know that King Manuel of Portugal is looking for
-you?”) and sets shared flag 17 when flag 16 (royal-mission eligibility) or
-flag 17 is set and flag 18 is clear. There is no random roll and, unlike the
-Harbor's version of the test, no check of the port's nation: any regular
-port's Pub can arm the invitation. Eligibility is refreshed on entering the
-Pub, so a character becomes eligible and is invited on the same visit; it
-requires the highest single Fame to reach the next title's requirement,
-`500 × (rank + 1)²`, a rank of at most 8, and an affiliation other than the
-Pirates. Once armed, every later Treat repeats the announcement until the
-audience begins. With a shared assignment active, Treat calls `0x2B979`
-instead, which can name a sought sailor's port. See
-[the shared-scenario overview](scenarios/scenario-0-common-quests-and-royal-missions.md#the-invitation)
-for the full rule. This command has no scenario-dispatch call, and it returns
-to the Pub menu afterward.
+After the reply, all three branches converge at `0x2BBA4`. Every later line
+is spoken by the same patron: `0:0x7C8F` clears the window's text, and each
+line waits with the caret (`FC4:0x4638`). The window is taken off at the end
+(`0:0x7690`, `0x2BC82`). At most one of the following is said, tested in this
+order:
+
+1. **The sought sailor** (`0x2B979`), only while the shared section
+   (`DS:0xEE2`) is not 0. It runs during Collect Debt (shared variable 6 = 5)
+   or the royal special search (variable 6 = 11) once its informant is chosen
+   (variable 17 not 255); in the search it says nothing while the inventory
+   (`DS:0x2BE9`, twenty slots) holds the sought item (variable 18) or its map
+   (item − 10). The patron speaks only when `variable 17 mod 3` equals the
+   current port's ID mod 3 (`0x2B9CF–0x2B9E9`). If the sailor (variable 17)
+   is in a port (`+0x25`), raw 599, “%s %s is in %s.”, names it, then raw 600,
+   “You'll find %s around”, gives its position through `0x2B08C`. If he is at
+   sea, raw 602, “%s %s... He's leading %s's %s.”, names the nation of his
+   fleet ID (`+0x24`) ÷ 10 (`DS:0xA2C`; “Piracy” for the pirates) and
+   `MENU.DAT` entry 11 by the ID mod 10 (0 `Fleet`, 1–4 `Merchant Fleet`,
+   5–9 `Battle Fleet`), then raw 603, “His whereabouts? I have no idea. Maybe
+   the waitress in the pub would know.” When it says nothing, the talk goes on
+   at step 3; the invitation is never tested with a section active.
+2. **The royal invitation** (`0x2BACB`), with shared section 0 idle, prints raw
+   `410 + nation` (the protagonist's status low nibble, `+0x29 & 0x0F`: “Did you
+   know that King Manuel of Portugal is looking for you?”, raw 414–415 for the
+   Governors-General of Italy and Holland) and sets shared flag 17 when flag 16
+   (royal-mission eligibility) or flag 17 is set and flag 18 is clear
+   (`0x2BBBB–0x2BBCD`). There is no random roll and, unlike the Harbor's
+   version of the test, no check of the port's nation: any regular port's Pub
+   can arm the invitation. Eligibility is refreshed on entering the Pub, so a
+   character becomes eligible and is invited on the same visit; it requires
+   the highest single Fame to reach the next title's requirement,
+   `500 × (rank + 1)²`, a rank of at most 8, and an affiliation other than the
+   Pirates. Once armed, every later Treat repeats the announcement until the
+   audience begins. See
+   [the shared-scenario overview](scenarios/scenario-0-common-quests-and-royal-missions.md#the-invitation)
+   for the full rule.
+3. **A nation after the player** (`0x2BBD5–0x2BC5D`): when `random(200)` is
+   below the protagonist's Luck (sailor byte `+0x1B`), the seven nation
+   records (`0:0x5938`) are walked in order; each is passed over when
+   `random(3)` is not 0, and otherwise taken when its strategic mode (`+0x03`)
+   is 3 or 7. The first taken prints raw 37, “By the way,”, a space
+   (`0:0x4991`), and raw 40, “did you know that %s is after you?”, with the
+   nation's name (`DS:0xA2C`), or for the pirates the string at `DS:0xB508`,
+   “did you know that all the pirates are out to get you?”. With none taken,
+   the talk goes on to step 4.
+4. **A tip** (`0x2BC5F–0x2BC7F`). Treat passes the bottles' strength
+   `S = 200 × bottles ÷ economy` (`0x2BD78–0x2BD87`, the same value that raises
+   enthusiasm) as its argument. When `random(1300 − 12 × S)` (the bound taken
+   as an unsigned 16-bit number) is at most the port's economy (metadata word
+   `+0x00` through the pointer `DS:0xC776`), the patron gives a goods tip,
+   otherwise a port tip:
+   - **Goods tip** (`0x2B91C`): up to 50 draws of a fleet supply record
+     (`random(10)`, `0:0x598C`) and one of its five goods slots
+     (`+0x16 + random(5)`); the first loaded slot is used, and with none the
+     port tip is given instead. Across the eight market regions
+     (`0:0x5A0E`, `0x80` bytes each), a price word for those goods above the
+     best so far is taken unless `random(8)` is 0, starting from region 0
+     with a best of 0 (`0x2B887–0x2B8D3`). Raw 846, “If you have %s, you can
+     sell it for a good price in ports around”, a line break, the region name
+     (raw `385 + region`, Iberia through South America) and “.” follow.
+   - **Port tip** (`0x2B809`): up to ten tries of a port `random(5)` IDs away,
+     below or above by `random(2)`, staying within 0–99, rejected when its
+     known bit (display record `+0x13` bit `0x10`) is set (distance 0 is the
+     current port, which is normally known). The first unknown port is named
+     (`0x2B785`): raw 37, a space, raw 130, “have you been to %s? It's
+     around”, and its position from `0x2B08C` (raw 126/127 with a line break
+     and the latitude, a space, raw 128/129, “.”), for example “By the way,
+     have you been to Algiers? It's around 37°N 3°E.” from Lisbon. A second
+     line follows: raw 131, “It's known for its %s.”, with the port's
+     specialty goods (metadata `+0x1A`, names at `DS:0x92A`), or raw 742,
+     “You might want to visit there someday.” for a port without one. The
+     port is not marked known. If all ten tries fail, nothing is said.
+
+This command has no scenario-dispatch call, and it returns to the Pub menu
+afterward.
 
 The port's Pub drink byte selects one of 14 specialties and its price. It is
 metadata `+0x26`, the last byte of the executable's natural `0x25`-byte port
