@@ -339,6 +339,13 @@ at a line start (`0x197A1–0x197D4`). Otherwise they go at the pointer less
 y above 32; `0x197D9–0x197E9`). Either way x is at most 496, y at most 344,
 and x is drawn on a column (`0x18F5A`).
 
+Every picker, the ordinary menus (`0x194DE`), the popup, YES/NO, and the
+grid picker `FC4:0x43B1` (`0x19631`), runs the shared picker `0x1939A`, whose
+input wait `0x1921F` moves the cursor with the pointer only after a left press
+and while the button stays down (`0x18698` returning `0x0D`, then `0x18800`
+until `0:0x4E52` reports the release); the pointer alone never moves it. List
+windows do the same in their own loop (`0x1A9B0–0x1A9F0`).
+
 The question sets YES as the choice (`DS:0xA568` = 0, `0x1978E`) and runs the
 shared picker `0x1939A` over the two hit boxes. Its cursor (`0x18704`) is
 colour 7 XORed over the chosen hit box only (blit mode `0x107`), not the whole

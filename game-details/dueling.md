@@ -402,7 +402,8 @@ Timings are in timer units of `0:57BE`.
    its new pos, the attacker walking (frames 0, 1) and the defender on frame 2,
    8 rows up on odd steps, wait 4 each. Then the defender shows frame 3 and the
    attacker frame 0 for four more steps of 4. The damage blinks: "-n" on even
-   steps, blank on odd ones, for steps 0–7.
+   steps, blank on odd ones, for steps 0–7. Then both stand again in the rest
+   stance on frame 0 (`0x175A3`), as after a negated strike.
 5. **Knock-out (`0x172B9`).** At 0 or 200 the window steps 7 cells past its end
    with the winner walking and the loser on frame 2, lifted by 0, 8, 8, 8 rows
    and lowered by 8, 8, 8 (wait 4 each). Then the loser shows frame 3, and the
@@ -414,7 +415,9 @@ Timings are in timer units of `0:57BE`.
 
 In a naval battle (`0x17FFB`) the opponent is remembered in `DS:0xA0A6`, and
 the balance is reset to 100 only for a new opponent, so a timed-out duel
-resumes. The challenger is the attacking ship's captain. After the duel
+resumes. Each battle's setup (`0x15099`) sets the balance back to 100 and the
+remembered opponent to 0 at its end (`0x15142`), so this lasts one battle
+only. The challenger is the attacking ship's captain. After the duel
 (`0x17ECF`), a win clears the turn box and shows message 83, "We defeated the
 opponent.", with the caret; it gives the protagonist 10 × the opponent's
 Battle Level in battle experience, and a loss or time-out 3 ×, through the

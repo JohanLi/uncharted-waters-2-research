@@ -141,11 +141,18 @@ LFO starts from the free-running count, so which of the two pitches comes
 first is arbitrary. The note holds until `0xED46` cuts it after the third
 pass of frames.
 
+## Duels
+
+The exchange animation (`0x175C0`) plays one effect after drawing its fourth
+frame (frame index 3, `0x17726`): voice `DS:0x0D5A` when the hit does damage,
+`DS:0x0D44` when it is negated (`0x1772B–0x17737`), both with note `0x30`
+(`0x1773B–0x17742`). Nothing cuts the note off; the next effect replaces it.
+
 ## Other effects
 
 | Voice       | Note   | Calls                                                    |
 | ----------- | ------ | -------------------------------------------------------- |
-| `DS:0x0D5A` | `0x30` | `0x1773B` (or `DS:0x0D44`, chosen just before), duels     |
+| `DS:0x0D5A` | `0x30` | `0x1773B` (or `DS:0x0D44`, chosen just before), [duels](#duels) |
 | `DS:0x0D9C` | `0x3C` | `0x3A6CC`, `0x3A6F2`: discoveries ([At sea](at-sea.md))   |
 | `DS:0x0DB2` | `0x3C` | `0x20F51`                                                |
 | `DS:0x0DC8` | `0x30` | `0x369DE`, `0x36A03`                                     |

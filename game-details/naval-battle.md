@@ -58,7 +58,9 @@ candidate must be a convoy or voyaging fleet (position 5–9 of its block,
 candidate of the defender's nation supports the defender (message 779,
 “%s %s will support the defending side.”), and the first of the attacker's
 nation supports the attacker (message 780); the two `%s` are the supporting
-commodore's first and last names, shown in a plain message window. A nation
+commodore's first and last names, shown in the fixed window at (160, 128),
+30 columns × 96, that message 781 uses (`0x16372–0x16382`,
+`0x163AC–0x163BC`). A nation
 here is the commander's fleet ID divided by 10, the protagonist's included
 (`0x16368`, `0x163A2`): Relations and the alliance flag are not read,
 so an allied nation's fleet never joins either side. A candidate of the
@@ -98,11 +100,15 @@ The battle draws into the 640 × 400 area (`0x572E` adds 40 lines). The left
 416 pixels show 13 × 12 hexes of the 52 × 48 map (`0x11345`); the view's top
 left is `DS:0xA069`/`0xA06A`. Terrain is a plain grid of 32 × 32 tiles,
 `HDAT.PUT + 0x200 × t` for map byte `DS:0x928E + 52 × row + col` & `0x1F`,
-400 lines tall (`0x1160B`). Ships, markers, and hit boxes sit in hex cells:
+400 lines tall (`0x1160B`); the half row below the view reads map row
+`min(row + 1, 47)` (`0x11711–0x11752`, the unsigned min `0xA154`), so with the
+view at the bottom the last row's top half is drawn again. Ships, markers, and hit boxes sit in hex cells:
 x = 32 × (col − `A069`), y = 32 × (row − `A06A`), plus 16 in odd columns
 (`0x113D5`, `0x11203`, `0x10DDE`).
 
-The right side is `GRAPH.DAT` record 26 at (416, 0) (`0x11974`), then
+The right side is `GRAPH.DAT` record 26 at (416, 0) (`0x11974`), drawn
+under the battle palette, so its index-10 and index-13 pixels show
+`#A26100` and `#007161`, not the Info palette's `#D37141` and `#715161`; then
 (`0x1196B`):
 
 - the mini-map, a colour-5 box at (424, 8), 208 × 192, with land cells as
@@ -176,11 +182,14 @@ Kind 1 takes its colour from `cx` (`0x11262`, blit mode `cx | 0x400` at
 `0x112B1`). The plotter (`0xFB7A`) does not set it for the call at `0xFC0A`:
 the `mov cx, 0x34` at `0xFBCB` is the map width for the `imul` that follows,
 and the far call `2DFF:0x843F` at `0xFBD8` comes between, so the colour is
-whatever that call leaves in `cx`. The picker cursor XORs colour 7 over the
-chosen cell's palette indices (`0x18704`, blit mode 1), so every colour in it
-becomes its index XOR 7. The cannonball is redrawn only when it enters another
-8 × 8 cell (`0x11DA2–0x11DEB`). Enter or the left button chooses;
-Esc, `0`, or the right button cancels (`0x1939A`, `0x18698`).
+whatever that call leaves in `cx`.
+
+Every map picker (Attack, Order and its Target, Other Ships) starts its
+cursor on the acting ship's hex (`0x10E64`, from `DS:0xA04A`), never on a
+target, and draws it before reading input (`0x193C7`). The cursor XORs
+colour 7 over the chosen cell's palette indices (`0x18704`, blit mode 1), so
+every colour in it becomes its index XOR 7. Enter or the left button
+chooses; Esc, `0`, or the right button cancels (`0x1939A`, `0x18698`).
 
 ### The battle menu
 
@@ -225,8 +234,15 @@ routine `0xFB7A` returns 0, `0xFD6D–0xFD74`), it finishes at once. “Is it OK
 starts over. The ship then moves one hex per step, 8 timer units each
 (`0xF76D`). With no steps, “In what direction should we set our sails?” (769)
 lets the ship turn 60° on the spot (`0xFF26`), which empties its turn charge.
-The attack prompt follows, and the turn ends whether or not a target is
-chosen.
+Only the two neighbours on the map are marked (`0x12A8A`), with the targets
+from where the ship lies (`0xFFFE` → `0xFB7A` → `0xF892`); unmarked hexes are
+ignored (`0x10EE6`), and cancelling or picking the ship's own hex goes back to
+the menu (`0x10019`). The turned ship is redrawn and the game waits 8 units
+(`0x1002B` → `0x119F6`). The confirmation (768) keeps the last plotting view
+on screen: `0xFEC8` calls `0xFB7A` again, which redraws the marks still in
+the marker array from the last `0x12FE1` pass, the step arrows, and the
+targets from the course's end. The attack prompt follows, and after a move
+or turn the turn ends whether or not a target is chosen.
 
 The battle's questions (768, 770, 775, 776) clear the message box and print
 there in colour 7 (`DS:0xA132`); their YES/NO buttons go through `0x11168`,
@@ -239,7 +255,9 @@ the pointer afterwards ([Ports](ports.md#text-and-font)).
 (`0x13D04`), after the duel question “Will you challenge the enemy commodore
 to a duel?” (770) if it is the first ship of an enemy side. When the duel's
 crew test fails, “The enemy's crew has blocked your attempt.” (771) is shown
-and the ship is boarded.
+and the ship is boarded. Cancelling the target pick returns 0 (`0x10122`), and
+from the menu that sends the menu back (`0x10DD1`); only after a move or turn
+does the turn end anyway (`0x1019C–0x101A0`).
 
 **Info** (`DS:0x9170`) offers the entries below. Before it opens, `0x1061B`
 disables Other Ships when no ship of another side is in view with crew and
@@ -253,8 +271,17 @@ after the flagship has them (`DS:0xA554` bits `0x20` and `0x40`).
 | Own Ships   | `0x10248` | a list of the player's ships still in the battle, then Ship Info `FC4:0xC1D5` at column 6, with the Info palette `DS:0xAB6E`       |
 | Other Fleet | `0x102C5` | the Fleet Info screen of a commander of any other side, allies included; with one, at once, else after a list                      |
 | Other Mates | `0x1032C` | the same commanders, then their Mate Info card                                                                                     |
-| Other Ships | `0x103A4` | every ship of the other sides in view, not left, marked with kind 2 (`0xFAE6`; none, and nothing happens); one picked on the map (`0x110FB`, unmarked hexes ignored), then its card `FC4:0xC6D2` under the Info palette; repeated until the pick is cancelled |
+| Other Ships | `0x103A4` | every ship of the other sides in view, not left, marked with kind 2 (`0xFAE6`, which tests only the left bit `+0x0C & 0x40` and the view, so sunk and crewless ships' hexes are marked too; none, and nothing happens); one picked on the map (`0x110FB`, unmarked hexes ignored, and a sunk ship's hex too, its fleet slot being empty), then its card `FC4:0xC6D2` under the Info palette; repeated until the pick is cancelled |
 | Order List  | `0x1052E` | a window over the map (`0xC67B`: x 0, y 32, 52 columns, `24n + 32` tall) with, per ship of the player's side still in the battle, its slot number and name in blue (message 1378) at x 8, then “Flagship” (1379) at x 144, or from x 128 its Tactic, Method, and Target strings |
+
+Own Ships and Other Ships change the whole screen's palette around their
+cards (`0x10271–0x102AA`, `0x103FB–0x10460`): the shimmer is unhooked
+(`0x16D13`), the palette fades from the battle palette to the Info palette
+(`0xEDBC` loads it, `0xEEA7` fades), the card waits for a key, then the map is
+redrawn without it (`0x119ED`) and the palette fades back to `DS:0xA0F0` with
+the shimmer hooked again (`0x111BE`). Each fade step (`0xEDD7`) moves every
+4-bit component of the 16 entries one level toward the target, sets the
+palette and waits 1 unit, until no component moves (`0xEE8D`).
 
 The other ship's card (`FC4:0xC6D2`) is a window at column 6, y 32, 43
 columns × 336, with the model's picture at (64, 48), a colour-2 strip at
@@ -281,22 +308,33 @@ name (message 1378), then “Flagship” (1379) or its Tactic, Method, and Targe
 
 ### Plan and Order
 
-**Plan** (`0x1077B`) shows the flagship's three settings at (432, 368) in
-colour 6, Fight/Flee (bit `0x08`), Fanout/Pack (`0x04`), and Defend/Chase
-(`0x01`), with hit boxes 56 pixels apart from x 440. Choosing one toggles it;
+**Plan** (`0x1077B`) shows three settings, Fight/Flee (bit `0x08`),
+Fanout/Pack (`0x04`), and Defend/Chase (`0x01`), from the strings at
+`DS:0x918C`, which start with a space. The top row, at (432, 336) in colour
+7, holds the settings as they were on entry and is never redrawn
+(`0x10787–0x1079A`); arrows follow at column 57, y 352; the bottom row, at
+(432, 368) in colour 6, holds the current settings and is redrawn after each
+toggle (`0x1083E–0x1085C`). The hit boxes are 48 × 16, 56 pixels apart from
+x 440, picked with the grid picker (`FC4:0x43B1`, flags 1), whose cursor
+starts on the first box every time (`0x19606–0x1960C`) and is colour 7 XORed
+over the box (`0x18704`). Choosing one toggles it;
 on leaving, every other ship's orders become
 `(orders & 0xF0) | (flags & 0x0D) | ((flags & 1) << 1)`, so Chase also sets
 Attack.
 
 **Order** (`0x10BAA`) marks the player's other ships in view and asks “Give
 orders to which ship?” (773), then lists (`0x10939`), labels in colour 7 at
-x 432 and values in colour 6:
+x 432 and values in colour 6, picked with the same grid picker over 128 × 16
+boxes at x 496; cancelling the panel goes back to the ship pick, and only
+cancelling the ship pick returns to the menu (`0x10BAA–0x10BBB`):
 
 - Tactic at y 336: Attack or Escape (bit `0x02`); choosing it toggles bit
   `0x02` and sets bit `0x01` to match;
 - Method at y 352: Fire or Rush (bit `0x10`);
 - Target at y 368: Delegate without bit `0x80`; with it, Support or Enemy
-  followed by “Flagship” or “No. n” (unit `+0x06`). Choosing Target without
+  followed by “Flagship” or “No. n” (unit `+0x06`). Support is shown when
+  the target's unit byte `+0x0D` has bit `0x20` (sides 2 and 3, the assisting
+  fleets), Enemy otherwise (`0x109EE`; the Order List's `0x104EA` likewise). Choosing Target without
   one marks the enemies and asks “Select your target.” (774); with one it is
   cleared.
 
@@ -306,9 +344,9 @@ Combat prints no messages; the map, the mini-map, and the flagship panel
 show the results.
 
 - **Cannon fire** (`0x121B0`): when either ship is in view, an 8 × 8 ball
-  (`HDAT.PUT 0x7B60`) flies from the firing ship to the target one pixel per
-  timer unit along an arc up to 12 pixels above the straight line
-  (`0x11C38`). When the target is in view, its hex then shows three groups of
+  (`HDAT.PUT 0x7B60`) flies from the firing ship to the target (see
+  [The cannonball's flight](#the-cannonballs-flight)). When the target is in
+  view, its hex then shows three groups of
   four 8-unit frames of the 32 × 32 explosion (`0x6E40 + 0x280 × f`) and the
   16 × 20 splash (`0x7840 + 0xC8 × f`, 12 pixels down and, when
   `random(2)` is 0, 16 to the right); the middle group shows only the splash
@@ -323,8 +361,51 @@ show the results.
   silenced after the last (`0x1278B`).
 - **Sinking** erases the ship's hex and mini-map dot (`0x13A21`,
   `0x11ADF`).
-- After each ship's turn the game redraws the flagship panel and waits 8
-  units (`0x151C9`, `0x151CC`).
+- After each listed ship, its turn played or skipped, the game redraws the
+  flagship panel and waits 8 units (`0x151C9`, `0x151CC`). The panel,
+  clock included (`0x117E1`, `0x11881–0x118BD`), is drawn only there and in
+  the full redraw after the full-screen views (`0x101EB` → `0x1196B`), so the
+  clock changes only after the first ship of a new turn, and damage shows
+  once the ship's turn is over.
+
+#### The cannonball's flight
+
+The flight (`0x11C40–0x121AF`) works in map pixels. A hex's corner is
+(32 × column, 32 × row, plus 16 in odd columns), and the ball goes from the
+firing ship's corner (`DS:0xA03C`) to the target's.
+
+1. **The axis.** With `dx` and `dy` the distances between the corners, the
+   ball steps along x when `dy ≤ dx` (`0x11D0F`), along y otherwise
+   (`0x11F51`). `d` is the distance on that axis and `e` the other.
+2. **The constants**, with unsigned long divisions (`0x18E8A`):
+   `fall = 57600 / d²` and `lift = 28800 / d`. The slope is
+   `±600 × e / d` (signed, truncated, `0x18D8C` and `0x18CF2`), positive when
+   the target is further down (x steps) or further right (y steps).
+3. **Each step.** The other coordinate is kept × 600, starting at the
+   corner's. Each step subtracts `fall` from `lift`, then adds `slope − lift`
+   to the scaled coordinate and divides it by 600, unsigned, to a 16-bit
+   coordinate. Then the game waits 1 unit (`0xADBE`) and the stepping
+   coordinate moves 1 pixel toward the target. The flight ends when that
+   coordinate reaches the target's.
+
+   Because `lift` starts positive and falls, the ball bows away from the
+   straight line, about 12 pixels at the midpoint. It bows upward on x steps
+   and to the left on y steps, since the same formula is applied to x. The
+   truncated `fall` can leave it a few pixels short of the line at the end,
+   6 pixels high over 160 pixels.
+4. **Drawing** (`0x11DA2–0x11F04`). The ball's cell is (x / 8, y / 8). A
+   cell is in view when (x / 32, y / 32) lies in the 13 × 12 view
+   (`0x11345`).
+   - A drawn ball is erased (`0x11B29`) when it is in another cell than the
+     one it was drawn in.
+   - An undrawn ball is drawn when its cell is in view and differs from the
+     last one drawn, so the first is drawn only once it leaves its starting
+     cell. The background under it is saved (`0xA498`), and the ball is
+     blitted with its mask (`HDAT.PUT 0x7B60`, image `0x7B68`) at its x
+     column (x / 8 × 8) and exact y, 8 pixels right of and below its
+     position. Within the firing ship's hex (x + 8 and y + 8 inside its 32 ×
+     32 box) only the background is saved, so the ball stays hidden there.
+   - At the end a drawn ball stays 1 more unit, then is erased (`0x12182`).
 
 ## Map, turns, and movement
 
@@ -391,7 +472,9 @@ attacking assisting fleet, defending assisting fleet (side records
 `DS:0x9C5A`, `0x9C62`, `0x9C6A`, `0x9C72`). A turn has ten rounds; in each
 round every fleet moves its next ship, starting with its flagship
 (`0x151D8`). Sunk ships, ships without crew, and ships that have left the
-battle are skipped (`0x15158`). Each turn advances the clock by one tick of 20
+battle are skipped (`0x15158`), but still cost the panel redraw and the
+8-unit wait (`0x1517C–0x15196` → `0x151B9`); only an empty slot skips it
+(`0x1516E` → `0x151D4`). Each turn advances the clock by one tick of 20
 minutes. The clock test comes before each turn (`0x151DA` jumps to
 `0x1522B`). A turn runs only the ships' moves, so no supplies are used and no
 other fleet, weather, or day processing happens during a battle (`0x15227`).
@@ -629,7 +712,8 @@ ship whose crew reaches 0 is handled by `0x13A63` instead, which marks its
 square on the battle map as an obstacle (keeping the terrain bits 0–4,
 clearing the ship flags, and setting `0x80`; `0x13A98–0x13AA4`) but leaves
 the fleet slot intact, so the ship stays
-in its fleet. From then on the turn loop skips it, as it skips a sunk ship
+in its fleet. Like sinking and leaving, it clears the Target order of every
+ship aimed at it (`0x13ACE` → `0x13959`). From then on the turn loop skips it, as it skips a sunk ship
 (`0x1517C–0x15196`), so it cannot move or attack for the rest of the battle.
 A player ship left this way keeps its place in the fleet, and crew can be
 moved to it afterwards.
@@ -675,8 +759,13 @@ Each ending shows a 192 × 128 `GRAPH.DAT` picture at (120, 32) (`0x15A56` →
 
 Message 1017 takes the month, day, and year, the protagonist's names, and
 “her” or “his” (`DS:0xA19F` / `0xA1A3`, by protagonist 1); defeat then sets
-end state `0x1A`. A victory plays track `0x15`, then `0x11` once the message
-is acknowledged; defeat plays `0x14`. The screen is never cleared between the
+end state `0x1A`. A victory plays track `0x15` once, not looping (driver
+function 4 with `al = 0`, `0x15B48`), then `0x11` once the message is
+acknowledged; defeat plays `0x14`. After defeat the screen fades to black
+(`0x15DCB` → `0:0xBBEA`) and the return to sea is skipped (`0x16101`,
+`0x1646F`), so the epilogue follows on a black screen with `0x14` still
+playing. Otherwise the sea is restored (`0:0x8276`) after a fade to black,
+with the protagonist's theme (`0xD95C–0xD963`), and fades in. The screen is never cleared between the
 ending's steps, so a victory's picture stays behind the spoils.
 
 After the ending, the battle's end sequence (`0x16040–0x16185`) treats the
@@ -722,6 +811,9 @@ has a 1-in-3 chance of being reused for a new generic sailor
 ([Sailors](sailors.md#temporary-vagabonds)), so such a captain can disappear
 for good.
 
+After these checks every fleet in the battle, the player's included, has its strength byte
+`+0x28` recounted (`0x16134` → `0x1D40F`).
+
 An enemy flagship that fled (code 2) or survived to nightfall (code 1) keeps its
 fleet, provided its captain has that bit. Scenario scripts test “the opponent's
 fleet byte is `0xFF`” to tell a real victory from an escape.
@@ -745,6 +837,22 @@ roll and whatever its speed (`0x139A4`). The player's flagship does so with
 the **Escape** command, which asks “Are you sure you want to flee?” (message 776) and is available only on an edge hex (`0x10C20`). If a main fleet's
 flagship leaves, the battle ends at once: code 3 for the player, 2 for the
 enemy (`0xF7F4`).
+
+A computer ship on Flee that reaches an edge leaves through `0xF265`, which
+calls `0x139A4` and returns without setting the destination `DS:0xA03E`
+(`0xF29D–0xF2A4` → `0xF345`). That variable still holds the last destination
+set: every computer ship's plan sets it (`0xF343`, `0xF477`, `0xF5D7`,
+`0xF6CA`), and so does the player's confirmed course, with its end hex
+(`0xFF03`). The turn goes on as usual (`0xF881`, `0xF886`): the path
+(`0x138F7`) runs from the departed ship to that hex, and `0xF76D` sails it,
+up to 10 steps. Each step (`0x119F6`) moves the ship, redraws its old hex,
+skips drawing the ship and its mini-map dot because it has left (`0x11556`,
+`0x11389`), and waits 8 units, so the player sees the battle pause for a few
+steps after a ship flees. When the departed ship lies on that hex, it takes
+one step in place (`0x13936`) and waits 8 units once; with no course to it,
+nothing happens. The step also moves the map's ship bits from the old hex,
+already cleared, to the new one, which the path keeps to open water, so the
+map is unchanged.
 
 ### Nightfall
 
@@ -819,7 +927,8 @@ Commodore, they're no match for us.” (821) when
 `floor(3 × player strength / 2)` is at least the enemy's, otherwise
 “Commodore, I think we're in big trouble.” (820) (`0x14EA0`). With no mate
 holding any of those duties, the speaker is the last mate on the roster. The
-game then offers **Fight**, **Flee**, or **Surrender** (menu 54).
+game then offers **Fight**, **Flee**, or **Surrender** (menu 54) with the
+mate's window still open; it closes after the choice (`0x14EE0`).
 
 **Flee** succeeds when the protagonist's own Luck plus Navigation Level is
 greater than `random(150)` (`0x14EF6–0x14F0E`), “We managed to escape!”
@@ -840,7 +949,8 @@ the enemy commodore speaks:
 
 Water, food, lumber, and shot are never taken. After a surrender the enemy
 fleet heads back to its home port, unless it is a story fleet (fleet flag
-`0x40`, which scenario scripts set) or is pursuing someone (`0x15C9F`).
+`0x40`, which scenario scripts set) or its objective is 7
+(`0x15C98–0x15CB5`).
 
 When the dialogue ends the battle (an accepted offer, a successful flight, or
 a surrender), the pre-battle routine returns −1 at once (`0x15102`), so the
@@ -863,7 +973,9 @@ base were already taken, so the ship still counts in them.
 
 After code 3 or 9, each of the player's other ships whose captain has Loyalty
 below 40 is lost with its captain, “Commodore, I don't see %s's ship
-anywhere.” (message 791), as in the
+anywhere.” (message 791, with the captain's last name), spoken with portrait
+by the spokesman in the First Mate's duty order (`0x15D3A`), and the captain
+is dismissed (`0x13EE5`) as in the
 [battle-start withdrawal](sailors.md#mate-loyalty) (`0x15D0F–0x15D5B`).
 
 ### Cancelled battles
@@ -990,11 +1102,17 @@ announced and the cargo follows. Otherwise, while `K` is above 0:
    which for a computer fleet is the model's name.
 3. Cancelling the list asks “Is this OK?” (559) in the same window; Yes ends
    capturing, No shows the message and list again (`0x158A7`).
-4. Choosing a ship shows its card and a yes/no. The routine saves the area
-   at (96, 128), 384 × 176, fills it with colour 8 and (104, 136), 368 × 160,
-   with colour 15 (`0x15803–0x1584F`), then calls the ship card
-   `1E5F:0xD289` (file `0x30E79`) in mode 3; see
-   [the ship card](#the-ship-card). No returns to the list. Yes captures it (`0x15361`) with the first free
+4. Choosing a ship shows its card and a yes/no. The shimmer is unhooked
+   (`0x157F5`, `0:0x1713`) and the palette fades to the Info palette
+   (`0x157FA–0x15803`: `DS:0xAB6E`, `0:0x97BC`, `0:0x98A7`), as around
+   [Own Ships and Other Ships](#the-battle-menu), so colour 15 is the Info
+   palette's fixed blue. The routine saves the area at (96, 128), 384 × 176,
+   fills it with colour 8 and (104, 136), 368 × 160, with colour 15
+   (`0x15803–0x1584F`), then calls the ship card `1E5F:0xD289` (file
+   `0x30E79`) in mode 3; see [the ship card](#the-ship-card). After the
+   yes/no (`0x19769`) the window closes and the palette fades back to the
+   battle palette with the shimmer hooked again (`0x15870`, `0:0xBBBE`),
+   before any ship is named. No returns to the list. Yes captures it (`0x15361`) with the first free
    captain, removes it from the candidates, lowers `K`, and loops.
 
 A captured ship (`0x15361`) takes the first player slot that is neither
@@ -1282,7 +1400,11 @@ its broadside arc; of several such courses the last one found, trying left,
 straight, then right at each step, wins. Otherwise it takes the course with
 the fewest turns, the first found on ties. A ship that stays in its hex only turns in place,
 to the recorded facing or else toward its target (`0x137F5`); this costs no
-points and does not empty the turn charge (`0xF7AD`). It then attacks once
+points and does not empty the turn charge (`0xF7AD`). When the destination
+is its own hex, the path holds that one facing (`0x13936`), and `0xF76D`
+sails it as a step with argument 0: the ship is redrawn and the game waits 8
+units even when the facing is unchanged, and the turn charge grows to
+`min(100, charge + turn rate)` (`0xF7BB–0xF7DB`). It then attacks once
 when its hex recorded a facing: its own target if the player set one,
 otherwise the first enemy it can attack in list order, starting with that
 fleet's flagship (`0x13EC8`, `0x13E53`), with Fire or Rush deciding between
