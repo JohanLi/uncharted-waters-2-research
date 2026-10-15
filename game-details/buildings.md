@@ -1560,12 +1560,17 @@ y 48 and cannot be cancelled (`0x34A79`).
 
 **Dice** (`0x35FF9`, windows `0x34EC5`): three style-2 windows: (16, 0) and
 (320, 128), 38 columns by 128, and (16, 256), 58 columns by 144. The faces
-are at (32, 16), (544, 144) and (32, 288). Each round clears the text areas
+are at (32, 16), (544, 144) and (32, 288), and the windows open with nothing
+else in them, so 1001 and 1002 are shown without dice strips, numbers or
+gold. Each round, before Stakes, the gold lines and 962 “Place yer bet”
+(`0x35B76`), clears the text areas
 and draws a black strip 25 columns by 36 behind each hand, at (104, 60),
 (336, 188) and (104, 332), then prints 1–5 at x 120 + 40n, y 312
-(`0x34D81`). The opponents' lines start at column 14, y 12 (margins 14–39)
-and column 43, y 140 (margins 43–68) (`0x34E0C`, `0x34E21`, `0x34E43`). The
-hand names print in colour 1 at the same places, and the player's at
+(`0x34D81`). The opponents' panels use margins 14–39 and 43–68. The opening
+and closing lines start at column 14, y 16 and column 43, y 144 (`0x34E0C`,
+`0x34E21`). During the rounds, `0x34E43` first fills a strip 25 columns by
+47 with colour 7 at y 12 or y 140, then starts the line there. The
+hand names print in colour 1 at those places, and the player's at
 column 14, y 268 (`0x35B3A`, `0x35DCC`). A throw (`0x3576D`) gives each
 unheld die `random(6)` and draws it (`0x34F4A`), waiting 20 units after each
 die (`0:0x57BE`). From the second throw on, every unheld die is first blacked
@@ -1586,6 +1591,32 @@ rectangles in colour 4, 2 to 5 pixels outside the chosen box
 (`0x35913–0x35932`), so the cursor goes back to die 1 each time. Each choice
 toggles that die between free and held (`0x34F78`) until Esc. Held dice then become fixed for the rest of the turn (state 2,
 `0x35934`).
+
+The lines stay on screen until something clears them. 1001 stays up while
+1002 waits with the ▽ (`0x36042–0x36050`); the round's start clears both
+(`0x34D81`). The betting talk (`0x3598B`) is said in pairs. 985 goes in the
+proposer's panel, then `0x34E43` selects and clears the answerer's (which
+held 962) before YES/NO. 986/987, 991/992, 988/987, 989/990 or, with no
+proposal, 993/994 then go in the answerer's and the proposer's panels one
+after the other. A single wait follows without the ▽ (`FC4:0x3445`,
+`0x35B30`). Each opponent's line stays until his throw begins with
+`0x34E43` (`0x35D14`, `0x35D57`). The round's result (`0x35DEE–0x35F6B`) is
+printed under the winner's hand name, which stays. It starts at column 14,
+y 28 with margins 14–59, or column 43, y 156 with margins 43–68, with 16
+pixels a line (`DS:0x87F6`). 998 carries its own line break. The gold lines
+are then printed again with margins 14–59 (`0x35F98–0x35FEB`), so the
+following wait (`0x36060`) puts its ▽ at (288, 380). 1005 is then asked by a
+random opponent (`random(2)`, `0x36065`) through `0x34E43`, which erases
+his hand name and result line. The other panel keeps its own.
+
+When the game ends, both opponents' panels are filled with colour 7 beside
+the portraits: column 12, y 8 and column 41, y 136, 27 columns by 112
+(`0x34D2A`, `0x34D47`). This removes their dice, holds and hand names.
+Below 10 gold (`0x360A6`), this happens before 1003 and 1004. After No to
+1005 (`0x360CF`), it happens before 1006–1009, and also when neither line
+follows. The two lines go in the two panels one after the other, and a
+single message wait follows (`FC4:0x4638`). The wait's ▽ is centred between
+the margins of the second panel, a line below its text.
 
 ##### Odds
 
