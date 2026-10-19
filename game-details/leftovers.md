@@ -53,7 +53,8 @@ The game opens `GRAPH.DAT` (the `C:GRAPH.DAT` string at `DS:0x0C10`) into
 the handle at `DS:0x05D8` (`0x1B1A0`, `0x1C693`, `0x1C6E2`, `0x379DA`). Only
 two routines read that handle: a byte-stream reader (`0xAE69`) and the record
 drawer `0xAEB7` (`0000:58B7`), which takes `ax` = x, `dx` = y, and `bx` =
-record. All 32 calls to `0xAEB7` were traced:
+record. How a record is stored and drawn is in [Pictures](pictures.md). All
+32 calls to `0xAEB7` were traced:
 
 | Record(s) | How the record is chosen                                                                                                                                        |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
