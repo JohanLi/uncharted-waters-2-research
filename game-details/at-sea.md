@@ -633,6 +633,51 @@ large tile names four regular tiles through the table in `DATA1.018`. Large
 tiles `0x00`–`0x0F` are not in that table: their four bits mark which quarters
 are land.
 
+### How a block is stored
+
+The first step of the window builder, `0x282AA`, reads the blocks
+(`0x282BB–0x283CB`). Each part opens with 1,350 little-endian 16-bit offsets,
+one per block in row order, counted from the end of that 2,700-byte table
+(`0x282C0–0x282DD`). A block starts with one byte:
+
+- **Bit 7** set means the block is its template unchanged (`0x282FE`).
+- **The low seven bits** are `0x78` plus a template number. The template is
+  read from `DS:0x6C94 + value × 144` (`0x28312–0x28317`), which for `0x78`
+  onward is `DS:0xB014 + 144 × template`. A value below `0x78` makes the game
+  skip the block and leave that part of the window as it was (`0x2830A`).
+
+When bit 7 is clear, an 18-byte mask follows, one bit per large tile in row
+order, starting from the most significant bit (`0x2833C–0x2835C`). Then comes
+one byte for each set bit: the large tile that replaces the template's
+(`0x2838E–0x283A7`).
+
+`MAIN.EXE` holds six templates of 12 × 12 large tiles, using `0x0F` (all four
+quarters land) and `0x00` (sea):
+
+| Byte   | Template | `DS:`    | Land              |
+| ------ | -------: | -------- | ----------------- |
+| `0x78` |        0 | `0xB014` | Left six columns  |
+| `0x79` |        1 | `0xB0A4` | Right six columns |
+| `0x7A` |        2 | `0xB134` | Top six rows      |
+| `0x7B` |        3 | `0xB1C4` | Bottom six rows   |
+| `0x7C` |        4 | `0xB254` | All               |
+| `0x7D` |        5 | `0xB2E4` | None (all sea)    |
+
+The code does not check the template number. A value of `0x7E` or `0x7F`
+would read the tables and message strings that follow `DS:0xB374` as terrain.
+The three parts' 4,050 blocks use only these bytes:
+
+| First byte    | Blocks |
+| ------------- | -----: |
+| `0x78`–`0x7B` |    335 |
+| `0x7C`        |    503 |
+| `0x7D`        |    458 |
+| `0xFC`        |    653 |
+| `0xFD`        |  2,101 |
+
+So every half-land block has corrections, and 2,754 blocks are a whole-land
+or whole-sea template with nothing to change.
+
 ### The window around the fleet
 
 The game never builds a whole part. When the fleet enters a new block, the
@@ -704,10 +749,10 @@ tile, two blocks by two, through `0x22A7E`. For modes 0 and 1 each block is
 taken from the middle of its own 3 × 3 window, so the window edges never show.
 The mode argument selects the source:
 
-| Mode | Used by                  | Source                                                                                                                                |
-| ---: | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-|    0 | Chart (`0x22E10`)        | `0x284F9`, as at sea; a block not yet charted is left blank                                                                           |
-|    1 | Treasure map (`0x2308C`) | `0x286A6`, below                                                                                                                      |
+| Mode | Used by                     | Source                                                                                                                                |
+| ---: | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+|    0 | Chart (`0x22E10`)           | `0x284F9`, as at sea; a block not yet charted is left blank                                                                           |
+|    1 | Treasure map (`0x2308C`)    | `0x286A6`, below                                                                                                                      |
 |    2 | Port Map (`0x232CF`, below) | no loader: the tiles already in the view buffer. The command is offered only in port (disabled when `DS:0x0E32` is `0xFF`, `0x265C8`) |
 
 The Port Map fades out first (`0x232D8`), draws while black, and fades in to
@@ -1913,8 +1958,9 @@ None remain.
 - `MAIN.EXE 0x1BA38`, `0x37661–0x376E7`, `0x26C63`, `DS:0xAFD0`: sea-view
   window, scrolling, and the Scroll Range option; `DATA1.015` offset `0x05`:
   its new-game value.
-- `MAIN.EXE 0xBE5A`, `0x284F9`, `0x282AA`, `0x277C0`, `0x281F6`, `0x2824F`;
-  `DATA1.010`, `DATA1.018`, `WORLDMAP.000`–`002`: the sea map.
+- `MAIN.EXE 0xBE5A`, `0x284F9`, `0x282AA`, `0x282BB–0x283CB`, `0x277C0`,
+  `0x281F6`, `0x2824F`; `DS:0xB014`–`0xB373`; `DATA1.010`, `DATA1.018`,
+  `WORLDMAP.000`–`002`: the sea map and its block templates.
 - `MAIN.EXE 0x22A7E`, `0x22B1A–0x22B8F`, `0x286A6`, `0x265E9`: Chart, Port Map,
   and treasure-map views.
 - `MAIN.EXE 0x1B90A`, `0x1BADA`, `0xBF04–0xBFD6`, `0xC0C1–0xC180`,

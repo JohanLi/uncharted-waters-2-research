@@ -68,6 +68,20 @@ test("block templates retain the legacy land quadrants", () => {
     createBlockTemplate(5).filter((value) => value === 15).length,
     0,
   );
+  assert.throws(() => createBlockTemplate(6), RangeError);
+});
+
+test("block templates match the six in MAIN.EXE", async () => {
+  const exe = await readFile(join(rawDirectory, "MAIN.EXE"));
+  const dataSegment = exe.readUInt16LE(8) * 16 + 0x3657 * 16;
+  for (let number = 0; number < 6; number += 1) {
+    const start = dataSegment + 0xb014 + number * 144;
+    assert.deepEqual(
+      createBlockTemplate(number),
+      new Uint8Array(exe.subarray(start, start + 144)),
+      `template ${number}`,
+    );
+  }
 });
 
 test("climate bands follow 24-row blocks", () => {
